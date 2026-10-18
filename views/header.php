@@ -23,7 +23,15 @@ declare(strict_types=1);
             <line x1="3" y1="18" x2="21" y2="18"/>
         </svg>
     </button>
-    <h2 class="nu-page-title" id="pageTitle">Dashboard</h2>
+    <?php
+    require_once NU_ROOT . '/core/AppVersion.php';
+    ?>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <h2 class="nu-page-title" id="pageTitle" style="margin:0;">Dashboard</h2>
+        <span class="version-badge" title="Released: <?= h(AppVersion::get('released_at')) ?>" style="font-size: 10px; font-weight: 700; color: var(--text-muted); background: var(--bg-subtle, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); padding: 2px 8px; border-radius: 9999px;">
+            <?= h(AppVersion::get('full')) ?>
+        </span>
+    </div>
     <div class="nu-header-actions">
         <?php if ($isLoggedIn): ?>
         <?php
