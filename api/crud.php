@@ -33,6 +33,18 @@ if (file_exists(__DIR__ . '/../core/Auth.php')) {
     require_once __DIR__ . '/../core/Auth.php';
 }
 
+$auth = NuAuth::getInstance();
+$auth->requireAuth();
+
+$reqTable = $_REQUEST['table'] ?? $_REQUEST['t'] ?? '';
+if ($reqTable !== '' && str_starts_with(strtolower((string)$reqTable), 'nu_')) {
+    $currentUser = $auth->getCurrentUser();
+    $userRole = strtolower((string)($currentUser['usr_role'] ?? $_SESSION['nu_role'] ?? $_SESSION['usr_role'] ?? ''));
+    if ($userRole !== 'globeadmin') {
+        nu_json(['success' => false, 'error' => 'Direct CRUD access to core system metadata tables is restricted.'], 403);
+    }
+}
+
 /**
  * nu_db() - always uses NuDatabase singleton, never static call.
  */

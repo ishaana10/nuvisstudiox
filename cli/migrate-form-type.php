@@ -1,9 +1,10 @@
 <?php
+declare(strict_types=1);
+if (PHP_SAPI !== "cli") { http_response_code(403); exit("CLI execution only\n"); }
 /**
  * Migration: Add form_type column to nu_forms
  * Run once via browser: /api/migrate-form-type.php
  */
-declare(strict_types=1);
 require_once dirname(__DIR__) . '/core/module_bootstrap.php';
 
 $db  = NuDatabase::getInstance();
