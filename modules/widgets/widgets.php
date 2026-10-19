@@ -35,7 +35,15 @@ function wu_resolve_widgets(NuDatabase $db, int $userId, string $role, bool $isG
 
 function wu_run_sql(NuDatabase $db, string $sql, int $userId): array {
     try {
-        $sql = str_replace('{{user_id}}', (string)$userId, $sql);
+        $role = (string)($_SESSION['nu_role'] ?? '');
+        $replacements = [
+            '{{user_id}}'    => (string)$userId,
+            '{{role}}'       => $role,
+            '{{today}}'      => date('Y-m-d'),
+            '{{this_month}}' => date('Y-m-01'),
+            '{{this_year}}'  => date('Y-01-01'),
+        ];
+        $sql = strtr($sql, $replacements);
         if (!preg_match('/^\s*SELECT\b/i', $sql)) return [];
         return $db->fetchAll($sql) ?: [];
     } catch (Throwable $e) {
@@ -46,30 +54,43 @@ function wu_run_sql(NuDatabase $db, string $sql, int $userId): array {
 
 function wu_accent(string $color): string {
     switch ($color) {
-        case 'success': return '#437a22';
-        case 'warning': return '#964219';
-        case 'error':   return '#a12c7b';
-        default:        return '#01696f';
+        case 'success': return '#22c55e';
+        case 'warning': return '#f59e0b';
+        case 'error':   return '#ef4444';
+        case 'info':    return '#3b82f6';
+        default:        return '#0ea5e9';
     }
 }
 
 function wu_chart_type(string $t): string {
-    if ($t === 'chart_pie')  return 'pie';
-    if ($t === 'chart_line') return 'line';
+    if ($t === 'chart_pie')      return 'pie';
+    if ($t === 'chart_doughnut') return 'doughnut';
+    if ($t === 'chart_line')     return 'line';
+    if ($t === 'chart_area')     return 'line';
+    if ($t === 'chart_radar')    return 'radar';
+    if ($t === 'sparkline')      return 'line';
     return 'bar';
 }
 
 function wu_type_accent(string $type): string {
     switch ($type) {
-        case 'stat':       return '#01696f';
-        case 'chart_bar':  return '#006494';
-        case 'chart_line': return '#7a39bb';
-        case 'chart_pie':  return '#da7101';
-        case 'table':      return '#437a22';
-        case 'list':       return '#006494';
-        case 'progress':   return '#964219';
-        case 'custom':     return '#a12c7b';
-        default:           return '#01696f';
+        case 'stat':          return '#01696f';
+        case 'metric_trend':  return '#0ea5e9';
+        case 'sparkline':     return '#0284c7';
+        case 'chart_bar':     return '#006494';
+        case 'chart_line':    return '#7a39bb';
+        case 'chart_area':    return '#8b5cf6';
+        case 'chart_pie':     return '#da7101';
+        case 'chart_doughnut':return '#f59e0b';
+        case 'chart_radar':   return '#ec4899';
+        case 'table':         return '#437a22';
+        case 'list':          return '#006494';
+        case 'quick_actions': return '#10b981';
+        case 'activity':      return '#6366f1';
+        case 'progress':      return '#964219';
+        case 'iframe':        return '#64748b';
+        case 'custom':        return '#a12c7b';
+        default:              return '#01696f';
     }
 }
 
@@ -140,36 +161,210 @@ function wu_render(array $w, NuDatabase $db, int $userId): string {
 
             case 'chart_bar':
             case 'chart_line':
-            case 'chart_pie': {
+            case 'chart_pie':
+            case 'chart_doughnut':
+            case 'chart_area':
+            case 'chart_radar': {
                 $sql = trim($cfg['sql'] ?? '');
                 if ($sql === '') return wu_empty_hint((int)$w['widget_id']);
                 $rows = wu_run_sql($db, $sql, $userId);
-                if (isset($rows[0]['_error'])) return '<p style="color:#a12c7b;font-size:12px;">SQL error: ' . htmlspecialchars($rows[0]['_error']) . '</p>';
+                if (isset($rows[0]['_error'])) return '<p style="color:#ef4444;font-size:12px;">SQL error: ' . htmlspecialchars($rows[0]['_error']) . '</p>';
                 $ctype     = wu_chart_type($type);
                 $id        = 'wc_' . $w['widget_id'];
-                $bgColor   = ($ctype === 'pie') ? ['#01696f','#437a22','#006494','#7a39bb','#da7101','#a12c7b'] : 'rgba(1,105,111,0.75)';
+                $isPieLike = ($ctype === 'pie' || $ctype === 'doughnut');
+                $isArea    = ($type === 'chart_area');
+
+                $defaultPalette = ['#0ea5e9', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6'];
+                $bgColor = $isPieLike ? $defaultPalette : ($isArea ? 'rgba(14,165,233,0.25)' : 'rgba(14,165,233,0.75)');
+                $borderColor = $isPieLike ? '#ffffff' : '#0ea5e9';
+
+                $dataset = [
+                    'label'           => $w['widget_title'],
+                    'data'            => array_column($rows, 'value'),
+                    'backgroundColor' => $bgColor,
+                    'borderColor'     => $borderColor,
+                    'borderWidth'     => $isPieLike ? 2 : 1.5,
+                    'tension'         => 0.35,
+                    'fill'            => $isArea || ($ctype === 'line' && !empty($cfg['fill'])),
+                    'borderRadius'    => ($ctype === 'bar') ? 6 : 0,
+                ];
+
+                if ($ctype === 'doughnut') {
+                    $dataset['cutout'] = '65%';
+                }
+
+                $scales = ($isPieLike || $ctype === 'radar') ? (object)[] : [
+                    'y' => [
+                        'beginAtZero' => true,
+                        'grid'        => ['color' => 'rgba(148,163,184,0.15)'],
+                        'ticks'       => ['color' => 'var(--text-muted)'],
+                    ],
+                    'x' => [
+                        'grid'        => ['display' => false],
+                        'ticks'       => ['color' => 'var(--text-muted)'],
+                    ],
+                ];
+
                 $chartJson = json_encode([
                     'type' => $ctype,
                     'data' => [
                         'labels'   => array_column($rows, 'label'),
+                        'datasets' => [$dataset],
+                    ],
+                    'options' => [
+                        'responsive'          => true,
+                        'maintainAspectRatio' => false,
+                        'interaction'         => ['mode' => 'index', 'intersect' => false],
+                        'plugins'             => [
+                            'legend'  => [
+                                'display'  => $isPieLike || $ctype === 'radar',
+                                'position' => 'bottom',
+                                'labels'   => ['usePointStyle' => true, 'padding' => 12],
+                            ],
+                            'tooltip' => [
+                                'backgroundColor' => 'rgba(15,23,42,0.9)',
+                                'titleColor'      => '#f1f5f9',
+                                'bodyColor'       => '#e2e8f0',
+                                'padding'         => 10,
+                                'cornerRadius'    => 8,
+                            ],
+                        ],
+                        'scales'              => $scales,
+                    ],
+                ], JSON_UNESCAPED_UNICODE);
+
+                return '<div style="height:280px;position:relative;"><canvas id="' . $id . '" data-chartjs=\'' . htmlspecialchars($chartJson, ENT_QUOTES) . '\'></canvas></div>';
+            }
+
+            case 'sparkline': {
+                $sql = trim($cfg['sql'] ?? '');
+                if ($sql === '') return wu_empty_hint((int)$w['widget_id']);
+                $rows = wu_run_sql($db, $sql, $userId);
+                if (isset($rows[0]['_error'])) return '<p style="color:#ef4444;font-size:12px;">SQL error: ' . htmlspecialchars($rows[0]['_error']) . '</p>';
+                $id        = 'wc_' . $w['widget_id'];
+                $chartJson = json_encode([
+                    'type' => 'line',
+                    'data' => [
+                        'labels'   => array_column($rows, 'label'),
                         'datasets' => [[
-                            'label'           => $w['widget_title'],
                             'data'            => array_column($rows, 'value'),
-                            'backgroundColor' => $bgColor,
-                            'borderColor'     => 'rgba(1,105,111,1)',
-                            'borderWidth'     => 1,
-                            'tension'         => 0.4,
-                            'fill'            => ($ctype === 'line'),
+                            'borderColor'     => $accent,
+                            'borderWidth'     => 2,
+                            'pointRadius'     => 0,
+                            'tension'         => 0.3,
+                            'fill'            => true,
+                            'backgroundColor' => 'rgba(14,165,233,0.12)',
                         ]],
                     ],
                     'options' => [
                         'responsive'          => true,
                         'maintainAspectRatio' => false,
-                        'plugins' => ['legend' => ['display' => ($ctype === 'pie')]],
-                        'scales'  => ($ctype === 'pie') ? (object)[] : ['y' => ['beginAtZero' => true]],
+                        'plugins'             => ['legend' => ['display' => false], 'tooltip' => ['enabled' => true]],
+                        'scales'              => [
+                            'x' => ['display' => false],
+                            'y' => ['display' => false, 'beginAtZero' => true],
+                        ],
                     ],
                 ]);
-                return '<div style="height:220px;"><canvas id="' . $id . '" data-chartjs=\'' . htmlspecialchars($chartJson, ENT_QUOTES) . '\'></canvas></div>';
+                return '<div style="height:60px;"><canvas id="' . $id . '" data-chartjs=\'' . htmlspecialchars($chartJson, ENT_QUOTES) . '\'></canvas></div>';
+            }
+
+            case 'metric_trend': {
+                $sql = trim($cfg['sql'] ?? '');
+                if ($sql === '') return wu_empty_hint((int)$w['widget_id']);
+                $rows = wu_run_sql($db, $sql, $userId);
+                if (isset($rows[0]['_error'])) return '<p style="color:#ef4444;font-size:12px;">SQL error: ' . htmlspecialchars($rows[0]['_error']) . '</p>';
+                $val  = (float)($rows[0]['value'] ?? 0);
+                $prev = (float)($rows[0]['prev_value'] ?? $cfg['prev_value'] ?? 0);
+                $diff = $prev > 0 ? (($val - $prev) / $prev) * 100 : 0;
+                $changeClass = $diff >= 0 ? 'up' : 'down';
+                $changeSymbol = $diff >= 0 ? '↑' : '↓';
+                $sub = htmlspecialchars($cfg['subtitle'] ?? '');
+                $id  = 'wc_' . $w['widget_id'];
+
+                $sparklineHtml = '';
+                if (count($rows) > 1) {
+                    $sparkJson = json_encode([
+                        'type' => 'line',
+                        'data' => [
+                            'labels'   => array_column($rows, 'label'),
+                            'datasets' => [[
+                                'data'        => array_column($rows, 'value'),
+                                'borderColor' => $diff >= 0 ? '#22c55e' : '#ef4444',
+                                'borderWidth' => 2,
+                                'pointRadius' => 0,
+                                'tension'     => 0.35,
+                                'fill'        => false,
+                            ]],
+                        ],
+                        'options' => [
+                            'responsive'          => true,
+                            'maintainAspectRatio' => false,
+                            'plugins'             => ['legend' => ['display' => false]],
+                            'scales'              => ['x' => ['display' => false], 'y' => ['display' => false]],
+                        ],
+                    ]);
+                    $sparklineHtml = '<div style="height:40px;width:100px;"><canvas id="' . $id . '" data-chartjs=\'' . htmlspecialchars($sparkJson, ENT_QUOTES) . '\'></canvas></div>';
+                }
+
+                return '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">'
+                     . '<div>'
+                     . '<div class="nu-kpi-value">' . number_format($val) . '</div>'
+                     . '<div class="nu-kpi-change ' . $changeClass . '">' . $changeSymbol . ' ' . abs(round($diff, 1)) . '% <span style="color:var(--text-muted);font-weight:400;">vs prev period</span></div>'
+                     . ($sub ? '<div class="nu-kpi-label">' . $sub . '</div>' : '')
+                     . '</div>' . $sparklineHtml . '</div>';
+            }
+
+            case 'quick_actions': {
+                $items = $cfg['items'] ?? [];
+                if (empty($items)) return wu_empty_hint((int)$w['widget_id']);
+                $html = '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:10px;">';
+                foreach ($items as $item) {
+                    $lbl   = htmlspecialchars($item['label'] ?? '');
+                    $mod   = htmlspecialchars($item['module'] ?? '');
+                    $url   = htmlspecialchars($item['url'] ?? '');
+                    $icon  = htmlspecialchars($item['icon'] ?? 'fa-bolt');
+                    $isFa  = preg_match('/^(fas?|far|fab|fa)\s+fa-|^fa-/', $icon);
+                    $iconHtml = $isFa ? '<i class="' . (str_contains($icon, ' ') ? $icon : 'fas ' . $icon) . '"></i>' : $icon;
+                    $click = $mod ? "nuDash.drillDown('$mod')" : "window.open('$url','_blank')";
+
+                    $html .= '<button class="nu-btn nu-btn-ghost" style="flex-direction:column;gap:6px;padding:12px 8px;text-align:center;height:100%;" onclick="' . $click . '">'
+                           . '<span style="font-size:1.25rem;color:var(--primary);">' . $iconHtml . '</span>'
+                           . '<span style="font-size:0.75rem;font-weight:600;">' . $lbl . '</span>'
+                           . '</button>';
+                }
+                return $html . '</div>';
+            }
+
+            case 'activity': {
+                $sql = trim($cfg['sql'] ?? '');
+                $rows = $sql !== '' ? wu_run_sql($db, $sql, $userId) : [];
+                if (isset($rows[0]['_error'])) return '<p style="color:#ef4444;font-size:12px;">SQL error: ' . htmlspecialchars($rows[0]['_error']) . '</p>';
+                if (empty($rows)) {
+                    $rows = [
+                        ['time' => 'Just now', 'user' => 'System', 'text' => 'No recent activity recorded.'],
+                    ];
+                }
+                $html = '<div style="display:flex;flex-direction:column;gap:10px;max-height:260px;overflow-y:auto;">';
+                foreach ($rows as $row) {
+                    $time = htmlspecialchars((string)($row['time'] ?? $row['created_at'] ?? ''));
+                    $user = htmlspecialchars((string)($row['user'] ?? $row['actor_name'] ?? 'System'));
+                    $text = htmlspecialchars((string)($row['text'] ?? $row['description'] ?? $row['action'] ?? ''));
+                    $html .= '<div style="display:flex;gap:10px;align-items:flex-start;font-size:0.8125rem;padding-bottom:8px;border-bottom:1px solid var(--border-color);">'
+                           . '<div style="width:28px;height:28px;border-radius:50%;background:rgba(14,165,233,0.1);color:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;font-size:0.75rem;">' . strtoupper(substr($user, 0, 1)) . '</div>'
+                           . '<div style="flex:1;">'
+                           . '<div style="display:flex;justify-content:space-between;color:var(--text-muted);font-size:0.75rem;"><strong>' . $user . '</strong><span>' . $time . '</span></div>'
+                           . '<div style="color:var(--text-primary);margin-top:2px;">' . $text . '</div>'
+                           . '</div></div>';
+                }
+                return $html . '</div>';
+            }
+
+            case 'iframe': {
+                $url = htmlspecialchars($cfg['url'] ?? '');
+                $height = (int)($cfg['height'] ?? 280);
+                if ($url === '') return wu_empty_hint((int)$w['widget_id']);
+                return '<iframe src="' . $url . '" style="width:100%;height:' . $height . 'px;border:none;border-radius:var(--radius-md);" allowfullscreen></iframe>';
             }
 
             case 'table': {
@@ -614,7 +809,7 @@ $groupIdx = 0;
     $icon    = trim($w['widget_icon'] ?? '');
     $isFaIcon = ($icon !== '' && preg_match('/^(fas?|far|fab|fa)\s+fa-|^fa-/', $icon));
 ?>
-    <div class="nu-widget-card nu-card" data-widget-id="<?= (int)$w['widget_id'] ?>"
+    <div class="nu-widget-card nu-widget nu-card" data-widget-id="<?= (int)$w['widget_id'] ?>" data-refresh-interval="<?= (int)($cfg['refresh_interval'] ?? 0) ?>"
          style="grid-column:span <?= $colSpan ?>;grid-row:span <?= $rowSpan ?>;border-top:3px solid <?= $typeAccent ?>;">
         <div class="nu-card-header" style="margin-bottom:12px;align-items:center;">
             <span class="nu-widget-title-badge" style="background:<?= $typeAccent ?>;" title="<?= htmlspecialchars($w['widget_title']) ?>">
@@ -676,12 +871,20 @@ $groupIdx = 0;
         <label class="nu-label">Widget Type</label>
         <select class="nu-input" id="nuWType" onchange="nuDash.onTypeChange()">
             <option value="stat">&#128178;&nbsp;Stat / KPI</option>
+            <option value="metric_trend">&#128200;&nbsp;Metric Trend (Sparkline + % Change)</option>
+            <option value="sparkline">&#128201;&nbsp;Sparkline</option>
             <option value="chart_bar">&#128202;&nbsp;Bar Chart</option>
             <option value="chart_line">&#128200;&nbsp;Line Chart</option>
+            <option value="chart_area">&#128506;&nbsp;Area Chart</option>
             <option value="chart_pie">&#129379;&nbsp;Pie Chart</option>
+            <option value="chart_doughnut">&#127849;&nbsp;Doughnut Chart</option>
+            <option value="chart_radar">&#128400;&nbsp;Radar Chart</option>
             <option value="table">&#128203;&nbsp;Data Table</option>
             <option value="list">&#128279;&nbsp;Quick Links</option>
+            <option value="quick_actions">&#9889;&nbsp;Quick Actions</option>
+            <option value="activity">&#128221;&nbsp;Activity Feed</option>
             <option value="progress">&#9203;&nbsp;Progress Bar</option>
+            <option value="iframe">&#127760;&nbsp;External iFrame</option>
             <option value="custom">&#9999;&#65039;&nbsp;Custom HTML</option>
         </select>
     </div>

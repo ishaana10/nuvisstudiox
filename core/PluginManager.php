@@ -1,5 +1,5 @@
 <?php
-// nuBuilder Next - Plugin Manager (PHP 8.1+ compatible)
+// Nuvis StudioX - Plugin Manager (PHP 8.1+ compatible)
 
 class NuPluginManager {
     private $plugins = [];

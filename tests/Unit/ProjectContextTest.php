@@ -11,4 +11,12 @@ class ProjectContextTest extends TestCase {
         $id = ProjectContext::getId();
         $this->assertGreaterThanOrEqual(1, $id);
     }
+
+    public function testProjectContextInactivityCaching(): void {
+        ProjectContext::resetCache();
+        $id1 = ProjectContext::getId();
+        $id2 = ProjectContext::getId();
+        $this->assertEquals($id1, $id2);
+        ProjectContext::resetCache();
+    }
 }

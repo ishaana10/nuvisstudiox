@@ -19,7 +19,7 @@ The App Cloner module allows system administrators to duplicate/template an enti
 The cloner provides selective extraction criteria (bitmask/array identifiers):
 1. **System Tables/Views** (`nu_*` and general environment systems).
 2. **User Tables/Views** (customized application structures).
-3. **System Records** (nuBuilder core records, configuration rows).
+3. **System Records** (Nuvis StudioX core records, configuration rows).
 4. **App Definitions** (form structures, menu hierarchies, reports definition metadata).
 5. **User Data** (actual row inputs in non-system tables).
 6. **Functions** (database custom functions).

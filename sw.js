@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nubuilder-v4';
+const CACHE_NAME = 'nuvis-studiox-v4';
 const urlsToCache = [
   './assets/css/nubuilder-next.css',
   './assets/js/nubuilder-next.js'

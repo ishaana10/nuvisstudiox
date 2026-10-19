@@ -948,12 +948,12 @@ foreach ($forms as $f) {
     <!-- ── TAB: Fields ── -->
     <div class="nb-tab-panel active" id="panelFields">
       <!-- Quick Reference Banner for Updating Another Table -->
-      <div class="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/60 rounded-xl p-3 mb-4 flex items-center justify-between text-xs text-indigo-800 dark:text-indigo-300" style="margin-bottom: 12px;">
+      <div class="bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl p-3 mb-4 flex items-center justify-between text-xs font-medium text-slate-800 dark:text-slate-100" style="margin-bottom: 12px; shadow: var(--shadow-sm);">
         <span class="flex items-center gap-2">
-          <span style="font-size: 14px;">⚙️</span>
+          <span style="font-size: 16px;">⚙️</span>
           <span>Need to automatically update another table (e.g., mark an order/booking as completed when a certificate is saved with a matching reference number)?</span>
         </span>
-        <button type="button" onclick="nbFormBuilder.showUpdateTableHelp()" class="text-indigo-600 dark:text-indigo-400 hover:underline font-bold bg-indigo-100/50 dark:bg-indigo-900/40 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors" style="border: none; cursor: pointer;">
+        <button type="button" onclick="nbFormBuilder.showUpdateTableHelp()" class="bg-primary text-white hover:bg-primary-hover font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors shadow-sm" style="border: none; cursor: pointer;">
           💡 View Quick Guide
         </button>
       </div>

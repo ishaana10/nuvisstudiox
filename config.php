@@ -16,29 +16,54 @@ $nuConfig['dbCharset']  = 'utf8mb4';
 $nuConfig['dbPort']     = (int)(getenv('NU_DB_PORT') ?: 3306);
 
 // ─── Security ─────────────────────────────────────────────────────────────────
-$nuConfig['sessionTimeout']        = 3600;
+$nuConfig['sessionTimeout']        = 1800;
 $nuConfig['maxLoginAttempts']      = 5;
-$nuConfig['lockoutDuration']       = 900;
+$nuConfig['lockoutDuration']       = 1800;
 $nuConfig['csrfTokenName']         = 'nu_csrf';
 $nuConfig['sessionCookieSecure']   = true;
 $nuConfig['sessionCookieHttpOnly'] = true;
-$nuConfig['sessionCookieSameSite'] = 'Lax';
-$nuConfig['passwordMinLength']     = 10;
+$nuConfig['sessionCookieSameSite'] = 'Strict';
+$nuConfig['passwordMinLength']     = 12;
+
+$nuConfig['password'] = [
+    'minLength'       => 12,
+    'requireUpper'    => true,
+    'requireLower'    => true,
+    'requireNumber'   => true,
+    'requireSpecial'  => true,
+    'maxAgeDays'      => 90,
+    'historyCount'    => 5,
+    'lockoutAttempts' => 5,
+    'lockoutMinutes'  => 30,
+];
+
+// ─── Application-Level Field Encryption ─────────────────────────────────────
+$nuConfig['encryption'] = [
+    'key' => getenv('NU_ENCRYPTION_KEY') ?: 'base64:' . base64_encode(hash('sha256', 'nuvis_master_encryption_key_2026', true)),
+    'enabled_fields' => [
+        'nu_users' => ['usr_2fa_secret'],
+    ],
+];
 
 // ─── HTTP Security Headers ───────────────────────────────────────────────────
-if (PHP_SAPI !== 'cli' && !headers_sent()) {
-    header('X-Frame-Options: SAMEORIGIN');
-    header('X-Content-Type-Options: nosniff');
-    header('X-XSS-Protection: 1; mode=block');
-    header('Referrer-Policy: strict-origin-when-cross-origin');
-    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
-        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
-    }
-    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://code.jquery.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; frame-ancestors 'self';");
-}
+require_once NU_ROOT . '/core/SecurityHeaders.php';
+
+// ─── Redis ────────────────────────────────────────────────────────────────────
+$nuConfig['redis'] = [
+    'enabled'     => false, // Set true in config.local.php or env when active
+    'scheme'      => 'unix',
+    'path'        => '/home/ictfjcom/.redis/redis.sock',
+    'host'        => '127.0.0.1',
+    'port'        => 6379,
+    'password'    => null,
+    'database'    => 0,
+    'prefix'      => 'nuvis:',
+    'timeout'     => 2.5,
+    'default_ttl' => 300,
+];
 
 // ─── Features ─────────────────────────────────────────────────────────────────
-$nuConfig['enable2FA']         = false;
+$nuConfig['enable2FA']         = true;
 $nuConfig['enableAPI']         = true;
 $nuConfig['enableAuditTrail']  = true;
 $nuConfig['enableFileUploads'] = true;
@@ -59,7 +84,7 @@ $nuConfig['userHeaderFormat'] = '{name} | {location}';
 $nuConfig['apiRateLimit'] = 1000;
 $nuConfig['apiKeyHeader'] = 'X-API-Key';
 $nuConfig['enableWebhookDemo'] = true;
-$nuConfig['enableGitUpdater'] = false;
+$nuConfig['enableGitUpdater'] = true;
 $nuConfig['allowApiKeyQueryParam'] = false;
 
 // ─── PHP Error Handling ───────────────────────────────────────────────────────
@@ -87,24 +112,7 @@ if (is_file($_envFile)) {
 unset($_env, $_envFile);
 
 // ─── Session Hardening + Start ────────────────────────────────────────────────
-// DO NOT call session_save_path() with a custom directory on shared hosts.
-// cPanel/A2Hosting may not grant Apache write access to the app /sessions/ dir,
-// causing session_start() to silently fail and every request gets an empty session.
-// PHP's system default (/tmp or the host-configured path) is always writable.
-if (session_status() === PHP_SESSION_NONE) {
-    ini_set('session.use_strict_mode',  '1');
-    ini_set('session.cookie_httponly',  '1');
-    ini_set('session.cookie_samesite',  'Lax');
-    ini_set('session.cookie_secure',    $nuConfig['sessionCookieSecure'] ? '1' : '0');
-    ini_set('session.use_only_cookies', '1');
-    ini_set('session.gc_maxlifetime',   (string)$nuConfig['sessionTimeout']);
-    // Derive cookie_path from baseUrl so it works on any install path
-    $_cookiePath = rtrim(parse_url($nuConfig['baseUrl'], PHP_URL_PATH) ?: '/nbv5u/m/', '/') . '/';
-    ini_set('session.cookie_path', $_cookiePath);
-    unset($_cookiePath);
-    session_name('nu5sess');
-    session_start();
-}
+require_once NU_ROOT . '/core/SessionBootstrap.php';
 
 if (!function_exists('h')) {
     function h($string, $flags = ENT_QUOTES, $encoding = 'UTF-8') {

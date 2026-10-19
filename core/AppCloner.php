@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * NuBuilder 5 - App Cloner
- * Inspired by nuBuilderCloner (Forte), rebuilt for nub5 architecture.
+ * Inspired by Nuvis StudioXCloner (Forte), rebuilt for nub5 architecture.
  *
  * New features vs Forte:
  *  - Uses nub5 NuDatabase singleton (no nuRunQuery / db_fetch_row globals)
@@ -30,7 +30,7 @@ class AppCloner {
      * Clone operations bitmask map:
      *  1 = zzzzsys_* table/view CREATE
      *  2 = user table/view CREATE
-     *  3 = nuBuilder system records (ids like 'nu%')
+     *  3 = Nuvis StudioX system records (ids like 'nu%')
      *  4 = app-definition records
      *  5 = user data
      *  6 = functions
@@ -646,7 +646,7 @@ class AppCloner {
     private function sqlHeader(string $db, string $fmt): string {
         $ts  = date('Y-m-d H:i:s');
         $c   = '--';
-        return "$c ========================================\n$c nuBuilder 5 App Cloner Export\n$c Source: {$this->srcDB} → Target: $db\n$c Generated: $ts\n$c ========================================\n";
+        return "$c ========================================\n$c Nuvis StudioX App Cloner Export\n$c Source: {$this->srcDB} → Target: $db\n$c Generated: $ts\n$c ========================================\n";
     }
     private function sqlFooter(string $fmt): string {
         return '-- Export complete: ' . date('Y-m-d H:i:s') . "\n";
@@ -768,7 +768,7 @@ class AppCloner {
 
         $parts = [];
         $ts = date('Y-m-d H:i:s');
-        $parts[] = "-- ========================================\n-- nuBuilder 5 Multi-Project Export\n-- Project: {$proj['project_name']} ({$proj['project_code']})\n-- Exported: {$ts}\n-- ========================================\n";
+        $parts[] = "-- ========================================\n-- Nuvis StudioX Multi-Project Export\n-- Project: {$proj['project_name']} ({$proj['project_code']})\n-- Exported: {$ts}\n-- ========================================\n";
         $parts[] = "SET FOREIGN_KEY_CHECKS=0;\n";
 
         // 1. Export nu_projects row

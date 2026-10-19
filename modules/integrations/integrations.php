@@ -163,7 +163,7 @@ $apiKeys  = $db->fetchAll("SELECT * FROM nu_api_tokens ORDER BY token_created_at
                         <?php endforeach; ?>
                         <?php if (empty($apiKeys)): ?>
                         <tr>
-                            <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted, #a0aec0); font-style: italic;">No active REST API tokens generated. Create a key to access nuBuilder REST endpoints.</td>
+                            <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted, #a0aec0); font-style: italic;">No active REST API tokens generated. Create a key to access Nuvis StudioX REST endpoints.</td>
                         </tr>
                         <?php endif; ?>
                     </tbody>

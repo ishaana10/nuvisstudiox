@@ -1,6 +1,6 @@
-# Automatically Updating Another Table in NuBuilder Next
+# Automatically Updating Another Table in Nuvis StudioX
 
-This document provides a comprehensive guide and concrete code examples on how to automatically update another database table when a record is saved in NuBuilder Next (for example, updating an order/booking as **completed** when a certificate with matching reference number is issued).
+This document provides a comprehensive guide and concrete code examples on how to automatically update another database table when a record is saved in Nuvis StudioX (for example, updating an order/booking as **completed** when a certificate with matching reference number is issued).
 
 We will cover the two recommended ways to implement this:
 1. **Using PHP After Save** (Database/Transaction Hook)
@@ -33,7 +33,7 @@ We have an `issued_certificates` form table. When a certificate is saved:
  */
 
 // 1. Retrieve the certificate reference number from the saved record fields.
-// In NuBuilder Next, fields are available directly as local variables or token placeholders.
+// In Nuvis StudioX, fields are available directly as local variables or token placeholders.
 $reference = trim($cert_reference ?? '#cert_reference#');
 
 if (!empty($reference)) {

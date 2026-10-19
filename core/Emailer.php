@@ -1,5 +1,5 @@
 <?php
-// nuBuilder Next - Emailer (PHP 8.1+ compatible)
+// Nuvis StudioX - Emailer (PHP 8.1+ compatible)
 
 class NuEmailer {
     private $config;
@@ -15,14 +15,14 @@ class NuEmailer {
      */
     public function send($to, $subject, $body, $isHtml = false) {
         $from     = $this->config['mailFrom']     ?? 'noreply@localhost';
-        $fromName = $this->config['mailFromName'] ?? 'nuBuilder Next';
+        $fromName = $this->config['mailFromName'] ?? 'Nuvis StudioX';
 
         $contentType = $isHtml ? 'text/html' : 'text/plain';
         $headers  = "From: {$fromName} <{$from}>\r\n";
         $headers .= "Reply-To: {$from}\r\n";
         $headers .= "Content-Type: {$contentType}; charset=UTF-8\r\n";
         $headers .= "MIME-Version: 1.0\r\n";
-        $headers .= "X-Mailer: nuBuilderNext\r\n";
+        $headers .= "X-Mailer: NuvisStudioX\r\n";
 
         return mail($to, $subject, $body, $headers);
     }
@@ -50,7 +50,7 @@ class NuEmailer {
      */
     public function sendWelcome($to, $username, $tempPassword = null) {
         $appUrl  = $this->config['appUrl'] ?? '';
-        $subject = 'Welcome to nuBuilder Next';
+        $subject = 'Welcome to Nuvis StudioX';
         $body    = "Hello {$username},\n\n";
         $body   .= "Your account has been created.\n\n";
         if ($tempPassword) {

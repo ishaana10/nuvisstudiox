@@ -1,6 +1,6 @@
 # Demo App: Custom Joins & Automated Multi-Table Updates
 
-This guide provides the complete blueprint, database schemas, and step-by-step configurations to build a fully functional **Service Request & Tracking App** in NuBuilder Next.
+This guide provides the complete blueprint, database schemas, and step-by-step configurations to build a fully functional **Service Request & Tracking App** in Nuvis StudioX.
 
 This demo app illustrates:
 1. **Custom Joins inside Browse Grid**: Displaying the descriptive service type name (e.g., "Software Install") instead of a raw database ID (e.g., `3`).

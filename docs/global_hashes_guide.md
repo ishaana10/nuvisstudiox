@@ -1,6 +1,6 @@
 # End-to-End Guide: Using Developer Settings Global Hashes in Calculated Fields & SQL
 
-Global hashes in NuBuilder allow you to declare system-wide or user-specific constants (such as tax rates, regional fees, or environment settings) once in a central place and then securely use them across the entire application—both in backend SQL queries and in frontend calculated fields.
+Global hashes in Nuvis StudioX allow you to declare system-wide or user-specific constants (such as tax rates, regional fees, or environment settings) once in a central place and then securely use them across the entire application—both in backend SQL queries and in frontend calculated fields.
 
 This comprehensive guide explains how to define, use, and verify global hashes.
 
@@ -24,7 +24,7 @@ To configure a global custom setting (such as a standard tax rate):
 
 ## 2. Using Global Hashes in Calculated Fields
 
-NuBuilder's calculation engine automatically resolves global hashes inside **Calculated Field** formulas. You can reference your central values using **two highly convenient syntaxes**:
+Nuvis StudioX's calculation engine automatically resolves global hashes inside **Calculated Field** formulas. You can reference your central values using **two highly convenient syntaxes**:
 
 ### Syntax A: Field Notation `{tax_rate}` (Best Practice)
 Use the standard field notation syntax. When the calculation engine evaluates the formula, it checks the active form for a field named `tax_rate` first. If no field with that name exists on the form, it automatically falls back to looking up the key inside your global settings.
@@ -61,14 +61,14 @@ For consistency with SQL query placeholders, you can also use double-hash syntax
 
 ## 3. Viewing Global Hashes in the Browser Developer Console
 
-NuBuilder makes it extremely simple to inspect, debug, and query all loaded global hashes and user metadata directly in the browser's developer console.
+Nuvis StudioX makes it extremely simple to inspect, debug, and query all loaded global hashes and user metadata directly in the browser's developer console.
 
 ### A. Automatic Page Load Log
-Every time you load or reload a page in NuBuilder, the system automatically outputs a formatted console table.
+Every time you load or reload a page in Nuvis StudioX, the system automatically outputs a formatted console table.
 * Press `F12` (or right-click and select **Inspect**) to open the browser Developer Tools, then navigate to the **Console** tab.
 * You will see a dedicated log entry:
   ```
-  📂 [NuBuilder] Global Hashes & User Meta Loaded:
+  📂 [Nuvis StudioX] Global Hashes & User Meta Loaded:
   ```
   accompanied by an interactive, structured table displaying all active global keys and their respective values.
 
@@ -102,4 +102,4 @@ Since the settings are fully integrated into the backend core permission and res
   ```sql
   SELECT * FROM products WHERE tax_category = 'standard' AND tax_rate <= ##tax_rate##
   ```
-The NuBuilder server-side resolution engine securely replaces `##tax_rate##` with the sanitized value `0.15` prior to execution, preventing any security risks or SQL injection.
+The Nuvis StudioX server-side resolution engine securely replaces `##tax_rate##` with the sanitized value `0.15` prior to execution, preventing any security risks or SQL injection.

@@ -125,7 +125,7 @@ switch ($action) {
                 'record_id'  => '999',
                 'table'      => 'nu_test_table',
                 'data'       => [
-                    'test_message' => 'Hello! This is a customizable test webhook payload from nuBuilder Next.',
+                    'test_message' => 'Hello! This is a customizable test webhook payload from Nuvis StudioX.',
                     'system_time'  => date('Y-m-d H:i:s'),
                     'version'      => NU_VERSION
                 ]

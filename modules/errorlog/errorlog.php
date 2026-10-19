@@ -7,7 +7,7 @@
 require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
 ?>
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     nuBuilder Error Log Viewer
+     Nuvis StudioX Error Log Viewer
      Captures PHP / SQL / JS / APP errors and displays them in a searchable
      table. Full context + stack trace visible on row click.
 ══════════════════════════════════════════════════════════════════════════════ -->

@@ -1,5 +1,5 @@
 <?php
-// nuBuilder Next — Runtime Form Renderer
+// Nuvis StudioX — Runtime Form Renderer
 // Supports layout field types:
 //   group  — collapsible section wrapping child fields
 //   tab    — tab container; its 'tabs' array holds tab panels

@@ -76,6 +76,14 @@ switch ($action) {
                     $db->insert('nu_system_settings', ['setting_key' => 'forgot_password_enabled', 'setting_value' => trim((string)$input['forgot_password_enabled'])]);
                 }
             }
+            if (isset($input['mfa_enforcement'])) {
+                $existing = $db->fetchOne("SELECT setting_key FROM nu_system_settings WHERE setting_key = 'mfa_enforcement'");
+                if ($existing) {
+                    $db->update('nu_system_settings', ['setting_value' => trim((string)$input['mfa_enforcement'])], "setting_key = 'mfa_enforcement'");
+                } else {
+                    $db->insert('nu_system_settings', ['setting_key' => 'mfa_enforcement', 'setting_value' => trim((string)$input['mfa_enforcement'])]);
+                }
+            }
             if (isset($input['system_fields_def'])) {
                 $fieldsJson = json_encode($input['system_fields_def']);
                 $db->update('nu_system_settings', ['setting_value' => $fieldsJson], "setting_key = 'system_fields_def'");

@@ -45,7 +45,7 @@ class NuDatabase {
         ];
 
         if ($dbType === 'sqlite' || (str_ends_with($dbName, '.db') || str_ends_with($dbName, '.sqlite')) || (!empty($this->config['dbSqlitePath']) && is_file($this->config['dbSqlitePath']))) {
-            $sqliteFile = !empty($this->config['dbSqlitePath']) ? $this->config['dbSqlitePath'] : (is_file($dbName) ? $dbName : (defined('NU_ROOT') && is_file(NU_ROOT . '/nu.db') ? NU_ROOT . '/nu.db' : $dbName));
+            $sqliteFile = !empty($this->config['dbSqlitePath']) ? $this->config['dbSqlitePath'] : $dbName;
             $dsn = "sqlite:" . $sqliteFile;
             $user = null;
             $pass = null;
@@ -61,13 +61,6 @@ class NuDatabase {
         try {
             $this->pdo = new PDO($dsn, $user, $pass, $options);
         } catch (PDOException $e) {
-            // Fallback to local nu.db SQLite database if MySQL fails
-            if (defined('NU_ROOT') && is_file(NU_ROOT . '/nu.db')) {
-                try {
-                    $this->pdo = new PDO("sqlite:" . NU_ROOT . '/nu.db', null, null, $options);
-                    return;
-                } catch (PDOException $ex) {}
-            }
             throw new PDOException("Database connection failed: " . $e->getMessage(), (int)$e->getCode(), $e);
         }
 
@@ -280,8 +273,13 @@ class NuDatabase {
         // Self-healing: Ensure nu_system_settings table exists and is populated
         if (!$sessionActive || empty($_SESSION['_nu_system_settings_ensured'])) {
             try {
-                $tableExists = $this->pdo->query("SHOW TABLES LIKE 'nu_system_settings'")->fetch();
-                if (!$tableExists) {
+                $driver = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+                $hasSys = false;
+                try {
+                    $hasSys = (bool)$this->pdo->query($driver === 'sqlite' ? "SELECT name FROM sqlite_master WHERE type='table' AND name='nu_system_settings'" : "SHOW TABLES LIKE 'nu_system_settings'")->fetch();
+                } catch (Exception $e) {}
+
+                if (!$hasSys) {
                     $this->pdo->exec("CREATE TABLE `nu_system_settings` (
                         `setting_key` VARCHAR(50) NOT NULL,
                         `setting_value` LONGTEXT DEFAULT NULL,

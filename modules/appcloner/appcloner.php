@@ -1,6 +1,6 @@
 <?php
 /**
- * nuBuilder 5 – App Cloner Module
+ * Nuvis StudioX – App Cloner Module
  * Admin UI: full clone wizard with live progress, SQL export, and dry-run.
  * Uses nub5 design system (nu-card, nu-btn, nu-input, etc.) – no own HTML wrapper.
  */
@@ -16,7 +16,7 @@ require_once __DIR__ . '/../../core/module_bootstrap.php';
     </svg>
     App Cloner
   </h2>
-  <p style="color:var(--text-muted);font-size:13px;margin-top:4px">Clone this nuBuilder 5 application to a new database and/or file path.</p>
+  <p style="color:var(--text-muted);font-size:13px;margin-top:4px">Clone this Nuvis StudioX application to a new database and/or file path.</p>
 </div>
 
 <!-- TARGET DATABASE -->
@@ -80,7 +80,7 @@ require_once __DIR__ . '/../../core/module_bootstrap.php';
       $optDefs = [
         1 => ['icon'=>'\uD83C\uDFD7\uFE0F', 'label'=>'System Tables/Views',  'desc'=>'nu_* & system tables'],
         2 => ['icon'=>'\uD83D\uDCE6', 'label'=>'User Tables/Views',   'desc'=>'Your app tables'],
-        3 => ['icon'=>'\u2699\uFE0F',  'label'=>'System Records',      'desc'=>'nuBuilder core data'],
+        3 => ['icon'=>'\u2699\uFE0F',  'label'=>'System Records',      'desc'=>'Nuvis StudioX core data'],
         4 => ['icon'=>'\uD83D\uDCCB', 'label'=>'App Definitions',     'desc'=>'Forms, reports, menus'],
         5 => ['icon'=>'\uD83D\uDCCA', 'label'=>'User Data',           'desc'=>'Your table rows'],
         6 => ['icon'=>'\u0192',       'label'=>'Functions',           'desc'=>'DB functions'],
@@ -196,7 +196,7 @@ require_once __DIR__ . '/../../core/module_bootstrap.php';
         return;
       }
       tables.forEach(function(t){
-        // Skip internal nuBuilder system tables from the picker;
+        // Skip internal Nuvis StudioX system tables from the picker;
         // they are handled by the "System Tables" checkbox (option 1)
         if (/^nu_/.test(t.TABLE_NAME)) return;
         var lbl = document.createElement('label');

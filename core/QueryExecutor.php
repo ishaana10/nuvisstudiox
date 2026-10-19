@@ -1,5 +1,5 @@
 <?php
-// nuBuilder Next - Safe Query Executor v2
+// Nuvis StudioX - Safe Query Executor v2
 
 class NuQueryExecutor {
     private $db;

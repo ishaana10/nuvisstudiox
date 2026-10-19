@@ -1,8 +1,31 @@
-# nuvis
+# Nuvis StudioX
 
-A modern, responsive rebuild of the nuvis low-code platform — PHP/MySQL, fully self-hosted.
+A premium, modern web development application for **Nuvis Technologies** (`web.nuvistechnologies.com.fj`) — PHP/MySQL, fully self-hosted low-code platform.
 
 >  **Host:** A2Hosting (cPanel) · **Stack:** PHP8.1+, MySQL 5.7+, Apache
+
+---
+
+## Recent Major Enhancements & Upgrades (May 2026)
+
+### 🎨 Visual Refresh & CSS Design Tokens System
+- **Expanded Token Set (`assets/css/nubuilder-next.css`):** Complete semantic CSS custom properties scale (`--primary`, `--primary-hover`, `--bg-app`, `--bg-card`, `--border-color`, `--shadow-sm`, `--shadow-md`, `--radius-lg`, `--color-success`, `--color-info`, `--surface-elevated`, `--focus-ring`) covering both Light and Dark mode variations.
+- **Card-Based UI & Skeleton Loaders:** Modern card layouts with soft shadows, subtle borders, and content-aware skeleton placeholder loaders (`.nu-skeleton`) during data fetches.
+
+### 📊 Modernized Dashboard Widgets & Advanced Charting
+- **16 Configurable Widget Types:** Stat/KPI, Metric Trend (Sparkline + % Change), Sparkline, Bar Chart, Line Chart, Area Chart, Pie Chart, Doughnut Chart, Radar Chart, Data Table, Quick Links, Quick Actions, Activity Feed, Progress Bar, External iFrame, and Custom HTML.
+- **Dynamic SQL Placeholders:** Full placeholder support (`{{user_id}}`, `{{role}}`, `{{today}}`, `{{this_month}}`, `{{this_year}}`) evaluated at runtime against the active session user and date context.
+- **Auto-Refresh & Responsive Grid:** Live widget polling configured via `refresh_interval` (seconds) with content-aware skeleton loaders and a 12-column responsive layout grid.
+- **Comprehensive Guide:** Updated documentation in `docs/widgets.md`.
+
+### ⚡ Redis High-Performance Cache & Session Management
+- **Redis Service & Session Storage (`core/Cache.php`, `core/RedisSessionHandler.php`):** High-speed singleton caching wrapper using `phpredis` (supporting Unix domain sockets and TCP) with prefixing (`nuvis:*`), `remember()` pattern, and custom session handler registered before `session_start()`.
+- **Developer Diagnostics Panel (`modules/developer_settings/developer_settings.php` & `api/redis_actions.php`):** Live Redis memory usage diagnostics, latency benchmark tool, A2 Hosting daemon trigger (`~/.redis.on`), cache flushing, and live cached key TTL inspector.
+
+### 🔒 Security Hardening, MFA & SSO Integration
+- **Strict Session Management:** Configured custom session cookie identifier `nuvisstudioxssid` in `core/SessionBootstrap.php` with `use_strict_mode`, `cookie_httponly`, `cookie_secure`, and `cookie_samesite = Strict`.
+- **Two-Factor Authentication (TOTP MFA):** Secret key generation, QR code setup, OTP verification, and 8-digit backup code recovery (`api/mfa.php` and `modules/mfa/mfa.php`).
+- **Single Sign-On (SSO):** SAML 2.0 and OpenID Connect (OIDC) identity provider configuration and auth callback gateway (`api/sso.php` and `core/Sso/`).
 
 ---
 
@@ -39,6 +62,8 @@ nuvis/
 ├── core/
 │   ├── Database.php              # PDO database abstraction layer
 │   ├── Auth.php                  # Session auth, lockout, 2FA hooks, CSRF, RBAC
+│   ├── Cache.php                 # Redis high-performance cache wrapper
+│   ├── RedisSessionHandler.php   # Native Redis PHP session handler
 │   ├── Audit.php                 # Audit trail logging
 │   ├── Api.php                   # REST API foundation (token auth + rate limiting)
 │   ├── FormRenderer.php          # Metadata-to-form renderer
@@ -67,7 +92,10 @@ nuvis/
 │   ├── forgot_password.php       # Password recovery token verification & handler
 │   ├── word_certificates.php     # Unified certificates template processing engine
 │   ├── procedure.php             # Dynamic single-procedure runner endpoint
-│   └── procedures.php            # Procedures list and details management endpoint
+│   ├── procedures.php            # Procedures list and details management endpoint
+│   ├── redis_actions.php         # Redis cache diagnostics and daemon API
+│   ├── mfa.php                   # Two-Factor Authentication API
+│   └── sso.php                   # Single Sign-On (SAML/OIDC) API
 │
 ├── modules/
 │   ├── dashboard/                # KPI cards, activity feed, quick actions
@@ -99,12 +127,13 @@ nuvis/
 │   ├── report_dashboards/        # Custom report dashboard widgets
 │   ├── procedures/               # Centralized Custom PHP Procedures (functions) block designer
 │   ├── system_demo_files/        # Interactive Developer Demo (Custom LEFT JOIN forms, workflows, automation)
-│   ├── developer_settings/       # System-wide variables, user custom fields & toggles
+│   ├── developer_settings/       # System-wide variables, user custom fields, Redis status & toggles
 │   ├── projects/                 # Multi-Project Manager (isolation, switcher, member access, versions, SQL export)
-│   └── email-settings.html       # Standalone email settings UI
+│   ├── mfa/                      # MFA enrollment and backup codes management UI
+│   └── sso/                      # SSO identity provider configuration UI
 │
 └── assets/
-    ├── css/nubuilder-next.css    # Design system (CSS custom properties)
+    ├── css/nubuilder-next.css    # Design system (CSS custom properties, tokens, dark mode)
     ├── js/nubuilder-next.js      # App framework + utilities (includes Lookup & Select controllers)
     ├── js/nb-form-builder.js     # Drag-and-drop Visual Form designer client-side canvas
     ├── js/nb-ace-manager.js      # Global Ace Code Editor instance controller with Beautify and Popup Sync
@@ -171,7 +200,9 @@ cp config.local.php.example config.local.php
 - Password hashing (bcrypt)
 - Login attempt lockout
 - Session timeout + regeneration
-- 2FA hooks (TOTP ready)
+- Custom session cookie `nuvisstudioxssid` with strict HTTP security flags
+- Two-Factor Authentication (TOTP MFA) & Backup Codes
+- Single Sign-On (SAML / OIDC SSO)
 - CSRF token generation
 - Role-based permissions (RBAC)
 - Full audit trail
@@ -366,75 +397,13 @@ Over the course of recent developments, we have performed deep architectural ref
 
 ---
 
-
-## Development Roadmap
-
-### Phase 1 — Foundation ✅ Complete
-- [x] App shell + responsive design system
-- [x] Authentication + security layer (bcrypt, lockout, CSRF, RBAC)
-- [x] Database abstraction (PDO)
-- [x] Audit trail
-- [x] REST API foundation (token auth, rate limiting)
-- [x] Dashboard module (KPI cards, activity feed)
-- [x] User / Role management
-- [x] File uploads
-
-### Phase 2 — Builders & Runtime ✅ Complete
-- [x] Runtime form renderer (JSON → form, validation)
-- [x] Runtime report renderer (tables + Chart.js)
-- [x] Safe query executor with SELECT-only validation
-- [x] Advanced field types (lookup, subform, repeater)
-- [x] Menu builder UI
-- [x] Import / Export (CSV, JSON)
-- [x] Chart.js integration
-- [x] SQL security hardening
-
-### Phase 3 — Extended Modules ✅ Complete
-- [x] Email system (SMTP, templates, form-triggered, settings UI, detailed log popup overlays)
-- [x] Error log module (structured logging, viewer)
-- [x] Password management + policy module
-- [x] App Cloner (clone/template entire apps)
-- [x] Dashboard widget builder (configurable, icon support)
-- [x] MenuRenderer core class
-- [x] Workflow engine core (`Workflow.php` with Mermaid.js visualizations, simulator, action hooks, Kanban boards)
-- [x] Plugin manager core (`PluginManager.php` and UI)
-- [x] System Updater & Config Manager (Git connection tester, in-place init, remote fetch/pull)
-- [x] Layout flattening helpers + JSON response updates for forms
-- [x] Embedded PHP code editor (Ace)
-- [x] Signature pad / picture canvas field support
-- [x] External integrations (Outgoing Webhooks, REST connectors, local mock receiver)
-- [x] Import/Export (Interactive wizard, fuzzy column auto-mapping, parsing)
-
-### Phase 4 — Polishing, Advanced Subsystems & Scale ✅ Complete
-- [x] Word Certificates (.docx) & HTML-to-PDF Template Engine
-- [x] Advanced Forgot Password self-service module
-- [x] Unified REST API Gateway & request execution logger
-- [x] Centralized Custom PHP Procedures with Sandbox testing console
-- [x] Layout Builder Fixed Viewport Fullscreen mode & Drag-and-Drop rearranging
-- [x] Collapsible Group containers with real-time designer canvases
-- [x] Form Browse layout View SQL debugging overlay
-- [x] Global Externalized Ace Code Editor Manager with Beautify and Popup Sync
-- [x] Automatic audit/system column protection on database inserts/updates
-- [x] Microsoft OneDrive picker integration alongside local Uppy dashboards
-- [x] Products tracking and self-healing DB schema loader with barcode utilities
-
-### Phase 5 — Multi-DB & Global Scale 🔲 Planned
-- [ ] Real-time collaboration (WebSockets or polling)
-- [ ] OpenAPI / Swagger documentation
-- [ ] Mobile PWA — offline support + push notifications
-- [ ] Multi-language / i18n support
-- [ ] MSSQL database compatibility
-- [ ] Performance profiling + query optimization tools
-
----
-
 ## Security Notes
 
 - All query executor SQL is validated as SELECT-only
 - Dangerous keywords blocked at parser level
 - Parameters bound with type sanitization
 - File uploads restricted by type and size
-- Sessions regenerate on login
+- Sessions regenerate on login with custom cookie name `nuvisstudioxssid`
 - Passwords hashed with bcrypt
 - `.htaccess` blocks direct access to `config.php`, `core/`, `sessions/`
 

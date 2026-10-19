@@ -1,5 +1,5 @@
 <?php
-// nuBuilder Next - API Layer
+// Nuvis StudioX - API Layer
 
 class NuApi {
     private $db;

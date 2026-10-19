@@ -1,10 +1,10 @@
-name: Nuvis CI
+name: Nuvis CI & Security Gates
 
 on:
   push:
-    branches: [ main, master, security-hardening-improvements ]
+    branches: [ main, master, develop, security-hardening-improvements ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, develop ]
 
 jobs:
   test:
@@ -17,14 +17,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-          extensions: pdo, pdo_sqlite, pdo_mysql, mbstring, json, ctype
-          coverage: none
+          extensions: pdo, pdo_sqlite, pdo_mysql, mbstring, json, ctype, openssl
+          coverage: xdebug
 
       - name: Validate composer.json
         run: composer validate --strict
@@ -36,5 +36,23 @@ jobs:
         run: |
           find core api modules -name "*.php" -print0 | xargs -0 -n 1 php -l
 
-      - name: Run PHPUnit Tests
-        run: vendor/bin/phpunit
+      - name: Run PHPUnit Tests (Unit, Security, Integration, Api)
+        run: vendor/bin/phpunit --testsuite Unit,Security,Integration,Api
+
+      - name: Composer Security Audit
+        run: composer audit --no-dev
+
+  security-scan:
+    name: Security Vulnerability & Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'

@@ -165,7 +165,7 @@ if ($isLoggedIn && $currentUser) {
     }
 }
 
-$customAppName = $nuConfig['siteTitle'] ?? 'NuBuilder 5';
+$customAppName = $nuConfig['siteTitle'] ?? 'Nuvis StudioX';
 $customAppLogo = '';
 $forgotPasswordEnabled = true;
 try {

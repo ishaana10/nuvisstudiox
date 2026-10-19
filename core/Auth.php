@@ -47,9 +47,38 @@ class NuAuth {
             return ['success' => false, 'message' => 'Invalid credentials'];
         }
 
-        if ($this->config['enable2FA'] && $user['usr_2fa_secret']) {
-            if (!$otp || !$this->verifyTOTP($user['usr_2fa_secret'], $otp)) {
-                return ['success' => false, 'message' => 'Invalid or missing 2FA code', 'requires2FA' => true];
+        $mfaEnforcement = $this->getMfaEnforcementLevel(); // 'optional' | 'required' | 'required_for_admins'
+
+        $mustUseMfa = !empty($user['usr_2fa_enabled'])
+                   || !empty($user['usr_mfa_required'])
+                   || $mfaEnforcement === 'required'
+                   || ($mfaEnforcement === 'required_for_admins' && in_array(strtolower((string)($user['usr_role'] ?? '')), ['globeadmin', 'admin'], true));
+
+        $totpSecret = $user['usr_2fa_secret'] ?? '';
+        if (class_exists('NuEncryption') && NuEncryption::isEncrypted($totpSecret)) {
+            require_once __DIR__ . '/Encryption.php';
+            $totpSecret = NuEncryption::decryptField('nu_users', 'usr_2fa_secret', $totpSecret);
+        }
+
+        if ($mustUseMfa) {
+            if (empty($totpSecret)) {
+                $this->createPartialSession($user);
+                return [
+                    'success' => false,
+                    'message' => 'MFA enrollment required before logging in.',
+                    'requiresMfaEnrollment' => true,
+                    'user_id' => $user['usr_id']
+                ];
+            }
+
+            if (!$otp || !$this->verifyTOTP($totpSecret, $otp)) {
+                if (!$this->verifyBackupCode($user['usr_id'], (string)$otp)) {
+                    return [
+                        'success' => false,
+                        'message' => 'Invalid or missing MFA code',
+                        'requires2FA' => true
+                    ];
+                }
             }
         }
 
@@ -87,6 +116,14 @@ class NuAuth {
         return ['success' => true, 'user' => $this->sanitizeUser($user)];
     }
 
+    // --- SSO Login ---
+    public function loginViaSso(array $user): array {
+        $this->resetAttempts($user['usr_id']);
+        $this->createSession($user);
+        $this->logAudit('sso_login', 'nu_users', $user['usr_id']);
+        return ['success' => true, 'user' => $this->sanitizeUser($user)];
+    }
+
     // --- Logout ---
     public function logout() {
         if (isset($_SESSION['nu_user_id'])) {
@@ -99,7 +136,8 @@ class NuAuth {
     // --- Session Check ---
     public function checkAuth() {
         if (empty($_SESSION['nu_user_id'])) return false;
-        if (time() - $_SESSION['nu_last_activity'] > $this->config['sessionTimeout']) {
+        $timeout = (int)($this->config['sessionTimeout'] ?? 1800);
+        if (time() - ($_SESSION['nu_last_activity'] ?? 0) > $timeout) {
             $this->logout();
             return false;
         }
@@ -303,6 +341,24 @@ class NuAuth {
             header('Location: ../index.php');
             exit;
         }
+
+        if (!empty($_SESSION['nu_must_change_password'])) {
+            $uri = $_SERVER['REQUEST_URI'] ?? '';
+            $isPasswordEndpoint = (strpos($uri, 'password') !== false);
+            if (!$isPasswordEndpoint) {
+                if ($this->isApiRequest()) {
+                    http_response_code(403);
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'error' => 'Password change required before proceeding.', 'must_change_password' => true]);
+                    exit;
+                } else {
+                    if (strpos($uri, 'index.php') === false) {
+                        header('Location: ../index.php');
+                        exit;
+                    }
+                }
+            }
+        }
     }
 
     public function requirePermission($permission) {
@@ -329,9 +385,15 @@ class NuAuth {
         }
     }
 
+    public function regenerateSession(): void {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
+    }
+
     // --- Private Helpers ---
     private function createSession($user) {
-        session_regenerate_id(true);
+        $this->regenerateSession();
         $_SESSION['nu_user_id']       = $user['usr_id'];  // preserved as-is: string (UUID) or int
         $_SESSION['nu_username']      = $user['usr_username'];
         $_SESSION['nu_role']          = $user['usr_role'];
@@ -411,7 +473,7 @@ class NuAuth {
     }
 
     private function logAudit($action, $table, $recordId) {
-        if (!$this->config['enableAuditTrail']) return;
+        if (empty($this->config['enableAuditTrail'])) return;
         $audit = new NuAudit();
         $audit->log($action, $table, $recordId);
     }
@@ -431,6 +493,22 @@ class NuAuth {
     }
 
     // --- TOTP 2FA Helpers ---
+    public function getMfaEnforcementLevel(): string {
+        try {
+            $row = $this->db->fetchOne("SELECT setting_value FROM nu_system_settings WHERE setting_key = 'mfa_enforcement'");
+            if ($row && !empty($row['setting_value'])) {
+                return (string)$row['setting_value'];
+            }
+        } catch (\Throwable $e) {}
+        return 'optional';
+    }
+
+    public function createPartialSession($user): void {
+        $this->regenerateSession();
+        $_SESSION['nu_user_id_mfa'] = $user['usr_id'];
+        $_SESSION['nu_mfa_partial']  = true;
+    }
+
     public function generateTOTPSecret(): string {
         $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
         $secret = '';
@@ -452,7 +530,15 @@ class NuAuth {
             $user = $this->db->fetchOne("SELECT usr_custom_fields FROM nu_users WHERE usr_id = :id", [':id' => $userId]);
             $custom = json_decode($user['usr_custom_fields'] ?? '{}', true) ?: [];
             $custom['backup_codes'] = $hashes;
-            $this->db->query("UPDATE nu_users SET usr_custom_fields = :c WHERE usr_id = :id", [':c' => json_encode($custom), ':id' => $userId]);
+            try {
+                $this->db->query("UPDATE nu_users SET usr_custom_fields = :c, usr_2fa_backup_codes = :bc WHERE usr_id = :id", [
+                    ':c'  => json_encode($custom),
+                    ':bc' => json_encode($hashes),
+                    ':id' => $userId
+                ]);
+            } catch (\Throwable $t) {
+                $this->db->query("UPDATE nu_users SET usr_custom_fields = :c WHERE usr_id = :id", [':c' => json_encode($custom), ':id' => $userId]);
+            }
         } catch (\Throwable $e) {}
         return $codes;
     }
@@ -460,18 +546,27 @@ class NuAuth {
     public function verifyBackupCode($userId, string $code): bool {
         $cleanCode = str_replace(['-', ' '], '', trim($code));
         if ($cleanCode === '') return false;
-        $user = $this->db->fetchOne("SELECT usr_custom_fields FROM nu_users WHERE usr_id = :id", [':id' => $userId]);
-        if (!$user || empty($user['usr_custom_fields'])) return false;
+        $user = $this->db->fetchOne("SELECT * FROM nu_users WHERE usr_id = :id", [':id' => $userId]);
+        if (!$user) return false;
 
-        $custom = json_decode($user['usr_custom_fields'], true) ?: [];
-        $hashes = $custom['backup_codes'] ?? [];
-        if (!is_array($hashes)) return false;
+        $custom = json_decode($user['usr_custom_fields'] ?? '{}', true) ?: [];
+        $hashes = json_decode($user['usr_2fa_backup_codes'] ?? '[]', true) ?: ($custom['backup_codes'] ?? []);
+        if (!is_array($hashes) || empty($hashes)) return false;
 
         foreach ($hashes as $idx => $hash) {
             if (password_verify($cleanCode, $hash)) {
                 unset($hashes[$idx]);
-                $custom['backup_codes'] = array_values($hashes);
-                $this->db->query("UPDATE nu_users SET usr_custom_fields = :c WHERE usr_id = :id", [':c' => json_encode($custom), ':id' => $userId]);
+                $hashes = array_values($hashes);
+                $custom['backup_codes'] = $hashes;
+                try {
+                    $this->db->query("UPDATE nu_users SET usr_custom_fields = :c, usr_2fa_backup_codes = :bc WHERE usr_id = :id", [
+                        ':c'  => json_encode($custom),
+                        ':bc' => json_encode($hashes),
+                        ':id' => $userId
+                    ]);
+                } catch (\Throwable $t) {
+                    $this->db->query("UPDATE nu_users SET usr_custom_fields = :c WHERE usr_id = :id", [':c' => json_encode($custom), ':id' => $userId]);
+                }
                 return true;
             }
         }

@@ -12,16 +12,18 @@ $action = $_GET['action'] ?? '';
 
 // ─── Helper: load active password policy ─────────────────────────────────────
 function loadPolicy(NuDatabase $db): array {
+    global $nuConfig;
+    $cfgPolicy = $nuConfig['password'] ?? [];
     $default = [
-        'policy_min_length'        => 8,
-        'policy_require_uppercase' => 1,
-        'policy_require_lowercase' => 1,
-        'policy_require_number'    => 1,
-        'policy_require_special'   => 0,
-        'policy_disallow_username' => 1,
-        'policy_history_count'     => 5,
-        'policy_expiry_days'       => 0,
-        'policy_expiry_warning_days' => 7,
+        'policy_min_length'                  => $cfgPolicy['minLength'] ?? 12,
+        'policy_require_uppercase'           => !empty($cfgPolicy['requireUpper']) ? 1 : 1,
+        'policy_require_lowercase'           => !empty($cfgPolicy['requireLower']) ? 1 : 1,
+        'policy_require_number'              => !empty($cfgPolicy['requireNumber']) ? 1 : 1,
+        'policy_require_special'             => !empty($cfgPolicy['requireSpecial']) ? 1 : 1,
+        'policy_disallow_username'           => 1,
+        'policy_history_count'               => $cfgPolicy['historyCount'] ?? 5,
+        'policy_expiry_days'                 => $cfgPolicy['maxAgeDays'] ?? 90,
+        'policy_expiry_warning_days'         => 14,
         'policy_force_change_on_first_login' => 1,
     ];
     try {
@@ -32,28 +34,36 @@ function loadPolicy(NuDatabase $db): array {
     }
 }
 
-// ─── Helper: validate password against policy ────────────────────────────────
-function validatePassword(string $password, array $policy, string $username = ''): array {
+function validatePasswordStrength(string $password, array $policy, string $username = ''): array {
     $errors = [];
-    if (strlen($password) < (int)$policy['policy_min_length']) {
-        $errors[] = 'Password must be at least ' . $policy['policy_min_length'] . ' characters.';
+    $minLength = (int)($policy['policy_min_length'] ?? $policy['minLength'] ?? 12);
+    if (strlen($password) < $minLength) {
+        $errors[] = "Password must be at least {$minLength} characters.";
     }
-    if ($policy['policy_require_uppercase'] && !preg_match('/[A-Z]/', $password)) {
-        $errors[] = 'Password must include at least one uppercase letter.';
+    $reqUpper = !empty($policy['policy_require_uppercase']) || !empty($policy['requireUpper']);
+    if ($reqUpper && !preg_match('/[A-Z]/', $password)) {
+        $errors[] = "Password must contain an uppercase letter.";
     }
-    if ($policy['policy_require_lowercase'] && !preg_match('/[a-z]/', $password)) {
-        $errors[] = 'Password must include at least one lowercase letter.';
+    $reqLower = !empty($policy['policy_require_lowercase']) || !empty($policy['requireLower']);
+    if ($reqLower && !preg_match('/[a-z]/', $password)) {
+        $errors[] = "Password must contain a lowercase letter.";
     }
-    if ($policy['policy_require_number'] && !preg_match('/[0-9]/', $password)) {
-        $errors[] = 'Password must include at least one number.';
+    $reqNum = !empty($policy['policy_require_number']) || !empty($policy['requireNumber']);
+    if ($reqNum && !preg_match('/[0-9]/', $password)) {
+        $errors[] = "Password must contain a number.";
     }
-    if ($policy['policy_require_special'] && !preg_match('/[^A-Za-z0-9]/', $password)) {
-        $errors[] = 'Password must include at least one special character.';
+    $reqSpec = !empty($policy['policy_require_special']) || !empty($policy['requireSpecial']);
+    if ($reqSpec && !preg_match('/[^A-Za-z0-9]/', $password)) {
+        $errors[] = "Password must contain a special character.";
     }
-    if ($policy['policy_disallow_username'] && $username !== '' && stripos($password, $username) !== false) {
-        $errors[] = 'Password must not contain your username.';
+    if (!empty($policy['policy_disallow_username']) && $username !== '' && stripos($password, $username) !== false) {
+        $errors[] = "Password must not contain your username.";
     }
     return $errors;
+}
+
+function validatePassword(string $password, array $policy, string $username = ''): array {
+    return validatePasswordStrength($password, $policy, $username);
 }
 
 // ─── Helper: check password history ─────────────────────────────────────────

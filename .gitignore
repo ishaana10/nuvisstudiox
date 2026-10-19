@@ -3,6 +3,11 @@
 # Local config with real credentials - NEVER commit this
 config.local.php
 
+# SQLite databases
+nu.db
+*.db
+*.sqlite
+
 # Logs
 logs/
 *.log

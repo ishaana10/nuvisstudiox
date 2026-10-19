@@ -1,4 +1,4 @@
-# Implementing Custom Joins in Form Browse Grids (NuBuilder Next)
+# Implementing Custom Joins in Form Browse Grids (Nuvis StudioX)
 
 This document provides a detailed, step-by-step guide and practical examples on how to implement custom database joins for dynamic forms.
 
@@ -13,7 +13,7 @@ LEFT JOIN service_type ON service_type.sev_id = pbrder_bapp.p_servicetype
 
 We will show you exactly how to show the descriptive child values (e.g., Agent Name, Station Name, User Name, Service Type Name) in your browse grid instead of raw foreign key IDs (like ID `55`).
 
-In NuBuilder Next, there are **two primary methods** to achieve this.
+In Nuvis StudioX, there are **two primary methods** to achieve this.
 
 ---
 

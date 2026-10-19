@@ -1,5 +1,7 @@
 <?php
-// nuBuilder Next - Migration script to add Multi-Project Support
+if (PHP_SAPI !== "cli") { http_response_code(403); exit("CLI execution only
+"); }
+// Nuvis StudioX - Migration script to add Multi-Project Support
 
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/core/Database.php';

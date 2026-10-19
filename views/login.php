@@ -81,6 +81,28 @@ declare(strict_types=1);
                     Sign In
                 </button>
             </form>
+
+            <?php
+            $ssoProviders = [];
+            try {
+                if (file_exists(__DIR__ . '/../core/Sso/SsoManager.php')) {
+                    require_once __DIR__ . '/../core/Sso/SsoManager.php';
+                    $ssoProviders = \Nuvis\Sso\SsoManager::getActiveProviders();
+                }
+            } catch (\Throwable $e) {}
+            ?>
+            <?php if (!empty($ssoProviders)): ?>
+            <div style="margin-top: 16px; border-top: 1px solid var(--border-color, #334155); padding-top: 16px;">
+                <p style="font-size: 12px; color: var(--text-muted, #94a3b8); text-align: center; margin-bottom: 10px;">Or sign in with Enterprise SSO:</p>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <?php foreach ($ssoProviders as $sso): ?>
+                    <a href="api/sso.php?action=sso_login&provider=<?= (int)$sso['id'] ?>" class="nu-btn nu-btn-ghost nu-btn-block" style="display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; border: 1px solid var(--border-color);">
+                        🔐 Login with <?= h($sso['name']) ?>
+                    </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
 
         <?php if ($forgotPasswordEnabled): ?>

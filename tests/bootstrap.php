@@ -6,6 +6,13 @@ if (!defined('NU_ROOT')) {
 }
 
 require_once NU_ROOT . '/config.php';
+
+// Configure SQLite for automated unit tests
+$GLOBALS['nuConfig']['dbDriver'] = 'sqlite';
+$GLOBALS['nuConfig']['dbSqlitePath'] = NU_ROOT . '/tests/test.sqlite';
+
+require_once NU_ROOT . '/core/Cache.php';
+require_once NU_ROOT . '/core/RedisSessionHandler.php';
 require_once NU_ROOT . '/core/Database.php';
 require_once NU_ROOT . '/core/Auth.php';
 require_once NU_ROOT . '/core/Api.php';

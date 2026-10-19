@@ -226,22 +226,32 @@
   }
 
   var TYPE_CONFIGS = {
-    stat: '', // populated dynamically below to keep one source of truth
+    stat: '', // populated dynamically below
+    metric_trend: '<div class="nu-field" style="margin-bottom:12px;"><label class="nu-label">SQL (must return <code>value</code> and optional <code>prev_value</code>)</label><textarea class="nu-input" id="nuWSql" rows="3" placeholder="SELECT 120 AS value, 100 AS prev_value"></textarea></div><div class="nu-field"><label class="nu-label">Subtitle</label><input class="nu-input" id="nuWSubtitle" placeholder="vs last month"></div>',
+    sparkline: '<div class="nu-field"><label class="nu-label">SQL (columns: <code>label</code>, <code>value</code>)</label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT created_at AS label, total AS value FROM sales ORDER BY created_at LIMIT 10"></textarea></div>',
     chart_bar:  '<div class="nu-field"><label class="nu-label">SQL (columns: <code>label</code>, <code>value</code>)</label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT status AS label, COUNT(*) AS value FROM my_table GROUP BY status"></textarea></div>',
     chart_line: '<div class="nu-field"><label class="nu-label">SQL (columns: <code>label</code>, <code>value</code>)</label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT DATE(created_at) AS label, COUNT(*) AS value FROM my_table GROUP BY DATE(created_at) ORDER BY label"></textarea></div>',
+    chart_area: '<div class="nu-field"><label class="nu-label">SQL (columns: <code>label</code>, <code>value</code>)</label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT DATE(created_at) AS label, COUNT(*) AS value FROM my_table GROUP BY DATE(created_at) ORDER BY label"></textarea></div>',
     chart_pie:  '<div class="nu-field"><label class="nu-label">SQL (columns: <code>label</code>, <code>value</code>)</label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT category AS label, COUNT(*) AS value FROM my_table GROUP BY category"></textarea></div>',
-    table:      '<div class="nu-field"><label class="nu-label">SQL <small style="color:#888">use <code>{{user_id}}</code> to filter by current user</small></label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT title AS Task, status AS Status FROM my_tasks LIMIT 10"></textarea></div>',
+    chart_doughnut: '<div class="nu-field"><label class="nu-label">SQL (columns: <code>label</code>, <code>value</code>)</label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT status AS label, COUNT(*) AS value FROM my_table GROUP BY status"></textarea></div>',
+    chart_radar: '<div class="nu-field"><label class="nu-label">SQL (columns: <code>label</code>, <code>value</code>)</label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT skill AS label, score AS value FROM team_skills"></textarea></div>',
+    table:      '<div class="nu-field"><label class="nu-label">SQL <small style="color:#888">use <code>{{user_id}}</code>, <code>{{role}}</code>, <code>{{today}}</code></small></label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT title AS Task, status AS Status FROM my_tasks LIMIT 10"></textarea></div>',
     list:       '<div class="nu-field"><label class="nu-label">Links (one per line: <code>Label|form_code</code> or <code>Label|https://url</code>)</label><textarea class="nu-input" id="nuWLinks" rows="5" placeholder="Open Forms|zxy1234567890\nMy Reports|abc0987654321"></textarea></div>',
+    quick_actions: '<div class="nu-field"><label class="nu-label">Actions (one per line: <code>Label|form_code|fa-icon</code> or <code>Label|https://url|emoji</code>)</label><textarea class="nu-input" id="nuWLinks" rows="5" placeholder="New Request|cust_req_form|fa-plus\nView Users|users_form|fa-users"></textarea></div>',
+    activity:   '<div class="nu-field"><label class="nu-label">SQL (columns: <code>time</code>, <code>user</code>, <code>text</code>)</label><textarea class="nu-input" id="nuWSql" rows="4" placeholder="SELECT created_at AS time, user_id AS user, action AS text FROM nu_audit_logs ORDER BY created_at DESC LIMIT 5"></textarea></div>',
     progress:   '<div class="nu-field" style="margin-bottom:12px;"><label class="nu-label">SQL (columns: <code>done</code>, <code>total</code>)</label><textarea class="nu-input" id="nuWSql" rows="3"></textarea></div><div class="nu-field"><label class="nu-label">Label</label><input class="nu-input" id="nuWSubtitle" placeholder="Tasks completed"></div>',
+    iframe:     '<div class="nu-field" style="margin-bottom:12px;"><label class="nu-label">iFrame Target URL</label><input class="nu-input" id="nuWLinkUrl" placeholder="https://example.com/embed"></div><div class="nu-field"><label class="nu-label">Height (px)</label><input class="nu-input" id="nuWSubtitle" type="number" placeholder="280"></div>',
     custom:     '<div class="nu-field"><label class="nu-label">HTML Content</label><textarea class="nu-input" id="nuWHtml" rows="6" placeholder="<p>Any HTML here...</p>"></textarea></div>'
   };
   // Set stat config from function (avoids duplicating the long string)
   TYPE_CONFIGS.stat = _statConfigHtml();
 
   var TYPE_ACCENTS = {
-    stat:'#01696f', chart_bar:'#006494', chart_line:'#7a39bb',
-    chart_pie:'#da7101', table:'#437a22', list:'#006494',
-    progress:'#964219', custom:'#a12c7b'
+    stat:'#01696f', metric_trend:'#0ea5e9', sparkline:'#0284c7',
+    chart_bar:'#006494', chart_line:'#7a39bb', chart_area:'#8b5cf6',
+    chart_pie:'#da7101', chart_doughnut:'#f59e0b', chart_radar:'#ec4899',
+    table:'#437a22', list:'#006494', quick_actions:'#10b981',
+    activity:'#6366f1', progress:'#964219', iframe:'#64748b', custom:'#a12c7b'
   };
 
   window.nuDash = {
@@ -440,7 +450,9 @@
           if (lm || lu) cfg.link_mode = mode; // only save when there is a link
           return cfg;
         }
-        case 'chart_bar': case 'chart_line': case 'chart_pie': case 'table':
+        case 'metric_trend':
+          return { sql: sql, subtitle: (document.getElementById('nuWSubtitle')||{}).value||'' };
+        case 'chart_bar': case 'chart_line': case 'chart_area': case 'chart_pie': case 'chart_doughnut': case 'chart_radar': case 'sparkline': case 'table': case 'activity':
           return { sql: sql };
         case 'progress':
           return { sql: sql, label: (document.getElementById('nuWSubtitle')||{}).value||'' };
@@ -451,6 +463,22 @@
             return t.indexOf('http') === 0 ? { label:(p[0]||'').trim(), url:t } : { label:(p[0]||'').trim(), module:t };
           })};
         }
+        case 'quick_actions': {
+          var actionLines = ((document.getElementById('nuWLinks')||{}).value||'').split('\n').filter(Boolean);
+          return { items: actionLines.map(function (l) {
+            var p = l.split('|');
+            var lbl = (p[0]||'').trim();
+            var target = (p[1]||'').trim();
+            var ic = (p[2]||'').trim() || 'fa-bolt';
+            var isUrl = target.indexOf('http') === 0;
+            return isUrl ? { label: lbl, url: target, icon: ic } : { label: lbl, module: target, icon: ic };
+          })};
+        }
+        case 'iframe':
+          return {
+            url: ((document.getElementById('nuWLinkUrl')||{}).value||'').trim(),
+            height: parseInt((document.getElementById('nuWSubtitle')||{}).value, 10) || 280
+          };
         case 'custom':
           return { html: (document.getElementById('nuWHtml')||{}).value||'' };
         default: return {};
@@ -458,9 +486,10 @@
     },
 
     validateConfig: function (type, cfg) {
-      var sqlTypes = ['stat','chart_bar','chart_line','chart_pie','table','progress'];
+      var sqlTypes = ['stat','metric_trend','sparkline','chart_bar','chart_line','chart_area','chart_pie','chart_doughnut','chart_radar','table','progress'];
       if (sqlTypes.indexOf(type) !== -1 && !cfg.sql)              return 'Please enter a SQL query.';
-      if (type === 'list'   && (!cfg.items || !cfg.items.length)) return 'Please add at least one link.';
+      if ((type === 'list' || type === 'quick_actions') && (!cfg.items || !cfg.items.length)) return 'Please add at least one item.';
+      if (type === 'iframe' && !cfg.url)                          return 'Please enter an iFrame target URL.';
       if (type === 'custom' && !cfg.html)                         return 'Please enter HTML content.';
       return null;
     },
@@ -470,7 +499,7 @@
       var wrap = document.getElementById('nuWPreviewWrap');
       var prev = document.getElementById('nuWPreview');
       wrap.style.display = 'block';
-      prev.innerHTML = '<span style="color:#888">Loading...</span>';
+      prev.innerHTML = '<div style="padding:8px;"><div class="nu-skeleton nu-skeleton-text" style="width:60%;"></div><div class="nu-skeleton nu-skeleton-card" style="height:60px;"></div></div>';
       if (!cfg.sql) { prev.innerHTML = '<em>No SQL to preview.</em>'; return; }
       fetch(API + '?action=run_sql', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sql:cfg.sql}) })
         .then(function (r) { return r.json(); })
@@ -666,7 +695,33 @@
     }
   };
 
-  function onReady() { restoreGroupStates(); initCharts(); }
+  function initAutoRefresh() {
+    document.querySelectorAll('.nu-widget-card[data-refresh-interval]').forEach(function (card) {
+      var interval = parseInt(card.dataset.refreshInterval, 10);
+      if (interval > 0) {
+        setInterval(function () {
+          var wid = card.dataset.widgetId;
+          if (wid) {
+            fetch(API + '?action=get&id=' + encodeURIComponent(wid))
+              .then(function (r) { return r.json(); })
+              .then(function (d) {
+                if (d && d.widget) {
+                  var bodyEl = card.querySelector('.nu-widget-body');
+                  if (bodyEl && d.html) {
+                    bodyEl.innerHTML = d.html;
+                  }
+                  // Re-render chart if canvas exists
+                  initCharts();
+                }
+              })
+              .catch(function () {});
+          }
+        }, interval * 1000);
+      }
+    });
+  }
+
+  function onReady() { restoreGroupStates(); initCharts(); initAutoRefresh(); }
   document.addEventListener('DOMContentLoaded', onReady);
   if (document.readyState !== 'loading') onReady();
 

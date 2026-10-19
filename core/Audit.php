@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-// nuBuilder Next - Audit Trail
+// Nuvis StudioX - Audit Trail
 
 class NuAudit {
     private $db;
@@ -28,31 +28,81 @@ class NuAudit {
         ?array $oldData = null,
         ?array $newData = null
     ): void {
-        // Silently skip if audit log table does not exist
+        $this->logChange($action, $table, $recordId, $oldData, $newData);
+    }
+
+    /**
+     * Record an audit event with before/after snapshots, field-level diff calculation, and extra metadata.
+     */
+    public function logChange(
+        string $action,
+        string $table,
+        $recordId = null,
+        ?array $oldData = null,
+        ?array $newData = null,
+        array $extra = []
+    ): void {
         try {
-            $check = $this->db->fetchOne("SHOW TABLES LIKE 'nu_audit_log'");
+            $driver = method_exists($this->db, 'getDriverName') ? $this->db->getDriverName() : 'mysql';
+            if ($driver === 'sqlite') {
+                $check = $this->db->fetchOne("SELECT name FROM sqlite_master WHERE type='table' AND name='nu_audit_log'");
+            } else {
+                $check = $this->db->fetchOne("SHOW TABLES LIKE 'nu_audit_log'");
+            }
             if (!$check) return;
 
-            // Preserve usr_id exactly as stored in session — may be UUID string or int
+            $diff = null;
+            if ($oldData !== null && $newData !== null) {
+                $diff = [];
+                foreach ($newData as $k => $v) {
+                    if (!array_key_exists($k, $oldData) || $oldData[$k] !== $v) {
+                        $diff[$k] = [
+                            'old' => $oldData[$k] ?? null,
+                            'new' => $v
+                        ];
+                    }
+                }
+            }
+
             $userId    = $_SESSION['nu_user_id'] ?? null;
             $username  = $_SESSION['nu_username'] ?? 'system';
             $ip        = $_SERVER['REMOTE_ADDR'] ?? 'cli';
-            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            $userAgent = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
 
-            $this->db->insert('nu_audit_log', [
+            $data = [
                 'audit_action'     => $action,
                 'audit_table'      => $table,
                 'audit_record_id'  => $recordId,
                 'audit_old_data'   => $oldData ? json_encode($oldData) : null,
                 'audit_new_data'   => $newData ? json_encode($newData) : null,
+                'audit_diff'       => $diff ? json_encode($diff) : null,
                 'audit_user_id'    => $userId,
                 'audit_username'   => $username,
                 'audit_ip'         => $ip,
                 'audit_user_agent' => $userAgent,
                 'audit_timestamp'  => date('Y-m-d H:i:s'),
-            ]);
+            ];
+
+            // If audit_diff column is missing in legacy schema, remove it before insertion
+            try {
+                $hasDiffCol = false;
+                if ($driver === 'sqlite') {
+                    $cols = $this->db->fetchAll("PRAGMA table_info(nu_audit_log)");
+                    foreach ($cols as $c) {
+                        if (($c['name'] ?? '') === 'audit_diff') { $hasDiffCol = true; break; }
+                    }
+                } else {
+                    $hasDiffCol = (bool)$this->db->fetchOne("SHOW COLUMNS FROM nu_audit_log LIKE 'audit_diff'");
+                }
+                if (!$hasDiffCol) {
+                    unset($data['audit_diff']);
+                }
+            } catch (\Throwable $t) {
+                unset($data['audit_diff']);
+            }
+
+            $this->db->insert('nu_audit_log', $data);
         } catch (Throwable $e) {
-            // Never let audit failure affect the session or request
             error_log('[NuAudit] ' . $e->getMessage());
         }
     }

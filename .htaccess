@@ -3,10 +3,17 @@ RewriteEngine On
 # Disable directory browsing
 Options -Indexes
 
-# Protect hidden/dot files (e.g. .env, .htaccess)
+# Protect hidden/dot files
 RewriteRule "(^|/)\.." - [F,L]
 
-# Front controller - send all non-file/dir requests to index.php
+# Force HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# HSTS (1 year, include subdomains, preload ready)
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+# Front controller
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [QSA,L]

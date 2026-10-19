@@ -44,7 +44,15 @@ function wu_json(array $data): never {
 }
 
 function wu_safe_sql(string $sql, int $userId): string {
-    return str_replace('{{user_id}}', (string)$userId, $sql);
+    $role = (string)($_SESSION['nu_role'] ?? '');
+    $replacements = [
+        '{{user_id}}'    => (string)$userId,
+        '{{role}}'       => $role,
+        '{{today}}'      => date('Y-m-d'),
+        '{{this_month}}' => date('Y-m-01'),
+        '{{this_year}}'  => date('Y-01-01'),
+    ];
+    return strtr($sql, $replacements);
 }
 
 /**
@@ -180,10 +188,12 @@ if ($action === 'reorder') {
 
 if ($action === 'update') {
     $id       = (int)($body['id'] ?? 0);
+    $type     = preg_replace('/[^a-z_]/', '', (string)($body['type'] ?? ''));
     $title    = substr((string)($body['title'] ?? ''), 0, 120);
     $icon     = substr((string)($body['icon']  ?? ''), 0, 120);
     $config   = json_encode($body['config'] ?? []);
-    $existing = $db->fetchOne("SELECT widget_width, widget_height FROM nu_dashboard_widgets WHERE widget_id=?", [$id]);
+    $existing = $db->fetchOne("SELECT widget_type, widget_width, widget_height FROM nu_dashboard_widgets WHERE widget_id=?", [$id]);
+    $type     = $type !== '' ? $type : ($existing['widget_type'] ?? 'custom');
     $width    = max(1, min(4, (int)($body['width']  ?? $existing['widget_width']  ?? 2)));
     $height   = max(1, min(3, (int)($body['height'] ?? $existing['widget_height'] ?? 1)));
 
@@ -192,9 +202,9 @@ if ($action === 'update') {
     $oc = wu_ownership_clause($id, $userId, $isAdmin);
     $db->query(
         "UPDATE nu_dashboard_widgets
-            SET widget_title=?, widget_icon=?, widget_config=?, widget_width=?, widget_height=?
+            SET widget_type=?, widget_title=?, widget_icon=?, widget_config=?, widget_width=?, widget_height=?
           WHERE " . $oc['sql'],
-        array_merge([$title, $icon !== '' ? $icon : null, $config, $width, $height], $oc['params'])
+        array_merge([$type, $title, $icon !== '' ? $icon : null, $config, $width, $height], $oc['params'])
     );
     wu_json(['ok' => true]);
 }

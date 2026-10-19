@@ -23,7 +23,15 @@ declare(strict_types=1);
             <line x1="3" y1="18" x2="21" y2="18"/>
         </svg>
     </button>
-    <h2 class="nu-page-title" id="pageTitle">Dashboard</h2>
+    <?php
+    require_once NU_ROOT . '/core/AppVersion.php';
+    ?>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <h2 class="nu-page-title" id="pageTitle" style="margin:0;">Dashboard</h2>
+        <span class="version-badge" title="Released: <?= h(AppVersion::get('released_at')) ?>" style="font-size: 10px; font-weight: 700; color: var(--text-muted); background: var(--bg-subtle, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); padding: 2px 8px; border-radius: 9999px;">
+            <?= h(AppVersion::get('full')) ?>
+        </span>
+    </div>
     <div class="nu-header-actions">
         <?php if ($isLoggedIn): ?>
         <?php
@@ -32,7 +40,7 @@ declare(strict_types=1);
             $accessibleProjects = ProjectContext::getAccessibleProjects();
         ?>
         <div class="nu-project-switcher" style="position: relative; display: inline-flex; align-items: center; gap: 6px; margin-right: 8px;">
-            <span class="nu-project-badge" style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 12px; background: rgba(79,107,237,0.15); color: var(--accent, #4f6bed); border: 1px solid rgba(79,107,237,0.3);" title="Active Project Slug">
+            <span class="nu-project-badge" style="font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 12px; background: rgba(37,99,235,0.12); color: var(--primary); border: 1px solid rgba(37,99,235,0.3);" title="Active Project Slug">
                 ⚡ <?= h($activeProjectCode) ?>
             </span>
             <select id="nuProjectSelect" onchange="nuSwitchProject(this.value)" class="nu-input" style="padding: 5px 10px; font-weight: 600; font-size: 13px; border-radius: 6px; cursor: pointer; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color);" title="Switch Active Project">
@@ -130,11 +138,13 @@ declare(strict_types=1);
         </script>
         <?php endif; ?>
 
-        <button class="nu-btn nu-btn-ghost" title="Toggle theme"
+        <button class="nu-btn nu-btn-ghost" id="nuThemeToggleBtn" title="Theme: Auto (System)"
                 onclick="(function(){
-                    var t=document.documentElement.getAttribute('data-theme');
+                    var btn=document.getElementById('nuThemeToggleBtn');
+                    var t=document.documentElement.getAttribute('data-theme')||'auto';
                     var n=t==='light'?'dark':t==='dark'?'auto':'light';
                     document.documentElement.setAttribute('data-theme',n);
+                    if(btn) btn.title = 'Theme: ' + (n==='light'?'Light':n==='dark'?'Dark':'Auto (System)');
                     try{localStorage.setItem('nu-theme',n);}catch(e){}
                 })()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

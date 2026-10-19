@@ -1,5 +1,5 @@
 <?php
-// nuBuilder Next - Runtime Report Renderer
+// Nuvis StudioX - Runtime Report Renderer
 // Executes saved report SQL safely and renders output
 
 class NuReportRenderer {

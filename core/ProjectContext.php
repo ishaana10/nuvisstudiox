@@ -6,12 +6,25 @@ declare(strict_types=1);
  * Manages active project context, permissions, and database table registrations.
  */
 class ProjectContext {
+    private static ?int $cachedProjectId = null;
+
+    /**
+     * Resets the in-memory static cache for project context.
+     */
+    public static function resetCache(): void {
+        self::$cachedProjectId = null;
+    }
+
     /**
      * Gets the current active project ID from session or resolves default/assigned project for the user.
      *
      * @return int
      */
     public static function getId(): int {
+        if (self::$cachedProjectId !== null) {
+            return self::$cachedProjectId;
+        }
+
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
@@ -46,13 +59,13 @@ class ProjectContext {
                     // If user is globeadmin, allow access immediately
                     if ($userRole === 'globeadmin' || empty($userId)) {
                         $_SESSION['nu_project_code'] = $proj['project_code'];
-                        return $sessPid;
+                        return self::$cachedProjectId = $sessPid;
                     }
 
                     // For non-globeadmin users, verify member assignment
                     if (self::validateAccess((int)$userId, $sessPid, $userRole)) {
                         $_SESSION['nu_project_code'] = $proj['project_code'];
-                        return $sessPid;
+                        return self::$cachedProjectId = $sessPid;
                     }
                 }
             }
@@ -66,9 +79,9 @@ class ProjectContext {
                 $_SESSION['nu_project_code'] = $projRow['project_code'];
             }
 
-            return $resolvedId;
+            return self::$cachedProjectId = $resolvedId;
         } catch (\Throwable $e) {
-            return 1;
+            return self::$cachedProjectId = 1;
         }
     }
 
@@ -79,6 +92,7 @@ class ProjectContext {
      * @return bool
      */
     public static function setId(int $projectId): bool {
+        self::$cachedProjectId = null;
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }

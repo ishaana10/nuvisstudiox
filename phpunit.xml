@@ -5,14 +5,24 @@
          colors="true"
          cacheDirectory=".phpunit.cache">
     <testsuites>
-        <testsuite name="Nuvis Test Suite">
+        <testsuite name="Unit">
             <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+        <testsuite name="Security">
+            <directory>tests/Security</directory>
+        </testsuite>
+        <testsuite name="Api">
+            <directory>tests/Api</directory>
         </testsuite>
     </testsuites>
     <source>
         <include>
             <directory suffix=".php">core</directory>
             <directory suffix=".php">api</directory>
+            <directory suffix=".php">modules</directory>
         </include>
     </source>
 </phpunit>
