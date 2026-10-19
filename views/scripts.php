@@ -12,7 +12,7 @@ declare(strict_types=1);
 require_once NU_ROOT . '/core/AppVersion.php';
 $_commitVersion = urlencode(AppVersion::get('commit'));
 ?>
-<script src="<?= nu_asset('assets/js/nubuilder-next.js') ?>?v=<?= $_commitVersion ?>"></script>
+<script src="<?= nu_asset('assets/js/nubuilder-next.js') ?>"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.43.3/ace.min.js" ></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.43.3/ext-language_tools.min.js" ></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.15.1/beautify.min.js" ></script>
