@@ -305,6 +305,9 @@ class NuAuth {
      * Useful for JS injection or debug.
      */
     public function getGlobalMeta(): array {
+        if (isset($this->permCache['global_meta'])) {
+            return $this->permCache['global_meta'];
+        }
         $meta = $_SESSION['nu_user_meta'] ?? [];
 
         // Load custom global developer settings from nu_system_settings
@@ -325,6 +328,7 @@ class NuAuth {
             error_log('[Auth.php getGlobalMeta] ' . $e->getMessage());
         }
 
+        $this->permCache['global_meta'] = $meta;
         return $meta;
     }
 
@@ -642,6 +646,10 @@ function nu_ensure_custom_user_columns(NuDatabase $db) {
 }
 
 function nu_get_user_fields_def(NuDatabase $db): array {
+    static $cachedUserFieldsDef = null;
+    if ($cachedUserFieldsDef !== null) {
+        return $cachedUserFieldsDef;
+    }
     nu_ensure_custom_user_columns($db);
     $row = $db->fetchOne("SELECT usr_custom_fields_def FROM nu_users WHERE usr_username = 'globeadmin'");
     if ($row && !empty($row['usr_custom_fields_def'])) {
