@@ -3,7 +3,12 @@
 // Run this file once to verify environment and create database
 
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', '0');
+
+if (file_exists(__DIR__ . '/config.local.php') || file_exists(__DIR__ . '/installed.lock')) {
+    http_response_code(403);
+    exit('Nuvis StudioX is already installed. Access denied to setup.php.');
+}
 
 $step = $_GET['step'] ?? 'check';
 $errors = [];

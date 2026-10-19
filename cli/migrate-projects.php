@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+if (PHP_SAPI !== "cli") { http_response_code(403); exit("CLI execution only\n"); }
 // Nuvis StudioX - Migration script to add Multi-Project Support
 
 require_once dirname(__DIR__) . '/config.php';
@@ -110,7 +112,7 @@ if ($driver === 'sqlite') {
 }
 
 // 4. Helper to add project_id column to tables
-$tables = ['nu_forms', 'nu_reports', 'nu_queries', 'nu_procedures', 'nu_menus', 'nu_workflows', 'nu_workflow_stages', 'nu_workflow_transitions', 'nu_form_versions'];
+$tables = ['nu_forms', 'nu_reports', 'nu_queries', 'nu_procedures', 'nu_menus', 'nu_workflows', 'nu_workflow_stages', 'nu_workflow_transitions', 'nu_report_dashboards', 'nu_form_versions'];
 
 foreach ($tables as $tbl) {
     try {

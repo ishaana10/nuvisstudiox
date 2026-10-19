@@ -1,9 +1,10 @@
 <?php
+declare(strict_types=1);
+if (PHP_SAPI !== "cli") { http_response_code(403); exit("CLI execution only\n"); }
 /**
  * Migration: Create nu_role_form_permissions table and seed nu_roles with globeadmin
  * Run once: GET /api/migrate-roles.php
  */
-declare(strict_types=1);
 require_once dirname(__DIR__) . '/core/Database.php';
 
 $db = NuDatabase::getInstance();

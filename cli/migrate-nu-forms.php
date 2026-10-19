@@ -1,4 +1,6 @@
 <?php
+if (PHP_SAPI !== "cli") { http_response_code(403); exit("CLI execution only
+"); }
 /**
  * One-time migration: adds missing columns to nu_forms.
  * Call once via browser: /api/migrate-nu-forms.php

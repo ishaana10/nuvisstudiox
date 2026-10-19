@@ -40,23 +40,59 @@ try {
     $db->fetchAll("SELECT 1 FROM nu_report_dashboards LIMIT 1");
 } catch (Throwable $t) {
     try {
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS nu_report_dashboards (
-                dashboard_id INT AUTO_INCREMENT PRIMARY KEY,
-                dashboard_code VARCHAR(50) NOT NULL UNIQUE,
-                dashboard_name VARCHAR(100) NOT NULL,
-                dashboard_description TEXT,
-                dashboard_active TINYINT(1) DEFAULT 1,
-                dashboard_role_access JSON,
-                dashboard_filters JSON,
-                dashboard_reports JSON,
-                dashboard_created_by INT,
-                dashboard_created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                dashboard_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB;
-        ");
+        $isSqlite = ($db->getDriverName() === 'sqlite');
+        if ($isSqlite) {
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS nu_report_dashboards (
+                    dashboard_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dashboard_code TEXT NOT NULL UNIQUE,
+                    dashboard_name TEXT NOT NULL,
+                    dashboard_description TEXT,
+                    dashboard_active INTEGER DEFAULT 1,
+                    dashboard_role_access TEXT,
+                    dashboard_filters TEXT,
+                    dashboard_reports TEXT,
+                    dashboard_created_by TEXT,
+                    dashboard_created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    dashboard_updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    project_id INTEGER DEFAULT 1
+                );
+            ");
+        } else {
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS nu_report_dashboards (
+                    dashboard_id INT AUTO_INCREMENT PRIMARY KEY,
+                    dashboard_code VARCHAR(50) NOT NULL UNIQUE,
+                    dashboard_name VARCHAR(100) NOT NULL,
+                    dashboard_description TEXT,
+                    dashboard_active TINYINT(1) DEFAULT 1,
+                    dashboard_role_access JSON,
+                    dashboard_filters JSON,
+                    dashboard_reports JSON,
+                    dashboard_created_by INT,
+                    dashboard_created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    dashboard_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    project_id INT DEFAULT 1
+                ) ENGINE=InnoDB;
+            ");
+        }
     } catch (Throwable $t2) {}
 }
+
+// Ensure project_id column exists on nu_report_dashboards
+try {
+    $cols = [];
+    if ($db->getDriverName() === 'sqlite') {
+        $info = $db->fetchAll("PRAGMA table_info(nu_report_dashboards)");
+        $cols = array_map(fn($c) => $c['name'], $info);
+    } else {
+        $info = $db->fetchAll("DESCRIBE nu_report_dashboards");
+        $cols = array_map(fn($c) => $c['Field'], $info);
+    }
+    if (!in_array('project_id', $cols, true)) {
+        $db->exec("ALTER TABLE nu_report_dashboards ADD COLUMN project_id INT DEFAULT 1");
+    }
+} catch (Throwable $t3) {}
 
 $body = [];
 if ($method === 'POST') {

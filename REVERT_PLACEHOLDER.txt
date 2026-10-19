@@ -1,2 +1,0 @@
-This file is a placeholder to trigger a revert operation.
-Target commit: 6ad5baab387148e6d8b459213063950aecf6e628

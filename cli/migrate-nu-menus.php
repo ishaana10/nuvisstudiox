@@ -1,4 +1,6 @@
 <?php
+if (PHP_SAPI !== "cli") { http_response_code(403); exit("CLI execution only
+"); }
 /**
  * One-time migration: creates nu_menus table and ensures all required columns exist.
  * Call once via browser: /api/migrate-nu-menus.php
