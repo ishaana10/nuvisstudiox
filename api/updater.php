@@ -7,6 +7,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Auth.php';
+require_once __DIR__ . '/../core/AppVersion.php';
 
 header('Content-Type: application/json');
 
@@ -157,7 +158,8 @@ try {
                 'success' => true,
                 'status'  => trim((string)$status),
                 'branch'  => trim((string)$branch),
-                'version' => NU_VERSION,
+                'version' => class_exists('AppVersion') ? AppVersion::get('full') : NU_VERSION,
+                'version_short' => class_exists('AppVersion') ? AppVersion::get('version') : NU_VERSION,
                 'selected_branch' => $selectedBranch,
                 'remote_branches' => $remoteBranches,
                 'git_path' => $git_path,

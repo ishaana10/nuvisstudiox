@@ -215,14 +215,37 @@ if (empty($nuConfig['enableGitUpdater'])) {
     };
 
     window.nuUpdGetStatus = function() {
+        var btn = document.querySelector('#upd-dash button[onclick="nuUpdGetStatus()"]');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '&#x21BB; Refreshing...';
+        }
+
         fetch(_api + '?action=git_status')
             .then(r => r.json())
             .then(d => {
-                if (!d.success) return;
-                document.getElementById('upd-stat-version').textContent = d.version;
-                document.getElementById('upd-stat-branch').textContent = d.branch;
-                document.getElementById('upd-stat-git').textContent = d.status.includes('nothing to commit') ? 'Up to date' : 'Modified';
-                document.getElementById('upd-status-console').textContent = d.status;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '&#x21BB; Refresh Status';
+                }
+                if (!d.success) {
+                    if (document.getElementById('upd-status-console')) {
+                        document.getElementById('upd-status-console').textContent = 'Error fetching status: ' + (d.error || 'Unknown error');
+                    }
+                    return;
+                }
+                if (document.getElementById('upd-stat-version')) {
+                    document.getElementById('upd-stat-version').textContent = d.version || '...';
+                }
+                if (document.getElementById('upd-stat-branch')) {
+                    document.getElementById('upd-stat-branch').textContent = d.branch || '...';
+                }
+                if (document.getElementById('upd-stat-git')) {
+                    document.getElementById('upd-stat-git').textContent = (d.status && d.status.includes('nothing to commit')) ? 'Up to date' : 'Modified / Untracked';
+                }
+                if (document.getElementById('upd-status-console')) {
+                    document.getElementById('upd-status-console').textContent = d.status || 'No status output returned.';
+                }
 
                 // Load connection settings values
                 if (document.getElementById('git_path')) {
@@ -236,7 +259,7 @@ if (empty($nuConfig['enableGitUpdater'])) {
                 }
 
                 const sel = document.getElementById('updaterBranchSelect');
-                if (d.remote_branches) {
+                if (d.remote_branches && sel) {
                     sel.innerHTML = '';
                     d.remote_branches.forEach(b => {
                         let opt = document.createElement('option');
@@ -245,6 +268,15 @@ if (empty($nuConfig['enableGitUpdater'])) {
                         if (b === d.selected_branch) opt.selected = true;
                         sel.appendChild(opt);
                     });
+                }
+            })
+            .catch(err => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '&#x21BB; Refresh Status';
+                }
+                if (document.getElementById('upd-status-console')) {
+                    document.getElementById('upd-status-console').textContent = 'Error connecting to updater API: ' + err.message;
                 }
             });
     };
