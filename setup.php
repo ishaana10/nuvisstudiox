@@ -5,9 +5,12 @@
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
 
-if (file_exists(__DIR__ . '/config.local.php') || file_exists(__DIR__ . '/installed.lock')) {
+$isLocked = file_exists(__DIR__ . '/installed.lock');
+$allowForce = isset($_GET['force']) && $_GET['force'] === '1';
+
+if ($isLocked && !$allowForce) {
     http_response_code(403);
-    exit('Nuvis StudioX is already installed. Access denied to setup.php.');
+    exit('Nuvis StudioX is already installed. Access denied to setup.php. (To force setup, remove installed.lock or append ?force=1 to the URL)');
 }
 
 $step = $_GET['step'] ?? 'check';
@@ -319,6 +322,9 @@ function checkRequirement($name, $check, $required = true) {
                     try {
                         $pdo->exec("ALTER TABLE nu_menus ADD COLUMN menu_default_view VARCHAR(10) NOT NULL DEFAULT 'browse'");
                     } catch (PDOException $ignored) {}
+
+                    // Lock installation
+                    @file_put_contents(__DIR__ . '/installed.lock', 'Installed on ' . date('Y-m-d H:i:s'));
 
                     $idLabel = $userIdType === 'uuid' ? 'UUID — VARCHAR(36) with DEFAULT (UUID())' : 'Auto Increment — INT';
                     echo '<div class="setup-success">Database installed successfully!<br>User ID type: <strong>' . htmlspecialchars($idLabel) . '</strong></div>';
