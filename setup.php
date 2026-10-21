@@ -8,12 +8,7 @@ ini_set('display_errors', '0');
 $isLocked = file_exists(__DIR__ . '/installed.lock');
 $allowForce = isset($_GET['force']) && $_GET['force'] === '1';
 
-if ($isLocked && !$allowForce) {
-    http_response_code(403);
-    exit('Nuvis StudioX is already installed. Access denied to setup.php. (To force setup, remove installed.lock or append ?force=1 to the URL)');
-}
-
-$step = $_GET['step'] ?? 'check';
+$step = $_GET['step'] ?? ($isLocked && !$allowForce ? 'locked' : 'check');
 $errors = [];
 $warnings = [];
 
@@ -69,7 +64,21 @@ function checkRequirement($name, $check, $required = true) {
             <p>Version 5.0.0 - Environment Check</p>
         </div>
 
-        <?php if ($step === 'check'): ?>
+        <?php if ($step === 'locked'): ?>
+        <div class="setup-step" style="text-align:center;">
+            <div style="font-size: 40px; margin-bottom: 12px;">🔒</div>
+            <h3>Application Already Installed</h3>
+            <p style="color:var(--text-secondary);font-size:14px;margin-bottom:24px;line-height:1.5;">
+                Nuvis StudioX is already installed and configured on this server. <br>
+                If you wish to re-verify environment requirements or re-initialize the database, click below.
+            </p>
+            <div class="setup-actions" style="justify-content:center;">
+                <a href="index.php" class="nu-btn nu-btn-primary">Launch Application</a>
+                <a href="setup.php?force=1" class="nu-btn nu-btn-ghost">Re-run Setup &amp; Checks</a>
+            </div>
+        </div>
+
+        <?php elseif ($step === 'check'): ?>
         <div class="setup-step">
             <h3>System Requirements</h3>
             <div class="setup-checks">
