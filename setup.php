@@ -1,9 +1,11 @@
 <?php
-// nuBuilder Next - Setup / Installer
+// Nuvis StudioX - Setup / Installer
 // Run this file once to verify environment and create database
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
+
+require_once __DIR__ . '/core/AppVersion.php';
 
 $isLocked = file_exists(__DIR__ . '/installed.lock');
 $allowForce = isset($_GET['force']) && $_GET['force'] === '1';
@@ -32,7 +34,7 @@ function checkRequirement($name, $check, $required = true) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>nuBuilder Next - Setup</title>
+    <title>Nuvis StudioX - Setup</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/nubuilder-next.css">
     <style>
@@ -60,8 +62,8 @@ function checkRequirement($name, $check, $required = true) {
     <div class="setup-card">
         <div class="setup-brand">
             <div class="setup-logo">nu</div>
-            <h1>nuBuilder Next Setup</h1>
-            <p>Version 5.0.0 - Environment Check</p>
+            <h1>Nuvis StudioX Setup</h1>
+            <p>Version <?= htmlspecialchars(class_exists('AppVersion') ? AppVersion::get('version') : '5.0.2') ?> - Environment Check</p>
         </div>
 
         <?php if ($step === 'locked'): ?>
@@ -147,7 +149,7 @@ function checkRequirement($name, $check, $required = true) {
                     <div>
                         <strong>UUID <span style="font-weight:400;font-size:12px;color:var(--text-secondary);">(VARCHAR 36)</span></strong>
                         <span>e.g. <code>550e8400-e29b-41d4-a716-446655440000</code><br>
-                        Recommended for nuBuilder Forte data transfer &amp; multi-instance migration.
+                        Recommended for Nuvis StudioX / nuBuilder Forte data transfer &amp; multi-instance migration.
                         Uses MySQL 8.0 <code>DEFAULT (UUID())</code> — globally unique across installations.</span>
                     </div>
                 </label>
