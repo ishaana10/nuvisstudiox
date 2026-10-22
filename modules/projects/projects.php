@@ -27,10 +27,16 @@ $projects = ProjectContext::getAccessibleProjects();
       <p style="color:var(--text-secondary);font-size:13px;margin:2px 0 0;">Manage application projects, team member access, and project exports.</p>
     </div>
     <?php if ($isGlobeAdmin): ?>
-    <button class="nu-btn nu-btn-primary" onclick="ProjectsModule.openNew()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      New Project
-    </button>
+    <div style="display:flex;gap:8px;">
+      <button class="nu-btn nu-btn-secondary" onclick="ProjectsModule.openImportModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        📥 Import Project
+      </button>
+      <button class="nu-btn nu-btn-primary" onclick="ProjectsModule.openNew()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Project
+      </button>
+    </div>
     <?php endif; ?>
   </div>
 
@@ -152,6 +158,52 @@ $projects = ProjectContext::getAccessibleProjects();
 
     <div style="display:flex; justify-content:flex-end; margin-top:16px;">
       <button class="nu-btn nu-btn-secondary" onclick="ProjectsModule.closeVersionsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── IMPORT PROJECT MODAL ── -->
+<div id="projImportModal" class="nu-modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div class="nu-card" style="width:100%; max-width:560px; padding:24px; background:var(--bg-card); border-radius:8px;">
+    <h3 style="font-size:16px; font-weight:600; margin:0 0 8px 0;">Import Application Project Package</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px; line-height:1.4;">
+      Choose whether to upload a package file from your local computer or select a package file from the webserver folder.
+    </p>
+
+    <!-- Source Selection Tabs -->
+    <div style="display:flex; gap:12px; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; cursor:pointer;">
+        <input type="radio" name="projImportSource" value="upload" checked onchange="ProjectsModule.toggleImportSource('upload')">
+        💻 Upload from Local Computer
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; cursor:pointer;">
+        <input type="radio" name="projImportSource" value="server" onchange="ProjectsModule.toggleImportSource('server')">
+        📁 Select from Webserver Folder
+      </label>
+    </div>
+
+    <!-- Upload Option -->
+    <div id="projImportSourceUpload" class="nu-field" style="margin-bottom:16px;">
+      <label style="font-weight:600; display:block; margin-bottom:6px;">Select Local File (.sql or .zip) <span style="color:var(--color-danger)">*</span></label>
+      <input type="file" id="projImportFile" accept=".sql,.zip" class="nu-input" style="width:100%;">
+    </div>
+
+    <!-- Server Folder Option -->
+    <div id="projImportSourceServer" class="nu-field" style="display:none; margin-bottom:16px;">
+      <label style="font-weight:600; display:block; margin-bottom:6px;">Detected Packages on Webserver <span style="color:var(--color-danger)">*</span></label>
+      <select id="projServerFileSelect" class="nu-input" style="width:100%; margin-bottom:10px;" onchange="ProjectsModule.onServerFileSelect(this.value)">
+        <option value="">Scanning server folder...</option>
+      </select>
+
+      <label style="font-size:12px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:4px;">Or specify relative file path from root:</label>
+      <input type="text" id="projServerFilePathInput" class="nu-input" placeholder="e.g. install.sql or uploads/allpest.zip" style="width:100%;">
+    </div>
+
+    <div id="projImportStatus" style="display:none; margin-bottom:16px; font-size:13px; padding:10px 12px; border-radius:6px;"></div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button class="nu-btn nu-btn-ghost" onclick="ProjectsModule.closeImportModal()">Cancel</button>
+      <button class="nu-btn nu-btn-primary" id="btnRunProjectImport" onclick="ProjectsModule.executeProjectImport()">📥 Start Import</button>
     </div>
   </div>
 </div>
@@ -587,6 +639,142 @@ $projects = ProjectContext::getAccessibleProjects();
       }
     }
 
+    function toggleImportSource(mode) {
+      if (mode === 'server') {
+        if ($('projImportSourceUpload')) $('projImportSourceUpload').style.display = 'none';
+        if ($('projImportSourceServer')) $('projImportSourceServer').style.display = 'block';
+        loadServerPackages();
+      } else {
+        if ($('projImportSourceUpload')) $('projImportSourceUpload').style.display = 'block';
+        if ($('projImportSourceServer')) $('projImportSourceServer').style.display = 'none';
+      }
+    }
+
+    async function loadServerPackages() {
+      var select = $('projServerFileSelect');
+      if (!select) return;
+      select.innerHTML = '<option value="">Scanning server folder...</option>';
+
+      try {
+        var res = await fetch('api/projects.php?action=list_server_packages');
+        var data = await res.json();
+        select.innerHTML = '';
+
+        if (data.success && data.files && data.files.length > 0) {
+          select.innerHTML = '<option value="">-- Choose a package file found on server --</option>';
+          data.files.forEach(function(f) {
+            var opt = document.createElement('option');
+            opt.value = f.path;
+            opt.textContent = f.name + ' (' + f.size_formatted + ' • ' + f.path + ')';
+            select.appendChild(opt);
+          });
+        } else {
+          select.innerHTML = '<option value="">No .sql or .zip package files found automatically in webserver root</option>';
+        }
+      } catch (e) {
+        select.innerHTML = '<option value="">Failed to scan server directory</option>';
+      }
+    }
+
+    function onServerFileSelect(val) {
+      if ($('projServerFilePathInput')) {
+        $('projServerFilePathInput').value = val || '';
+      }
+    }
+
+    function openImportModal() {
+      var statusDiv = $('projImportStatus');
+      if (statusDiv) statusDiv.style.display = 'none';
+      if ($('projImportFile')) $('projImportFile').value = '';
+      if ($('projServerFilePathInput')) $('projServerFilePathInput').value = '';
+
+      var defaultRadio = document.querySelector('input[name="projImportSource"][value="upload"]');
+      if (defaultRadio) defaultRadio.checked = true;
+      toggleImportSource('upload');
+
+      if ($('projImportModal')) $('projImportModal').style.display = 'flex';
+    }
+
+    function closeImportModal() {
+      if ($('projImportModal')) $('projImportModal').style.display = 'none';
+    }
+
+    async function executeProjectImport() {
+      var sourceMode = 'upload';
+      var radios = document.getElementsByName('projImportSource');
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) {
+          sourceMode = radios[i].value;
+          break;
+        }
+      }
+
+      var statusDiv = $('projImportStatus');
+      var btn = $('btnRunProjectImport');
+      var formData = new FormData();
+
+      if (sourceMode === 'server') {
+        var serverPath = ($('projServerFilePathInput') ? $('projServerFilePathInput').value : '').trim();
+        if (!serverPath) {
+          alert('Please select or specify a valid relative webserver file path.');
+          return;
+        }
+        formData.append('server_file_path', serverPath);
+      } else {
+        var fileInput = $('projImportFile');
+        if (!fileInput || !fileInput.files.length) {
+          alert('Please select a .sql or .zip project package file from your computer to upload.');
+          return;
+        }
+        formData.append('package_file', fileInput.files[0]);
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Importing Package...';
+      if (statusDiv) {
+        statusDiv.style.display = 'block';
+        statusDiv.style.background = 'var(--bg-subtle)';
+        statusDiv.style.color = 'var(--text-primary)';
+        statusDiv.textContent = '⏳ Executing import and setting up project tables...';
+      }
+
+      try {
+        var res = await fetch('api/projects.php?action=import_project', {
+          method: 'POST',
+          body: formData
+        });
+        var data = await res.json();
+        btn.disabled = false;
+        btn.textContent = '📥 Start Import';
+
+        if (data.success) {
+          if (statusDiv) {
+            statusDiv.style.background = 'var(--success-light, #d1fae5)';
+            statusDiv.style.color = 'var(--success, #065f46)';
+            statusDiv.textContent = '✓ ' + (data.message || 'Project imported successfully! Reloading...');
+          }
+          setTimeout(function() {
+            closeImportModal();
+            window.location.reload();
+          }, 1200);
+        } else {
+          if (statusDiv) {
+            statusDiv.style.background = 'var(--danger-light, #fee2e2)';
+            statusDiv.style.color = 'var(--danger, #991b1b)';
+            statusDiv.textContent = '✗ ' + (data.error || 'Project import failed.');
+          }
+        }
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = '📥 Start Import';
+        if (statusDiv) {
+          statusDiv.style.background = 'var(--danger-light, #fee2e2)';
+          statusDiv.style.color = 'var(--danger, #991b1b)';
+          statusDiv.textContent = '✗ Network or server error during project import.';
+        }
+      }
+    }
+
     function closeMembersModal() {
       $('projMembersModal').style.display = 'none';
     }
@@ -717,6 +905,12 @@ $projects = ProjectContext::getAccessibleProjects();
       regenerateShareToken: regenerateShareToken,
       copyShareUrl: copyShareUrl,
       closeShareModal: closeShareModal,
+      openImportModal: openImportModal,
+      closeImportModal: closeImportModal,
+      executeProjectImport: executeProjectImport,
+      toggleImportSource: toggleImportSource,
+      loadServerPackages: loadServerPackages,
+      onServerFileSelect: onServerFileSelect,
       autoCode: autoCode,
       filterList: filterList,
       _destroy: _destroy

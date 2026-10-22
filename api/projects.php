@@ -518,6 +518,249 @@ switch ($action) {
         @unlink($tmpZip);
         exit;
 
+    case 'list_server_packages':
+        if (!$isGlobeAdmin) {
+            json_response(['success' => false, 'error' => 'Only Globe Admin can view server packages'], 403);
+        }
+
+        $baseDir = dirname(__DIR__);
+        $scanDirs = [$baseDir, $baseDir . '/uploads'];
+        $foundFiles = [];
+
+        foreach ($scanDirs as $dir) {
+            if (!is_dir($dir)) continue;
+            $items = @scandir($dir);
+            if (!is_array($items)) continue;
+
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') continue;
+                $fullPath = $dir . '/' . $item;
+                if (!is_file($fullPath)) continue;
+
+                $ext = strtolower(pathinfo($item, PATHINFO_EXTENSION));
+                if (in_array($ext, ['sql', 'zip'], true)) {
+                    $relPath = substr($fullPath, strlen($baseDir) + 1);
+                    $size = @filesize($fullPath) ?: 0;
+                    $sizeFormatted = $size >= 1048576
+                        ? number_format($size / 1048576, 1) . ' MB'
+                        : number_format($size / 1024, 1) . ' KB';
+
+                    $foundFiles[] = [
+                        'name' => $item,
+                        'path' => $relPath,
+                        'size' => $size,
+                        'size_formatted' => $sizeFormatted,
+                        'mtime' => date('Y-m-d H:i:s', filemtime($fullPath) ?: time())
+                    ];
+                }
+            }
+        }
+
+        // Sort by modification time descending
+        usort($foundFiles, function($a, $b) {
+            return strcmp($b['mtime'], $a['mtime']);
+        });
+
+        json_response(['success' => true, 'files' => $foundFiles]);
+        break;
+
+    case 'import_project':
+        if (!$isGlobeAdmin) {
+            json_response(['success' => false, 'error' => 'Only Globe Admin can import projects'], 403);
+        }
+
+        $serverFilePath = trim($input['server_file_path'] ?? ($_POST['server_file_path'] ?? ''));
+        $fileTmp = '';
+        $fileName = '';
+
+        if ($serverFilePath !== '') {
+            $baseDir = dirname(__DIR__);
+            $targetPath = realpath($baseDir . '/' . ltrim($serverFilePath, '/\\'));
+
+            if (!$targetPath || !is_file($targetPath)) {
+                $targetPath = realpath($serverFilePath);
+            }
+
+            if (!$targetPath || !is_file($targetPath)) {
+                json_response(['success' => false, 'error' => 'Server file not found: ' . htmlspecialchars($serverFilePath)], 404);
+            }
+
+            $fileTmp = $targetPath;
+            $fileName = basename($targetPath);
+        } elseif (!empty($_FILES['package_file']['tmp_name']) && is_uploaded_file($_FILES['package_file']['tmp_name'])) {
+            $fileTmp = $_FILES['package_file']['tmp_name'];
+            $fileName = $_FILES['package_file']['name'];
+        } else {
+            json_response(['success' => false, 'error' => 'Please upload a package file or select a valid server file'], 400);
+        }
+
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        $sqlContent = '';
+
+        if ($ext === 'zip') {
+            if (!class_exists('ZipArchive')) {
+                json_response(['success' => false, 'error' => 'ZipArchive PHP extension is required to import .zip project packages'], 500);
+            }
+
+            $zip = new ZipArchive();
+            if ($zip->open($fileTmp) !== true) {
+                json_response(['success' => false, 'error' => 'Failed to open uploaded .zip package archive'], 400);
+            }
+
+            // Look for project.sql, database.sql, or any .sql inside the archive
+            $sqlCandidates = ['project.sql', 'database.sql', 'install.sql'];
+            $foundSqlName = null;
+
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+                if (!$stat || empty($stat['name'])) continue;
+                $entryName = strtolower(basename($stat['name']));
+                if (in_array($entryName, $sqlCandidates, true)) {
+                    $foundSqlName = $stat['name'];
+                    break;
+                }
+            }
+
+            if (!$foundSqlName) {
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $stat = $zip->statIndex($i);
+                    if ($stat && !empty($stat['name']) && strtolower(pathinfo($stat['name'], PATHINFO_EXTENSION)) === 'sql') {
+                        $foundSqlName = $stat['name'];
+                        break;
+                    }
+                }
+            }
+
+            if (!$foundSqlName) {
+                $zip->close();
+                json_response(['success' => false, 'error' => 'No SQL dump file (project.sql or database.sql) found inside .zip archive'], 400);
+            }
+
+            $sqlContent = (string)$zip->getFromName($foundSqlName);
+            $zip->close();
+        } elseif ($ext === 'sql') {
+            $sqlContent = (string)file_get_contents($fileTmp);
+        } else {
+            json_response(['success' => false, 'error' => 'Invalid file extension. Please select a .sql or .zip package file'], 400);
+        }
+
+        if (trim($sqlContent) === '') {
+            json_response(['success' => false, 'error' => 'Import package SQL file is empty'], 400);
+        }
+
+        $pdo = $db->getPdo();
+        $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        try {
+            if ($driver !== 'sqlite') {
+                $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+            }
+
+            // Parse and execute SQL statements
+            $statements = [];
+            $length = strlen($sqlContent);
+            $current = '';
+            $inSingleQuote = false;
+            $inDoubleQuote = false;
+            $escaped = false;
+
+            for ($i = 0; $i < $length; $i++) {
+                $char = $sqlContent[$i];
+
+                if ($escaped) {
+                    $current .= $char;
+                    $escaped = false;
+                    continue;
+                }
+
+                if ($char === '\\') {
+                    $current .= $char;
+                    $escaped = true;
+                    continue;
+                }
+
+                if ($char === "'" && !$inDoubleQuote) {
+                    $inSingleQuote = !$inSingleQuote;
+                } elseif ($char === '"' && !$inSingleQuote) {
+                    $inDoubleQuote = !$inDoubleQuote;
+                }
+
+                if ($char === ';' && !$inSingleQuote && !$inDoubleQuote) {
+                    $statements[] = $current;
+                    $current = '';
+                } else {
+                    $current .= $char;
+                }
+            }
+
+            if (trim($current) !== '') {
+                $statements[] = $current;
+            }
+
+            $executedCount = 0;
+            $importedProjectId = null;
+
+            foreach ($statements as $stmt) {
+                $stmtTrim = trim($stmt);
+                if ($stmtTrim !== '') {
+                    try {
+                        $pdo->exec($stmtTrim);
+                        $executedCount++;
+
+                        // Attempt to extract imported project ID if nu_projects row was inserted/replaced
+                        if (preg_match('/INTO\s+`?nu_projects`?\s*\(.*?\)\s*VALUES\s*\(\s*(\d+)/i', $stmtTrim, $m)) {
+                            $importedProjectId = (int)$m[1];
+                        }
+                    } catch (PDOException $e) {
+                        $msg = $e->getMessage();
+                        if (strpos($msg, 'already exists') === false && strpos($msg, 'Duplicate entry') === false) {
+                            throw $e;
+                        }
+                    }
+                }
+            }
+
+            // If project ID wasn't explicitly captured from SQL, find the latest created/updated project
+            if (!$importedProjectId) {
+                $latestProj = $db->fetchOne("SELECT project_id FROM nu_projects ORDER BY project_id DESC LIMIT 1");
+                if ($latestProj) {
+                    $importedProjectId = (int)$latestProj['project_id'];
+                }
+            }
+
+            // Ensure current user is assigned as owner/member of the imported project
+            if ($importedProjectId && $userId > 0) {
+                $existingMember = $db->fetchOne("SELECT pm_id FROM nu_project_members WHERE pm_project_id = ? AND pm_user_id = ?", [$importedProjectId, $userId]);
+                if (!$existingMember) {
+                    $db->insert('nu_project_members', [
+                        'pm_project_id' => $importedProjectId,
+                        'pm_user_id'    => $userId,
+                        'pm_role'       => 'owner'
+                    ]);
+                }
+                // Switch active project context to the newly imported project
+                ProjectContext::setId($importedProjectId);
+            }
+
+            if ($driver !== 'sqlite') {
+                $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+            }
+
+            json_response([
+                'success' => true,
+                'project_id' => $importedProjectId,
+                'executed_statements' => $executedCount,
+                'message' => 'Project package successfully imported!'
+            ]);
+
+        } catch (\Throwable $e) {
+            if ($driver !== 'sqlite') {
+                try { $pdo->exec('SET FOREIGN_KEY_CHECKS = 1'); } catch (Throwable $ignored) {}
+            }
+            json_response(['success' => false, 'error' => 'Import failed: ' . $e->getMessage()], 500);
+        }
+        break;
+
     case 'version_create':
         if (!$isGlobeAdmin) {
             json_response(['success' => false, 'error' => 'Only Globe Admin can create project versions'], 403);
