@@ -411,7 +411,15 @@ $projects = ProjectContext::getAccessibleProjects();
     async function loadVersions(id) {
       try {
         var res = await fetch('api/projects.php?action=version_list&project_id=' + id);
-        var data = await res.json();
+        var text = await res.text();
+        var data;
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          alert('Server error loading versions: ' + text);
+          return;
+        }
+
         var tbody = $('projVersionsTableBody');
         tbody.innerHTML = '';
         if (data.success && data.versions && data.versions.length > 0) {
@@ -420,16 +428,18 @@ $projects = ProjectContext::getAccessibleProjects();
             tr.style.borderBottom = '1px solid var(--border-color)';
             tr.innerHTML = '<td style="padding:8px 12px; font-weight:600; font-family:monospace;"><span class="nu-badge nu-badge-primary">' + v.pv_version_tag + '</span></td>' +
                            '<td style="padding:8px 12px; color:var(--text-secondary);">' + (v.pv_description || 'No release notes') + '</td>' +
-                           '<td style="padding:8px 12px; font-size:12px;">' + (v.usr_name || v.usr_username || 'System') + '</td>' +
+                           '<td style="padding:8px 12px; font-size:12px;">' + (v.usr_username || 'System') + '</td>' +
                            '<td style="padding:8px 12px; font-size:12px; color:var(--text-tertiary);">' + v.pv_created_at + '</td>' +
                            '<td style="padding:8px 12px; text-align:right;"><button class="nu-btn nu-btn-secondary nu-btn-sm" onclick="ProjectsModule.restoreVersion(' + v.pv_id + ', \'' + v.pv_version_tag + '\')">↺ Restore</button></td>';
             tbody.appendChild(tr);
           });
-        } else {
+        } else if (data.success) {
           tbody.innerHTML = '<tr><td colspan="5" style="padding:16px; text-align:center; color:var(--text-tertiary);">No version snapshots created yet.</td></tr>';
+        } else {
+          alert('Error loading versions: ' + (data.error || 'Unknown error'));
         }
       } catch (e) {
-        alert('Network error loading versions');
+        alert('Network error loading versions: ' + e.message);
       }
     }
 
@@ -513,7 +523,7 @@ $projects = ProjectContext::getAccessibleProjects();
             data.members.forEach(function(m) {
               var tr = document.createElement('tr');
               tr.style.borderBottom = '1px solid var(--border-color)';
-              tr.innerHTML = '<td style="padding:8px 12px; font-weight:500;">' + (m.usr_name || m.usr_username) + ' <small style="color:var(--text-tertiary);">(' + m.usr_username + ')</small></td>' +
+              tr.innerHTML = '<td style="padding:8px 12px; font-weight:500;">' + m.usr_username + '</td>' +
                              '<td style="padding:8px 12px;"><span class="nu-badge nu-badge-secondary" style="font-size:11px;">' + m.pm_role + '</span></td>' +
                              '<td style="padding:8px 12px; text-align:right;"><button class="nu-btn nu-btn-danger nu-btn-sm" onclick="ProjectsModule.removeMember(' + m.pm_user_id + ')">Remove</button></td>';
               tbody.appendChild(tr);

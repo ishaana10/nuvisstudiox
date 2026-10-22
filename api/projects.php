@@ -232,13 +232,13 @@ switch ($action) {
         }
 
         $members = $db->fetchAll(
-            "SELECT pm.*, u.usr_username, u.usr_name, u.usr_email FROM nu_project_members pm
+            "SELECT pm.*, u.usr_username, u.usr_email FROM nu_project_members pm
              INNER JOIN nu_users u ON pm.pm_user_id = u.usr_id
              WHERE pm.pm_project_id = ? ORDER BY u.usr_username ASC",
             [$projectId]
         );
 
-        $allUsers = $db->fetchAll("SELECT usr_id, usr_username, usr_name, usr_email FROM nu_users WHERE usr_active = 1 ORDER BY usr_username ASC");
+        $allUsers = $db->fetchAll("SELECT usr_id, usr_username, usr_email FROM nu_users WHERE usr_active = 1 ORDER BY usr_username ASC");
 
         json_response([
             'success' => true,
@@ -574,13 +574,22 @@ switch ($action) {
             json_response(['success' => false, 'error' => 'Access denied'], 403);
         }
 
-        $versions = $db->fetchAll(
-            "SELECT pv.pv_id, pv.pv_project_id, pv.pv_version_tag, pv.pv_description, pv.pv_created_by, pv.pv_created_at, u.usr_username, u.usr_name
-             FROM nu_project_versions pv
-             LEFT JOIN nu_users u ON pv.pv_created_by = u.usr_id
-             WHERE pv.pv_project_id = ? ORDER BY pv.pv_id DESC",
-            [$projectId]
-        );
+        try {
+            $versions = $db->fetchAll(
+                "SELECT pv.pv_id, pv.pv_project_id, pv.pv_version_tag, pv.pv_description, pv.pv_created_by, pv.pv_created_at, u.usr_username
+                 FROM nu_project_versions pv
+                 LEFT JOIN nu_users u ON CAST(pv.pv_created_by AS CHAR) = CAST(u.usr_id AS CHAR)
+                 WHERE pv.pv_project_id = ? ORDER BY pv.pv_id DESC",
+                [$projectId]
+            );
+        } catch (\Throwable $t) {
+            $versions = $db->fetchAll(
+                "SELECT pv_id, pv_project_id, pv_version_tag, pv_description, pv_created_by, pv_created_at
+                 FROM nu_project_versions
+                 WHERE pv_project_id = ? ORDER BY pv_id DESC",
+                [$projectId]
+            );
+        }
 
         json_response(['success' => true, 'versions' => $versions]);
         break;
