@@ -152,6 +152,15 @@ class NuAuth {
     // --- Current User ---
     public function getCurrentUser() {
         if (!$this->checkAuth()) return null;
+        if (($_SESSION['nu_user_id'] ?? '') === 'guest_tester') {
+            return [
+                'usr_id' => 'guest_tester',
+                'usr_username' => 'guest_tester',
+                'usr_name' => 'Guest Tester (Public Test Mode)',
+                'usr_role' => 'user',
+                'usr_active' => 1
+            ];
+        }
         return $this->db->fetchOne(
             "SELECT * FROM nu_users WHERE usr_id = :id",
             [':id' => $_SESSION['nu_user_id']]

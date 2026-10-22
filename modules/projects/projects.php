@@ -69,6 +69,7 @@ $projects = ProjectContext::getAccessibleProjects();
         <?php endif; ?>
 
         <?php if ($isGlobeAdmin): ?>
+          <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="ProjectsModule.openShare(<?= $p['project_id'] ?>, '<?= h($p['project_name'], ENT_QUOTES) ?>')">🔗 Share</button>
           <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="ProjectsModule.openExport(<?= $p['project_id'] ?>, '<?= h($p['project_name'], ENT_QUOTES) ?>')">📥 Export SQL</button>
           <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="ProjectsModule.openExportZip(<?= $p['project_id'] ?>, '<?= h($p['project_name'], ENT_QUOTES) ?>')">📦 Export ZIP</button>
           <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="ProjectsModule.openVersions(<?= $p['project_id'] ?>, '<?= h($p['project_name'], ENT_QUOTES) ?>')">🏷️ Versions</button>
@@ -151,6 +152,60 @@ $projects = ProjectContext::getAccessibleProjects();
 
     <div style="display:flex; justify-content:flex-end; margin-top:16px;">
       <button class="nu-btn nu-btn-secondary" onclick="ProjectsModule.closeVersionsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SHARE FOR TESTING MODAL ── -->
+<div id="projShareModal" class="nu-modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div class="nu-card" style="width:100%; max-width:540px; padding:24px; background:var(--bg-card); border-radius:8px;">
+    <h3 id="projShareModalTitle" style="font-size:16px; font-weight:600; margin:0 0 8px 0;">Share Project for Testing</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
+      Allow external testers or clients to access and test this project online while it is under development.
+    </p>
+    <input type="hidden" id="projShareProjId">
+
+    <!-- Toggle Public Link -->
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:var(--bg-subtle); border-radius:6px; margin-bottom:16px;">
+      <div>
+        <strong style="font-size:14px; display:block;">Enable Online Test Link</strong>
+        <span style="font-size:12px; color:var(--text-secondary);">Anyone with the share URL can access this project for testing.</span>
+      </div>
+      <label style="position:relative; display:inline-block; width:44px; height:24px; cursor:pointer;">
+        <input type="checkbox" id="projShareToggle" onchange="ProjectsModule.toggleShare()" style="opacity:0; width:0; height:0;">
+        <span id="projShareSlider" style="position:absolute; top:0; left:0; right:0; bottom:0; background-color:#ccc; transition:.3s; border-radius:24px;"></span>
+      </label>
+    </div>
+
+    <!-- Test Mode Configuration -->
+    <div id="projShareConfigArea" style="display:none; margin-bottom:16px;">
+      <div class="nu-field" style="margin-bottom:12px;">
+        <label style="font-weight:600; font-size:13px;">Testing Access Mode</label>
+        <select id="projShareMode" class="nu-input" onchange="ProjectsModule.toggleShare()">
+          <option value="guest">⚡ 1-Click Guest Test Mode (No login required)</option>
+          <option value="login">🔒 Authenticated Test Mode (User logs in &amp; gets switched to project)</option>
+        </select>
+        <small style="color:var(--text-secondary); display:block; margin-top:4px;">
+          Guest Mode lets testers test immediately without needing an existing user account.
+        </small>
+      </div>
+
+      <div class="nu-field">
+        <label style="font-weight:600; font-size:13px;">Shareable Testing URL</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="projShareUrlInput" class="nu-input" readonly style="font-family:monospace; font-size:12px; background:var(--bg-subtle);">
+          <button class="nu-btn nu-btn-primary" onclick="ProjectsModule.copyShareUrl()" id="copyShareBtn">📋 Copy</button>
+        </div>
+      </div>
+
+      <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+        <small style="color:var(--text-tertiary);">Revoking the link invalidates previous testing tokens.</small>
+        <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="ProjectsModule.regenerateShareToken()">↻ Revoke &amp; New Link</button>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+      <button class="nu-btn nu-btn-secondary" onclick="ProjectsModule.closeShareModal()">Done</button>
     </div>
   </div>
 </div>
@@ -526,6 +581,106 @@ $projects = ProjectContext::getAccessibleProjects();
       $('projMembersModal').style.display = 'none';
     }
 
+    async function openShare(id, name) {
+      $('projShareProjId').value = id;
+      $('projShareModalTitle').textContent = 'Share Project for Testing: ' + name;
+      $('projShareModal').style.display = 'flex';
+      await loadShareSettings(id);
+    }
+
+    async function loadShareSettings(id) {
+      try {
+        var res = await fetch('api/projects.php?action=get_share_settings&project_id=' + id);
+        var data = await res.json();
+        if (data.success) {
+          var isPublic = !!data.is_public_test;
+          $('projShareToggle').checked = isPublic;
+          $('projShareMode').value = data.share_mode || 'guest';
+          $('projShareUrlInput').value = data.share_url || '';
+          updateSliderStyle(isPublic);
+          $('projShareConfigArea').style.display = isPublic ? 'block' : 'none';
+        } else {
+          alert(data.error || 'Failed to load share settings');
+        }
+      } catch (e) {
+        alert('Network error loading share settings');
+      }
+    }
+
+    function updateSliderStyle(checked) {
+      var slider = $('projShareSlider');
+      if (slider) {
+        slider.style.backgroundColor = checked ? '#10b981' : '#ccc';
+      }
+    }
+
+    async function toggleShare() {
+      var projId  = $('projShareProjId').value;
+      var enabled = $('projShareToggle').checked;
+      var mode    = $('projShareMode').value;
+
+      updateSliderStyle(enabled);
+
+      try {
+        var res = await fetch('api/projects.php?action=toggle_share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: parseInt(projId), enabled: enabled ? 1 : 0, share_mode: mode })
+        });
+        var data = await res.json();
+        if (data.success) {
+          $('projShareUrlInput').value = data.share_url || '';
+          $('projShareConfigArea').style.display = enabled ? 'block' : 'none';
+        } else {
+          alert(data.error || 'Failed to update share settings');
+          $('projShareToggle').checked = !enabled;
+          updateSliderStyle(!enabled);
+        }
+      } catch (e) {
+        alert('Network error updating share settings');
+      }
+    }
+
+    async function regenerateShareToken() {
+      var projId = $('projShareProjId').value;
+      if (!confirm('Regenerate testing link? Any previously shared test links for this project will stop working.')) return;
+
+      try {
+        var res = await fetch('api/projects.php?action=regenerate_share_token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: parseInt(projId) })
+        });
+        var data = await res.json();
+        if (data.success) {
+          $('projShareUrlInput').value = data.share_url || '';
+          alert('New share token generated successfully!');
+        } else {
+          alert(data.error || 'Failed to regenerate token');
+        }
+      } catch (e) {
+        alert('Network error regenerating token');
+      }
+    }
+
+    function copyShareUrl() {
+      var input = $('projShareUrlInput');
+      if (!input || !input.value) return;
+      input.select();
+      navigator.clipboard.writeText(input.value).then(function() {
+        var btn = $('copyShareBtn');
+        if (btn) {
+          var orig = btn.textContent;
+          btn.textContent = '✓ Copied!';
+          setTimeout(function() { btn.textContent = orig; }, 2000);
+        }
+      });
+    }
+
+    function closeShareModal() {
+      $('projShareModal').style.display = 'none';
+    }
+
     function _destroy() {
       window.ProjectsModule = null;
     }
@@ -547,6 +702,11 @@ $projects = ProjectContext::getAccessibleProjects();
       addMember: addMember,
       removeMember: removeMember,
       closeMembersModal: closeMembersModal,
+      openShare: openShare,
+      toggleShare: toggleShare,
+      regenerateShareToken: regenerateShareToken,
+      copyShareUrl: copyShareUrl,
+      closeShareModal: closeShareModal,
       autoCode: autoCode,
       filterList: filterList,
       _destroy: _destroy

@@ -43,6 +43,11 @@ declare(strict_types=1);
             <span class="nu-project-badge" style="font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 12px; background: rgba(37,99,235,0.12); color: var(--primary); border: 1px solid rgba(37,99,235,0.3);" title="Active Project Slug">
                 ⚡ <?= h($activeProjectCode) ?>
             </span>
+            <?php if (!empty($_SESSION['nu_project_share_active']) || ($_SESSION['nu_user_id'] ?? '') === 'guest_tester'): ?>
+                <span class="nu-badge nu-badge-warning" style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 10px; background: #fff3cd; color: #856404; border: 1px solid #ffeeba;" title="Online Testing Session Active">
+                    🧪 Test Mode
+                </span>
+            <?php endif; ?>
             <select id="nuProjectSelect" onchange="nuSwitchProject(this.value)" class="nu-input" style="padding: 5px 10px; font-weight: 600; font-size: 13px; border-radius: 6px; cursor: pointer; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color);" title="Switch Active Project">
                 <?php foreach ($accessibleProjects as $proj): ?>
                     <option value="<?= (int)$proj['project_id'] ?>" <?= (int)$proj['project_id'] === $activeProjectId ? 'selected' : '' ?>>

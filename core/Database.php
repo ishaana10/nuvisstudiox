@@ -694,6 +694,9 @@ class NuDatabase {
                             `project_active` INTEGER NOT NULL DEFAULT 1,
                             `project_is_default` INTEGER NOT NULL DEFAULT 0,
                             `project_owner_id` INTEGER NULL,
+                            `project_is_public_test` INTEGER NOT NULL DEFAULT 0,
+                            `project_share_token` TEXT NULL,
+                            `project_share_mode` TEXT DEFAULT 'guest',
                             `project_created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
                             `project_updated_at` TEXT DEFAULT CURRENT_TIMESTAMP
                         )");
@@ -707,14 +710,49 @@ class NuDatabase {
                             `project_active` TINYINT(1) NOT NULL DEFAULT 1,
                             `project_is_default` TINYINT(1) NOT NULL DEFAULT 0,
                             `project_owner_id` INT NULL,
+                            `project_is_public_test` TINYINT(1) NOT NULL DEFAULT 0,
+                            `project_share_token` VARCHAR(64) NULL,
+                            `project_share_mode` VARCHAR(20) NOT NULL DEFAULT 'guest',
                             `project_created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
                             `project_updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                             PRIMARY KEY (`project_id`),
                             UNIQUE KEY `uq_project_code` (`project_code`),
-                            KEY `idx_project_active` (`project_active`)
+                            KEY `idx_project_active` (`project_active`),
+                            KEY `idx_project_share_token` (`project_share_token`)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
                     }
                 }
+
+                // Self-healing: Ensure project_is_public_test, project_share_token, project_share_mode exist on nu_projects
+                try {
+                    $hasPublicCol = false;
+                    if ($driver === 'sqlite') {
+                        $pCols = $this->pdo->query("PRAGMA table_info(`nu_projects`)")->fetchAll(PDO::FETCH_ASSOC);
+                        foreach ($pCols as $pc) {
+                            if (($pc['name'] ?? '') === 'project_is_public_test') { $hasPublicCol = true; break; }
+                        }
+                    } else {
+                        $pCols = $this->pdo->query("DESCRIBE `nu_projects`")->fetchAll(PDO::FETCH_ASSOC);
+                        foreach ($pCols as $pc) {
+                            if (($pc['Field'] ?? '') === 'project_is_public_test') { $hasPublicCol = true; break; }
+                        }
+                    }
+
+                    if (!$hasPublicCol) {
+                        if ($driver === 'sqlite') {
+                            $this->pdo->exec("ALTER TABLE `nu_projects` ADD COLUMN `project_is_public_test` INTEGER NOT NULL DEFAULT 0");
+                            $this->pdo->exec("ALTER TABLE `nu_projects` ADD COLUMN `project_share_token` TEXT NULL");
+                            $this->pdo->exec("ALTER TABLE `nu_projects` ADD COLUMN `project_share_mode` TEXT DEFAULT 'guest'");
+                        } else {
+                            $this->pdo->exec("ALTER TABLE `nu_projects` ADD COLUMN `project_is_public_test` TINYINT(1) NOT NULL DEFAULT 0");
+                            $this->pdo->exec("ALTER TABLE `nu_projects` ADD COLUMN `project_share_token` VARCHAR(64) NULL");
+                            $this->pdo->exec("ALTER TABLE `nu_projects` ADD COLUMN `project_share_mode` VARCHAR(20) NOT NULL DEFAULT 'guest'");
+                            try {
+                                $this->pdo->exec("ALTER TABLE `nu_projects` ADD KEY `idx_project_share_token` (`project_share_token`)");
+                            } catch (Exception $e) {}
+                        }
+                    }
+                } catch (Exception $e) {}
 
                 // Ensure nu_project_versions table
                 $hasProjectVersions = false;

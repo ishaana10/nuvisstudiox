@@ -291,6 +291,117 @@ switch ($action) {
         json_response(['success' => true, 'message' => 'Member removed successfully']);
         break;
 
+    case 'get_share_settings':
+        if (!$isGlobeAdmin) {
+            json_response(['success' => false, 'error' => 'Access denied'], 403);
+        }
+
+        $projectId = (int)($_GET['project_id'] ?? ($input['project_id'] ?? 0));
+        if ($projectId <= 0) {
+            json_response(['success' => false, 'error' => 'Invalid project ID'], 400);
+        }
+
+        $proj = $db->fetchOne("SELECT project_id, project_name, project_code, project_is_public_test, project_share_token, project_share_mode FROM nu_projects WHERE project_id = ?", [$projectId]);
+        if (!$proj) {
+            json_response(['success' => false, 'error' => 'Project not found'], 404);
+        }
+
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $path = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\') . '/../index.php';
+        $baseUrl = $protocol . $host . preg_replace('#/api/\.\./#', '/', $path);
+
+        $shareToken = $proj['project_share_token'] ?? '';
+        $shareUrl = $shareToken ? $baseUrl . '?project_share=' . $shareToken : '';
+
+        json_response([
+            'success' => true,
+            'project_id' => $projectId,
+            'is_public_test' => (int)($proj['project_is_public_test'] ?? 0),
+            'share_token' => $shareToken,
+            'share_mode' => $proj['project_share_mode'] ?? 'guest',
+            'share_url' => $shareUrl
+        ]);
+        break;
+
+    case 'toggle_share':
+        if (!$isGlobeAdmin) {
+            json_response(['success' => false, 'error' => 'Access denied'], 403);
+        }
+
+        $projectId = (int)($input['project_id'] ?? ($_POST['project_id'] ?? 0));
+        $enabled   = isset($input['enabled']) ? (int)(bool)$input['enabled'] : (int)(bool)($_POST['enabled'] ?? 0);
+        $shareMode = trim($input['share_mode'] ?? ($_POST['share_mode'] ?? 'guest'));
+        if (!in_array($shareMode, ['guest', 'login'], true)) {
+            $shareMode = 'guest';
+        }
+
+        if ($projectId <= 0) {
+            json_response(['success' => false, 'error' => 'Invalid project ID'], 400);
+        }
+
+        $proj = $db->fetchOne("SELECT * FROM nu_projects WHERE project_id = ?", [$projectId]);
+        if (!$proj) {
+            json_response(['success' => false, 'error' => 'Project not found'], 404);
+        }
+
+        $token = $proj['project_share_token'] ?? '';
+        if ($enabled && empty($token)) {
+            $token = bin2hex(random_bytes(16));
+        }
+
+        $db->update('nu_projects', [
+            'project_is_public_test' => $enabled,
+            'project_share_token'   => $token,
+            'project_share_mode'    => $shareMode,
+            'project_updated_at'    => date('Y-m-d H:i:s')
+        ], 'project_id = ?', [$projectId]);
+
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $path = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\') . '/../index.php';
+        $baseUrl = $protocol . $host . preg_replace('#/api/\.\./#', '/', $path);
+        $shareUrl = ($enabled && $token) ? $baseUrl . '?project_share=' . $token : '';
+
+        json_response([
+            'success' => true,
+            'is_public_test' => $enabled,
+            'share_token' => $token,
+            'share_mode' => $shareMode,
+            'share_url' => $shareUrl,
+            'message' => $enabled ? 'Online project testing link activated' : 'Online project testing link disabled'
+        ]);
+        break;
+
+    case 'regenerate_share_token':
+        if (!$isGlobeAdmin) {
+            json_response(['success' => false, 'error' => 'Access denied'], 403);
+        }
+
+        $projectId = (int)($input['project_id'] ?? ($_POST['project_id'] ?? 0));
+        if ($projectId <= 0) {
+            json_response(['success' => false, 'error' => 'Invalid project ID'], 400);
+        }
+
+        $newToken = bin2hex(random_bytes(16));
+        $db->update('nu_projects', [
+            'project_share_token' => $newToken,
+            'project_updated_at'  => date('Y-m-d H:i:s')
+        ], 'project_id = ?', [$projectId]);
+
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $path = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\') . '/../index.php';
+        $baseUrl = $protocol . $host . preg_replace('#/api/\.\./#', '/', $path);
+
+        json_response([
+            'success' => true,
+            'share_token' => $newToken,
+            'share_url' => $baseUrl . '?project_share=' . $newToken,
+            'message' => 'New project testing link generated'
+        ]);
+        break;
+
     case 'export':
     case 'export_project':
         if (!$isGlobeAdmin) {
