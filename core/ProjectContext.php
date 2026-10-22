@@ -48,6 +48,38 @@ class ProjectContext {
             }
         }
 
+        // 0. Check URL or session for project_share token
+        $shareToken = $_GET['project_share'] ?? ($_GET['share_token'] ?? ($_SESSION['project_share_token'] ?? ''));
+        if (!empty($shareToken) && is_string($shareToken)) {
+            try {
+                $proj = $db->fetchOne(
+                    "SELECT * FROM nu_projects WHERE project_share_token = ? AND project_is_public_test = 1 AND project_active = 1",
+                    [$shareToken]
+                );
+                if ($proj) {
+                    $pid = (int)$proj['project_id'];
+                    $_SESSION['nu_project_id']           = $pid;
+                    $_SESSION['nu_project_code']         = $proj['project_code'];
+                    $_SESSION['project_share_token']     = $shareToken;
+                    $_SESSION['nu_project_share_active']  = true;
+                    $_SESSION['nu_project_share_mode']    = $proj['project_share_mode'] ?? 'guest';
+
+                    // Auto-bootstrap guest test session if user is not logged in and mode is 'guest'
+                    if (empty($_SESSION['nu_user_id']) && ($proj['project_share_mode'] ?? 'guest') === 'guest') {
+                        $_SESSION['nu_user_id']       = 'guest_tester';
+                        $_SESSION['nu_username']      = 'Guest Tester';
+                        $_SESSION['nu_role']          = 'user';
+                        $_SESSION['nu_last_activity'] = time();
+                        if (empty($_SESSION['nu_csrf'])) {
+                            $_SESSION['nu_csrf'] = bin2hex(random_bytes(32));
+                        }
+                    }
+
+                    return self::$cachedProjectId = $pid;
+                }
+            } catch (\Throwable $e) {}
+        }
+
         // Check if session project ID exists
         try {
             if (!empty($_SESSION['nu_project_id'])) {
@@ -245,6 +277,11 @@ class ProjectContext {
         );
 
         if (!empty($row)) {
+            return true;
+        }
+
+        // Allow access if active share session for this project exists
+        if (!empty($_SESSION['nu_project_share_active']) && (int)($_SESSION['nu_project_id'] ?? 0) === $projectId) {
             return true;
         }
 

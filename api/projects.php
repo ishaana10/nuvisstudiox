@@ -232,13 +232,13 @@ switch ($action) {
         }
 
         $members = $db->fetchAll(
-            "SELECT pm.*, u.usr_username, u.usr_name, u.usr_email FROM nu_project_members pm
+            "SELECT pm.*, u.usr_username, u.usr_email FROM nu_project_members pm
              INNER JOIN nu_users u ON pm.pm_user_id = u.usr_id
              WHERE pm.pm_project_id = ? ORDER BY u.usr_username ASC",
             [$projectId]
         );
 
-        $allUsers = $db->fetchAll("SELECT usr_id, usr_username, usr_name, usr_email FROM nu_users WHERE usr_active = 1 ORDER BY usr_username ASC");
+        $allUsers = $db->fetchAll("SELECT usr_id, usr_username, usr_email FROM nu_users WHERE usr_active = 1 ORDER BY usr_username ASC");
 
         json_response([
             'success' => true,
@@ -289,6 +289,117 @@ switch ($action) {
         $db->delete('nu_project_members', 'pm_project_id = ? AND pm_user_id = ?', [$projectId, $targetUserId]);
 
         json_response(['success' => true, 'message' => 'Member removed successfully']);
+        break;
+
+    case 'get_share_settings':
+        if (!$isGlobeAdmin) {
+            json_response(['success' => false, 'error' => 'Access denied'], 403);
+        }
+
+        $projectId = (int)($_GET['project_id'] ?? ($input['project_id'] ?? 0));
+        if ($projectId <= 0) {
+            json_response(['success' => false, 'error' => 'Invalid project ID'], 400);
+        }
+
+        $proj = $db->fetchOne("SELECT project_id, project_name, project_code, project_is_public_test, project_share_token, project_share_mode FROM nu_projects WHERE project_id = ?", [$projectId]);
+        if (!$proj) {
+            json_response(['success' => false, 'error' => 'Project not found'], 404);
+        }
+
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $path = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\') . '/../index.php';
+        $baseUrl = $protocol . $host . preg_replace('#/api/\.\./#', '/', $path);
+
+        $shareToken = $proj['project_share_token'] ?? '';
+        $shareUrl = $shareToken ? $baseUrl . '?project_share=' . $shareToken : '';
+
+        json_response([
+            'success' => true,
+            'project_id' => $projectId,
+            'is_public_test' => (int)($proj['project_is_public_test'] ?? 0),
+            'share_token' => $shareToken,
+            'share_mode' => $proj['project_share_mode'] ?? 'guest',
+            'share_url' => $shareUrl
+        ]);
+        break;
+
+    case 'toggle_share':
+        if (!$isGlobeAdmin) {
+            json_response(['success' => false, 'error' => 'Access denied'], 403);
+        }
+
+        $projectId = (int)($input['project_id'] ?? ($_POST['project_id'] ?? 0));
+        $enabled   = isset($input['enabled']) ? (int)(bool)$input['enabled'] : (int)(bool)($_POST['enabled'] ?? 0);
+        $shareMode = trim($input['share_mode'] ?? ($_POST['share_mode'] ?? 'guest'));
+        if (!in_array($shareMode, ['guest', 'login'], true)) {
+            $shareMode = 'guest';
+        }
+
+        if ($projectId <= 0) {
+            json_response(['success' => false, 'error' => 'Invalid project ID'], 400);
+        }
+
+        $proj = $db->fetchOne("SELECT * FROM nu_projects WHERE project_id = ?", [$projectId]);
+        if (!$proj) {
+            json_response(['success' => false, 'error' => 'Project not found'], 404);
+        }
+
+        $token = $proj['project_share_token'] ?? '';
+        if ($enabled && empty($token)) {
+            $token = bin2hex(random_bytes(16));
+        }
+
+        $db->update('nu_projects', [
+            'project_is_public_test' => $enabled,
+            'project_share_token'   => $token,
+            'project_share_mode'    => $shareMode,
+            'project_updated_at'    => date('Y-m-d H:i:s')
+        ], 'project_id = ?', [$projectId]);
+
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $path = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\') . '/../index.php';
+        $baseUrl = $protocol . $host . preg_replace('#/api/\.\./#', '/', $path);
+        $shareUrl = ($enabled && $token) ? $baseUrl . '?project_share=' . $token : '';
+
+        json_response([
+            'success' => true,
+            'is_public_test' => $enabled,
+            'share_token' => $token,
+            'share_mode' => $shareMode,
+            'share_url' => $shareUrl,
+            'message' => $enabled ? 'Online project testing link activated' : 'Online project testing link disabled'
+        ]);
+        break;
+
+    case 'regenerate_share_token':
+        if (!$isGlobeAdmin) {
+            json_response(['success' => false, 'error' => 'Access denied'], 403);
+        }
+
+        $projectId = (int)($input['project_id'] ?? ($_POST['project_id'] ?? 0));
+        if ($projectId <= 0) {
+            json_response(['success' => false, 'error' => 'Invalid project ID'], 400);
+        }
+
+        $newToken = bin2hex(random_bytes(16));
+        $db->update('nu_projects', [
+            'project_share_token' => $newToken,
+            'project_updated_at'  => date('Y-m-d H:i:s')
+        ], 'project_id = ?', [$projectId]);
+
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $path = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\') . '/../index.php';
+        $baseUrl = $protocol . $host . preg_replace('#/api/\.\./#', '/', $path);
+
+        json_response([
+            'success' => true,
+            'share_token' => $newToken,
+            'share_url' => $baseUrl . '?project_share=' . $newToken,
+            'message' => 'New project testing link generated'
+        ]);
         break;
 
     case 'export':
@@ -463,13 +574,22 @@ switch ($action) {
             json_response(['success' => false, 'error' => 'Access denied'], 403);
         }
 
-        $versions = $db->fetchAll(
-            "SELECT pv.pv_id, pv.pv_project_id, pv.pv_version_tag, pv.pv_description, pv.pv_created_by, pv.pv_created_at, u.usr_username, u.usr_name
-             FROM nu_project_versions pv
-             LEFT JOIN nu_users u ON pv.pv_created_by = u.usr_id
-             WHERE pv.pv_project_id = ? ORDER BY pv.pv_id DESC",
-            [$projectId]
-        );
+        try {
+            $versions = $db->fetchAll(
+                "SELECT pv.pv_id, pv.pv_project_id, pv.pv_version_tag, pv.pv_description, pv.pv_created_by, pv.pv_created_at, u.usr_username
+                 FROM nu_project_versions pv
+                 LEFT JOIN nu_users u ON CAST(pv.pv_created_by AS CHAR) = CAST(u.usr_id AS CHAR)
+                 WHERE pv.pv_project_id = ? ORDER BY pv.pv_id DESC",
+                [$projectId]
+            );
+        } catch (\Throwable $t) {
+            $versions = $db->fetchAll(
+                "SELECT pv_id, pv_project_id, pv_version_tag, pv_description, pv_created_by, pv_created_at
+                 FROM nu_project_versions
+                 WHERE pv_project_id = ? ORDER BY pv_id DESC",
+                [$projectId]
+            );
+        }
 
         json_response(['success' => true, 'versions' => $versions]);
         break;

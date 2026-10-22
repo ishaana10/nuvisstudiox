@@ -147,11 +147,15 @@ CREATE TABLE IF NOT EXISTS `nu_projects` (
     `project_active` TINYINT(1) NOT NULL DEFAULT 1,
     `project_is_default` TINYINT(1) NOT NULL DEFAULT 0,
     `project_owner_id` INT NULL,
+    `project_is_public_test` TINYINT(1) NOT NULL DEFAULT 0,
+    `project_share_token` VARCHAR(64) NULL,
+    `project_share_mode` VARCHAR(20) NOT NULL DEFAULT 'guest',
     `project_created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `project_updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`project_id`),
     UNIQUE KEY `uq_project_code` (`project_code`),
-    KEY `idx_project_active` (`project_active`)
+    KEY `idx_project_active` (`project_active`),
+    KEY `idx_project_share_token` (`project_share_token`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `nu_project_members` (
