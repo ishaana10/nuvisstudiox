@@ -402,6 +402,84 @@ switch ($action) {
         ]);
         break;
 
+    case 'get_theme':
+        $projectId = (int)($_GET['project_id'] ?? ($input['project_id'] ?? 0));
+        if ($projectId <= 0) {
+            $projectId = ProjectContext::getId();
+        }
+
+        if (!$isGlobeAdmin && !ProjectContext::validateAccess($userId, $projectId, $userRole)) {
+            json_response(['success' => false, 'error' => 'Access denied'], 403);
+        }
+
+        $proj = $db->fetchOne("SELECT project_id, project_name, project_settings FROM nu_projects WHERE project_id = ?", [$projectId]);
+        if (!$proj) {
+            json_response(['success' => false, 'error' => 'Project not found'], 404);
+        }
+
+        $settings = json_decode((string)($proj['project_settings'] ?? '{}'), true) ?: [];
+        $theme = $settings['theme'] ?? [
+            'primary_color' => '#2563eb',
+            'primary_hover' => '#1d4ed8',
+            'sidebar_bg'    => '#0f172a',
+            'sidebar_text'  => '#e2e8f0',
+            'accent_color'  => '#2563eb'
+        ];
+
+        json_response([
+            'success' => true,
+            'project_id' => $projectId,
+            'project_name' => $proj['project_name'],
+            'theme' => $theme
+        ]);
+        break;
+
+    case 'save_theme':
+        if (!$isGlobeAdmin) {
+            json_response(['success' => false, 'error' => 'Access denied: Only Globe Admin can customize project themes'], 403);
+        }
+
+        $projectId = (int)($input['project_id'] ?? ($_POST['project_id'] ?? 0));
+        if ($projectId <= 0) {
+            json_response(['success' => false, 'error' => 'Invalid project ID'], 400);
+        }
+
+        $proj = $db->fetchOne("SELECT * FROM nu_projects WHERE project_id = ?", [$projectId]);
+        if (!$proj) {
+            json_response(['success' => false, 'error' => 'Project not found'], 404);
+        }
+
+        $themeInput = $input['theme'] ?? ($_POST['theme'] ?? []);
+        if (!is_array($themeInput)) {
+            $themeInput = [];
+        }
+
+        $cleanTheme = [
+            'primary_color' => preg_match('/^#[0-9a-fA-F]{3,8}$/', $themeInput['primary_color'] ?? '') ? $themeInput['primary_color'] : '#2563eb',
+            'primary_hover' => preg_match('/^#[0-9a-fA-F]{3,8}$/', $themeInput['primary_hover'] ?? '') ? $themeInput['primary_hover'] : '#1d4ed8',
+            'sidebar_bg'    => preg_match('/^#[0-9a-fA-F]{3,8}$/', $themeInput['sidebar_bg'] ?? '') ? $themeInput['sidebar_bg'] : '#0f172a',
+            'sidebar_text'  => preg_match('/^#[0-9a-fA-F]{3,8}$/', $themeInput['sidebar_text'] ?? '') ? $themeInput['sidebar_text'] : '#e2e8f0',
+            'accent_color'  => preg_match('/^#[0-9a-fA-F]{3,8}$/', $themeInput['accent_color'] ?? '') ? $themeInput['accent_color'] : '#2563eb'
+        ];
+
+        $settings = json_decode((string)($proj['project_settings'] ?? '{}'), true) ?: [];
+        $settings['theme'] = $cleanTheme;
+
+        $db->update('nu_projects', [
+            'project_settings'   => json_encode($settings),
+            'project_updated_at' => date('Y-m-d H:i:s')
+        ], 'project_id = ?', [$projectId]);
+
+        ProjectContext::resetCache();
+
+        json_response([
+            'success' => true,
+            'project_id' => $projectId,
+            'theme' => $cleanTheme,
+            'message' => 'Project theme settings saved successfully'
+        ]);
+        break;
+
     case 'export':
     case 'export_project':
         if (!$isGlobeAdmin) {

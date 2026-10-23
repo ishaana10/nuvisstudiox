@@ -25,7 +25,33 @@ declare(strict_types=1);
     </button>
     <?php
     require_once NU_ROOT . '/core/AppVersion.php';
+    $activeProjectId = ProjectContext::getId();
+    $activeProjRow = NuDatabase::getInstance()->fetchOne("SELECT project_settings FROM nu_projects WHERE project_id = ?", [$activeProjectId]);
+    $projSettings = json_decode((string)($activeProjRow['project_settings'] ?? '{}'), true) ?: [];
+    $projTheme = $projSettings['theme'] ?? null;
     ?>
+    <?php if (!empty($projTheme) && is_array($projTheme)): ?>
+    <style id="nuProjectThemeStyle">
+    :root {
+      <?php if (!empty($projTheme['primary_color'])): ?>
+        --primary: <?= h($projTheme['primary_color']) ?> !important;
+        --color-primary: <?= h($projTheme['primary_color']) ?> !important;
+      <?php endif; ?>
+      <?php if (!empty($projTheme['primary_hover'])): ?>
+        --primary-hover: <?= h($projTheme['primary_hover']) ?> !important;
+      <?php endif; ?>
+      <?php if (!empty($projTheme['sidebar_bg'])): ?>
+        --bg-sidebar: <?= h($projTheme['sidebar_bg']) ?> !important;
+      <?php endif; ?>
+      <?php if (!empty($projTheme['sidebar_text'])): ?>
+        --text-sidebar: <?= h($projTheme['sidebar_text']) ?> !important;
+      <?php endif; ?>
+      <?php if (!empty($projTheme['accent_color'])): ?>
+        --accent: <?= h($projTheme['accent_color']) ?> !important;
+      <?php endif; ?>
+    }
+    </style>
+    <?php endif; ?>
     <div style="display: flex; align-items: center; gap: 8px;">
         <h2 class="nu-page-title" id="pageTitle" style="margin:0;">Dashboard</h2>
         <span class="version-badge" title="Released: <?= h(AppVersion::get('released_at')) ?>" style="font-size: 10px; font-weight: 700; color: var(--text-muted); background: var(--bg-subtle, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); padding: 2px 8px; border-radius: 9999px;">
