@@ -75,6 +75,7 @@ $projects = ProjectContext::getAccessibleProjects();
         <?php endif; ?>
 
         <?php if ($isGlobeAdmin): ?>
+          <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="ProjectsModule.openTheme(<?= $p['project_id'] ?>, '<?= h($p['project_name'], ENT_QUOTES) ?>')">🎨 Theme</button>
           <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="ProjectsModule.openShare(<?= $p['project_id'] ?>, '<?= h($p['project_name'], ENT_QUOTES) ?>')">🔗 Share</button>
           <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="ProjectsModule.openExport(<?= $p['project_id'] ?>, '<?= h($p['project_name'], ENT_QUOTES) ?>')">📥 Export SQL</button>
           <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="ProjectsModule.openExportZip(<?= $p['project_id'] ?>, '<?= h($p['project_name'], ENT_QUOTES) ?>')">📦 Export ZIP</button>
@@ -204,6 +205,84 @@ $projects = ProjectContext::getAccessibleProjects();
     <div style="display:flex; justify-content:flex-end; gap:8px;">
       <button class="nu-btn nu-btn-ghost" onclick="ProjectsModule.closeImportModal()">Cancel</button>
       <button class="nu-btn nu-btn-primary" id="btnRunProjectImport" onclick="ProjectsModule.executeProjectImport()">📥 Start Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PROJECT THEME CUSTOMIZER MODAL ── -->
+<div id="projThemeModal" class="nu-modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div class="nu-card" style="width:100%; max-width:620px; padding:24px; background:var(--bg-card); border-radius:8px;">
+    <h3 id="projThemeModalTitle" style="font-size:16px; font-weight:600; margin:0 0 8px 0;">Project Theme Customizer</h3>
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
+      Customize brand colors and styling for this project. Colors will automatically apply when this project is active.
+    </p>
+    <input type="hidden" id="projThemeProjId">
+
+    <!-- Preset Palette Swatches -->
+    <div style="margin-bottom:16px; padding:12px; background:var(--bg-subtle); border-radius:6px;">
+      <label style="font-weight:600; font-size:12px; display:block; margin-bottom:8px;">Quick Color Presets</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="nu-btn nu-btn-sm nu-btn-ghost" onclick="ProjectsModule.applyPresetTheme('indigo')" style="border:1px solid #cbd5e1;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2563eb;margin-right:4px;"></span> Default Indigo</button>
+        <button class="nu-btn nu-btn-sm nu-btn-ghost" onclick="ProjectsModule.applyPresetTheme('emerald')" style="border:1px solid #cbd5e1;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#059669;margin-right:4px;"></span> Emerald Green</button>
+        <button class="nu-btn nu-btn-sm nu-btn-ghost" onclick="ProjectsModule.applyPresetTheme('purple')" style="border:1px solid #cbd5e1;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#7c3aed;margin-right:4px;"></span> Midnight Purple</button>
+        <button class="nu-btn nu-btn-sm nu-btn-ghost" onclick="ProjectsModule.applyPresetTheme('crimson')" style="border:1px solid #cbd5e1;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#dc2626;margin-right:4px;"></span> Crimson Red</button>
+        <button class="nu-btn nu-btn-sm nu-btn-ghost" onclick="ProjectsModule.applyPresetTheme('amber')" style="border:1px solid #cbd5e1;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#d97706;margin-right:4px;"></span> Sunset Amber</button>
+        <button class="nu-btn nu-btn-sm nu-btn-ghost" onclick="ProjectsModule.applyPresetTheme('slate')" style="border:1px solid #cbd5e1;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#475569;margin-right:4px;"></span> Slate Dark</button>
+      </div>
+    </div>
+
+    <!-- Color Pickers Grid -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+      <div class="nu-field">
+        <label style="font-size:12px; font-weight:600;">Primary Brand Color</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="color" id="projThemePrimaryColor" style="width:36px; height:36px; padding:2px; border-radius:4px; border:1px solid var(--border-color); cursor:pointer;" oninput="ProjectsModule.updateLiveThemePreview()">
+          <input type="text" id="projThemePrimaryText" class="nu-input" style="font-family:monospace;" oninput="ProjectsModule.updateLiveThemePreview('primary')">
+        </div>
+      </div>
+
+      <div class="nu-field">
+        <label style="font-size:12px; font-weight:600;">Primary Hover Color</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="color" id="projThemePrimaryHoverColor" style="width:36px; height:36px; padding:2px; border-radius:4px; border:1px solid var(--border-color); cursor:pointer;" oninput="ProjectsModule.updateLiveThemePreview()">
+          <input type="text" id="projThemePrimaryHoverText" class="nu-input" style="font-family:monospace;" oninput="ProjectsModule.updateLiveThemePreview('hover')">
+        </div>
+      </div>
+
+      <div class="nu-field">
+        <label style="font-size:12px; font-weight:600;">Sidebar Background</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="color" id="projThemeSidebarBgColor" style="width:36px; height:36px; padding:2px; border-radius:4px; border:1px solid var(--border-color); cursor:pointer;" oninput="ProjectsModule.updateLiveThemePreview()">
+          <input type="text" id="projThemeSidebarBgText" class="nu-input" style="font-family:monospace;" oninput="ProjectsModule.updateLiveThemePreview('sidebar_bg')">
+        </div>
+      </div>
+
+      <div class="nu-field">
+        <label style="font-size:12px; font-weight:600;">Sidebar Text Color</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="color" id="projThemeSidebarTextColor" style="width:36px; height:36px; padding:2px; border-radius:4px; border:1px solid var(--border-color); cursor:pointer;" oninput="ProjectsModule.updateLiveThemePreview()">
+          <input type="text" id="projThemeSidebarTextText" class="nu-input" style="font-family:monospace;" oninput="ProjectsModule.updateLiveThemePreview('sidebar_text')">
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Preview Box -->
+    <div style="margin-bottom:16px;">
+      <label style="font-size:12px; font-weight:600; display:block; margin-bottom:6px;">Live UI Preview</label>
+      <div id="themeLivePreviewCard" style="border:1px solid var(--border-color); border-radius:6px; padding:16px; background:var(--bg-subtle); display:flex; gap:16px; align-items:center; justify-content:space-between;">
+        <div id="themePreviewSidebar" style="padding:10px 16px; border-radius:6px; font-size:12px; font-weight:600; display:flex; align-items:center; gap:8px;">
+          <span>📁 Nav Menu</span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="themePreviewBtn" class="nu-btn nu-btn-sm" style="color:#fff;">Primary Action</button>
+          <span id="themePreviewBadge" class="nu-badge" style="font-size:10px; color:#fff;">Active Badge</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+      <button class="nu-btn nu-btn-ghost" onclick="ProjectsModule.closeThemeModal()">Cancel</button>
+      <button class="nu-btn nu-btn-primary" onclick="ProjectsModule.saveTheme()">🎨 Save Project Theme</button>
     </div>
   </div>
 </div>
@@ -779,6 +858,119 @@ $projects = ProjectContext::getAccessibleProjects();
       $('projMembersModal').style.display = 'none';
     }
 
+    var presets = {
+      indigo:  { primary_color: '#2563eb', primary_hover: '#1d4ed8', sidebar_bg: '#0f172a', sidebar_text: '#e2e8f0', accent_color: '#2563eb' },
+      emerald: { primary_color: '#059669', primary_hover: '#047857', sidebar_bg: '#064e3b', sidebar_text: '#ecfdf5', accent_color: '#059669' },
+      purple:  { primary_color: '#7c3aed', primary_hover: '#6d28d9', sidebar_bg: '#2e1065', sidebar_text: '#f5f3ff', accent_color: '#7c3aed' },
+      crimson: { primary_color: '#dc2626', primary_hover: '#b91c1c', sidebar_bg: '#450a0a', sidebar_text: '#fef2f2', accent_color: '#dc2626' },
+      amber:   { primary_color: '#d97706', primary_hover: '#b45309', sidebar_bg: '#451a03', sidebar_text: '#fffbeb', accent_color: '#d97706' },
+      slate:   { primary_color: '#475569', primary_hover: '#334155', sidebar_bg: '#0f172a', sidebar_text: '#f1f5f9', accent_color: '#475569' }
+    };
+
+    async function openTheme(id, name) {
+      $('projThemeProjId').value = id;
+      $('projThemeModalTitle').textContent = 'Project Theme Customizer: ' + name;
+      $('projThemeModal').style.display = 'flex';
+      await loadThemeSettings(id);
+    }
+
+    async function loadThemeSettings(id) {
+      try {
+        var res = await fetch('api/projects.php?action=get_theme&project_id=' + id);
+        var data = await res.json();
+        if (data.success && data.theme) {
+          setThemeInputs(data.theme);
+        } else {
+          setThemeInputs(presets.indigo);
+        }
+      } catch (e) {
+        setThemeInputs(presets.indigo);
+      }
+    }
+
+    function setThemeInputs(t) {
+      var p  = t.primary_color || '#2563eb';
+      var ph = t.primary_hover || '#1d4ed8';
+      var sb = t.sidebar_bg    || '#0f172a';
+      var st = t.sidebar_text  || '#e2e8f0';
+
+      $('projThemePrimaryColor').value      = p;
+      $('projThemePrimaryText').value       = p;
+      $('projThemePrimaryHoverColor').value = ph;
+      $('projThemePrimaryHoverText').value  = ph;
+      $('projThemeSidebarBgColor').value    = sb;
+      $('projThemeSidebarBgText').value     = sb;
+      $('projThemeSidebarTextColor').value  = st;
+      $('projThemeSidebarTextText').value   = st;
+
+      updateLiveThemePreview();
+    }
+
+    function applyPresetTheme(key) {
+      if (presets[key]) {
+        setThemeInputs(presets[key]);
+      }
+    }
+
+    function updateLiveThemePreview(source) {
+      if (source === 'primary') $('projThemePrimaryColor').value = $('projThemePrimaryText').value;
+      if (source === 'hover')   $('projThemePrimaryHoverColor').value = $('projThemePrimaryHoverText').value;
+      if (source === 'sidebar_bg') $('projThemeSidebarBgColor').value = $('projThemeSidebarBgText').value;
+      if (source === 'sidebar_text') $('projThemeSidebarTextColor').value = $('projThemeSidebarTextText').value;
+
+      var p  = $('projThemePrimaryColor').value;
+      var sb = $('projThemeSidebarBgColor').value;
+      var st = $('projThemeSidebarTextColor').value;
+
+      $('projThemePrimaryText').value      = p;
+      $('projThemePrimaryHoverText').value = $('projThemePrimaryHoverColor').value;
+      $('projThemeSidebarBgText').value    = sb;
+      $('projThemeSidebarTextText').value  = st;
+
+      var btn   = $('themePreviewBtn');
+      var badge = $('themePreviewBadge');
+      var side  = $('themePreviewSidebar');
+
+      if (btn) btn.style.backgroundColor = p;
+      if (badge) badge.style.backgroundColor = p;
+      if (side) {
+        side.style.backgroundColor = sb;
+        side.style.color = st;
+      }
+    }
+
+    async function saveTheme() {
+      var projId = $('projThemeProjId').value;
+      var theme = {
+        primary_color: $('projThemePrimaryColor').value,
+        primary_hover: $('projThemePrimaryHoverColor').value,
+        sidebar_bg:    $('projThemeSidebarBgColor').value,
+        sidebar_text:  $('projThemeSidebarTextColor').value,
+        accent_color:  $('projThemePrimaryColor').value
+      };
+
+      try {
+        var res = await fetch('api/projects.php?action=save_theme', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: parseInt(projId), theme: theme })
+        });
+        var data = await res.json();
+        if (data.success) {
+          closeThemeModal();
+          window.location.reload();
+        } else {
+          alert(data.error || 'Failed to save theme settings');
+        }
+      } catch (e) {
+        alert('Network error saving theme settings');
+      }
+    }
+
+    function closeThemeModal() {
+      $('projThemeModal').style.display = 'none';
+    }
+
     async function openShare(id, name) {
       $('projShareProjId').value = id;
       $('projShareModalTitle').textContent = 'Share Project for Testing: ' + name;
@@ -905,6 +1097,11 @@ $projects = ProjectContext::getAccessibleProjects();
       regenerateShareToken: regenerateShareToken,
       copyShareUrl: copyShareUrl,
       closeShareModal: closeShareModal,
+      openTheme: openTheme,
+      applyPresetTheme: applyPresetTheme,
+      updateLiveThemePreview: updateLiveThemePreview,
+      saveTheme: saveTheme,
+      closeThemeModal: closeThemeModal,
       openImportModal: openImportModal,
       closeImportModal: closeImportModal,
       executeProjectImport: executeProjectImport,
