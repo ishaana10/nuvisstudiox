@@ -2364,6 +2364,7 @@ function nu_handle_subform_list() {
 }
 
 function nu_handle_subform_save() {
+    require_once __DIR__ . '/../core/Conflict.php';
     $code           = $_GET['code']            ?? '';
     $fk             = nu_safe_ident($_GET['fk'] ?? '');
     $parentId       = $_GET['parent_id']       ?? '';
@@ -2400,6 +2401,20 @@ function nu_handle_subform_save() {
 
     $pk     = nu_get_pk($table);
     $pkType = nu_form_pk_type($form);
+
+    if ($id && !empty($data['_record_sigs']) && is_array($data['_record_sigs'])) {
+        $currentRecord = nu_get_record($table, $id);
+        if (!empty($currentRecord)) {
+            $conflictCheck = NuConflict::check($data['_record_sigs'], $currentRecord, $data);
+            if ($conflictCheck['hasConflict']) {
+                nu_json([
+                    'success' => false,
+                    'error' => 'Conflict detected: this row was modified by another user since you opened it.',
+                    'conflicts' => $conflictCheck['conflicts']
+                ], 409);
+            }
+        }
+    }
 
     // Sync table columns for the subform table at runtime if it is not existing_no_sync
     $tableMode = $form[$c['table_mode']] ?? 'new';
@@ -2894,6 +2909,7 @@ function nu_handle_list() {
 }
 
 function nu_handle_save() {
+    require_once __DIR__ . '/../core/Conflict.php';
     $code = $_GET['code'] ?? '';
     $id   = $_GET['id']   ?? '';
     $finalId = $id;
@@ -2906,6 +2922,20 @@ function nu_handle_save() {
     $c      = nu_form_columns();
     $table  = nu_safe_ident($form[$c['table']] ?? '');
     if ($table === '') nu_json(['success' => false, 'error' => 'No table configured'], 400);
+
+    if ($id && !empty($data['_record_sigs']) && is_array($data['_record_sigs'])) {
+        $currentRecord = nu_get_record($table, $id);
+        if (!empty($currentRecord)) {
+            $conflictCheck = NuConflict::check($data['_record_sigs'], $currentRecord, $data);
+            if ($conflictCheck['hasConflict']) {
+                nu_json([
+                    'success' => false,
+                    'error' => 'Conflict detected: this record was modified by another user since you opened it.',
+                    'conflicts' => $conflictCheck['conflicts']
+                ], 409);
+            }
+        }
+    }
 
     $pk     = nu_get_pk($table);
     $pkType = nu_form_pk_type($form);
@@ -3093,7 +3123,11 @@ function nu_handle_save() {
         }
     }
 
-    nu_json(['success' => true, 'id' => $finalId]);
+    nu_json([
+        'success' => true,
+        'id' => $finalId,
+        '_record_sigs' => NuConflict::rowSigs(nu_get_record($table, $finalId) ?: [])
+    ]);
 }
 
 function nu_handle_save_form() {
