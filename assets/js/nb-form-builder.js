@@ -1719,6 +1719,96 @@ fields.forEach(function (f) {
         .catch(function (err) { NuApp.toast('Load error: ' + err.message, 'error'); });
     },
 
+    _currentStyle: null,
+
+    openStyleModal: function () {
+      var me = this;
+      var existing = document.getElementById('nbFormStyleModal');
+      if (existing) existing.remove();
+
+      var st = me._currentStyle || { density: 'comfortable', card_style: 'default', label_align: 'top', header_bg: '', accent_color: '', border_radius: '' };
+
+      var modal = document.createElement('div');
+      modal.id = 'nbFormStyleModal';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:16px;';
+      modal.innerHTML = '<div style="background:var(--bg-card,#fff);border-radius:12px;max-width:500px;width:100%;padding:24px;box-shadow:0 10px 25px rgba(0,0,0,0.2);">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+          '<h3 style="margin:0;font-size:16px;font-weight:700;">🎨 Form Style & Customization</h3>' +
+          '<button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" onclick="document.getElementById(\'nbFormStyleModal\').remove()">&times;</button>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">' +
+          '<div>' +
+            '<label class="nu-label" style="font-size:12px;">Density</label>' +
+            '<select id="nbStDensity" class="nu-input nu-input-sm">' +
+              '<option value="compact"' + (st.density === 'compact' ? ' selected' : '') + '>Compact</option>' +
+              '<option value="comfortable"' + (st.density === 'comfortable' ? ' selected' : '') + '>Comfortable</option>' +
+              '<option value="relaxed"' + (st.density === 'relaxed' ? ' selected' : '') + '>Relaxed</option>' +
+            '</select>' +
+          '</div>' +
+          '<div>' +
+            '<label class="nu-label" style="font-size:12px;">Card Style</label>' +
+            '<select id="nbStCardStyle" class="nu-input nu-input-sm">' +
+              '<option value="default"' + (st.card_style === 'default' ? ' selected' : '') + '>Default Card</option>' +
+              '<option value="elevated"' + (st.card_style === 'elevated' ? ' selected' : '') + '>Elevated Shadow</option>' +
+              '<option value="outlined"' + (st.card_style === 'outlined' ? ' selected' : '') + '>Outlined Border</option>' +
+              '<option value="flush"' + (st.card_style === 'flush' ? ' selected' : '') + '>Flush (No Card)</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">' +
+          '<div>' +
+            '<label class="nu-label" style="font-size:12px;">Label Alignment</label>' +
+            '<select id="nbStLabelAlign" class="nu-input nu-input-sm">' +
+              '<option value="top"' + (st.label_align === 'top' ? ' selected' : '') + '>Top Stacked</option>' +
+              '<option value="left"' + (st.label_align === 'left' ? ' selected' : '') + '>Left Aligned</option>' +
+              '<option value="inline"' + (st.label_align === 'inline' ? ' selected' : '') + '>Inline Floating</option>' +
+            '</select>' +
+          '</div>' +
+          '<div>' +
+            '<label class="nu-label" style="font-size:12px;">Corner Radius</label>' +
+            '<input type="text" id="nbStBorderRadius" class="nu-input nu-input-sm" value="' + (st.border_radius || '') + '" placeholder="e.g. 8px, 0.5rem">' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">' +
+          '<div>' +
+            '<label class="nu-label" style="font-size:12px;">Header Background</label>' +
+            '<input type="color" id="nbStHeaderBg" class="nu-input nu-input-sm" style="height:34px;padding:2px;" value="' + (st.header_bg || '#f8fafc') + '">' +
+          '</div>' +
+          '<div>' +
+            '<label class="nu-label" style="font-size:12px;">Accent Color</label>' +
+            '<input type="color" id="nbStAccentColor" class="nu-input nu-input-sm" style="height:34px;padding:2px;" value="' + (st.accent_color || '#0ea5e9') + '">' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:8px;">' +
+          '<button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" onclick="document.getElementById(\'nbFormStyleModal\').remove()">Cancel</button>' +
+          '<button type="button" class="nu-btn nu-btn-primary nu-btn-sm" onclick="nbFormBuilder.saveStyleFromModal()">Apply Style</button>' +
+        '</div>' +
+      '</div>';
+      document.body.appendChild(modal);
+    },
+
+    saveStyleFromModal: function () {
+      var d = document.getElementById('nbStDensity');
+      var c = document.getElementById('nbStCardStyle');
+      var l = document.getElementById('nbStLabelAlign');
+      var h = document.getElementById('nbStHeaderBg');
+      var a = document.getElementById('nbStAccentColor');
+      var r = document.getElementById('nbStBorderRadius');
+
+      this._currentStyle = {
+        density: d ? d.value : 'comfortable',
+        card_style: c ? c.value : 'default',
+        label_align: l ? l.value : 'top',
+        header_bg: h ? h.value : '',
+        accent_color: a ? a.value : '',
+        border_radius: r ? r.value.trim() : ''
+      };
+
+      var modal = document.getElementById('nbFormStyleModal');
+      if (modal) modal.remove();
+      if (window.NuApp) NuApp.toast('Form style updated! Save form layout to persist changes.');
+    },
+
     toggleFullscreen: function () {
       var card = document.getElementById('formBuilderCard');
       var btn = document.getElementById('btnBuilderFullscreen');
@@ -2473,6 +2563,9 @@ if (canvasType === 'subform' && sfData) {
           }
         }
       });
+      if (this._currentStyle) {
+        layout.push(Object.assign({ type: '_form_style' }, this._currentStyle));
+      }
       if (typeof window._nbSfAugmentLayout === 'function') layout = window._nbSfAugmentLayout(layout);
       return layout;
     },

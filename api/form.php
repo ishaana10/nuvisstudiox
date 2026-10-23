@@ -1675,13 +1675,15 @@ function nu_render_form_html($form, $record = [], $recordId = null) {
         }
     }
 
-    $html  = '<form class="nu-generated-form"'
+    $formStyle = nu_parse_form_style($layout);
+    $formStyleAttrs = nu_build_form_style_css($formStyle);
+
+    $html  = '<form ' . $formStyleAttrs
            . ' data-form-code="'  . nu_attr($formCode)   . '"'
            . ' data-table="'      . nu_attr($formTable)  . '"'
            . ' data-record-id="'  . nu_attr((string)$recordId) . '"'
            . ' data-is-new="'     . ($recordId ? '0' : '1') . '"'
-           . ' onsubmit="event.preventDefault(); submitNuForm(this);"'
-           . ' style="font-size:13px;">';
+           . ' onsubmit="event.preventDefault(); submitNuForm(this);">';
 
     $customCss = trim((string)($form[$c['custom_css']] ?? ''));
     if ($customCss !== '') {
@@ -2629,7 +2631,26 @@ function nu_handle_render() {
     if ($code === '') nu_json(['success' => false, 'error' => 'Missing code'], 400);
     $form = nu_get_form($code);
     if (!$form) nu_json(['success' => false, 'error' => 'Form not found'], 404);
-    $c      = nu_form_columns();
+
+    $c        = nu_form_columns();
+    $formType = strtolower(trim((string)($form[$c['form_type']] ?? $form['form_type'] ?? '')));
+
+    if ($formType === 'page') {
+        require_once __DIR__ . '/../core/NuPage.php';
+        $nu = new NuPage();
+        $cleanCode = preg_replace('/[^a-zA-Z0-9_-]/', '', $code);
+        $pageFile  = __DIR__ . '/../custom/pages/' . $cleanCode . '/index.php';
+        if (file_exists($pageFile)) {
+            ob_start();
+            include $pageFile;
+            $pageOutput = ob_get_clean();
+            nu_json(['success' => true, 'html' => $pageOutput, 'is_page' => true]);
+        } else {
+            nu_json(['success' => false, 'error' => 'Custom page index.php not found at custom/pages/' . $cleanCode . '/index.php'], 404);
+        }
+        return;
+    }
+
     $table  = $form[$c['table']] ?? '';
     $record = $id ? nu_get_record($table, $id) : [];
     nu_json(['success' => true, 'html' => nu_render_form_html($form, $record, $id ?: null)]);

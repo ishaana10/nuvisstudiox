@@ -779,6 +779,7 @@ foreach ($forms as $f) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px;">
       <h3 class="nu-card-title" id="builderTitle" style="margin-bottom:0;">New Form</h3>
       <div style="display:flex;align-items:center;gap:8px;">
+        <button type="button" class="nu-btn nu-btn-secondary nu-btn-sm" id="btnFormStyleModal" onclick="nbFormBuilder.openStyleModal()" style="display:flex;align-items:center;gap:4px;">🎨 Form Style</button>
         <button type="button" class="nu-btn nu-btn-secondary nu-btn-sm" id="btnBuilderFullscreen" onclick="nbFormBuilder.toggleFullscreen()" style="display:flex;align-items:center;gap:4px;">⛶ Fullscreen</button>
         <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="nbFormBuilder.close()">✕ Cancel</button>
       </div>
