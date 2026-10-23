@@ -2633,7 +2633,7 @@ function nu_handle_render() {
     if (!$form) nu_json(['success' => false, 'error' => 'Form not found'], 404);
 
     $c        = nu_form_columns();
-    $formType = strtolower(trim((string)($form[$c['form_type']] ?? $form['form_type'] ?? '')));
+    $formType = strtolower(trim((string)($form[$c['type']] ?? $form['form_type'] ?? '')));
 
     if ($formType === 'page') {
         require_once __DIR__ . '/../core/NuPage.php';
