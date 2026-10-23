@@ -322,6 +322,9 @@ if (!$currentUser || strtolower((string)$currentUser['usr_role']) !== 'globeadmi
         <button type="button" class="nu-dev-tab-btn" id="tabBtnRedis" onclick="DevSettings.switchTab('redis')">
             ⚡ Redis Cache &amp; Sessions
         </button>
+        <button type="button" class="nu-dev-tab-btn" id="tabBtnFnRef" onclick="DevSettings.switchTab('fnref')">
+            📚 Function Reference
+        </button>
     </div>
 
     <!-- Panel 1: General Branding & Global Hashes -->
@@ -530,6 +533,20 @@ if (!$currentUser || strtolower((string)$currentUser['usr_role']) !== 'globeadmi
             </div>
         </div>
     </div>
+
+    <!-- Panel 3: Developer Function Reference -->
+    <div class="nu-dev-panel" id="panelFnRef">
+        <div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <h4 class="nu-section-title" style="margin:0;">Interactive Function Reference</h4>
+                <p style="font-size:12px; color:var(--text-muted); margin:4px 0 0 0;">Searchable directory of backend PHP helpers, client JS APIs, and SQL placeholders for developer scripts.</p>
+            </div>
+            <input type="search" id="fnRefSearchInput" placeholder="Filter functions..." class="nu-input" style="width:220px;" oninput="DevSettings.filterFnRef(this.value)">
+        </div>
+        <div id="fnRefContainer">
+            <p style="color:var(--text-muted); font-style:italic;">Loading function reference...</p>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -538,24 +555,90 @@ var DevSettings = (function() {
     var REDIS_API = 'api/redis_actions.php';
     var rows = [];
 
+    var fnRefData = null;
+
     function switchTab(tab) {
         var btnGeneral = document.getElementById('tabBtnGeneral');
         var btnRedis = document.getElementById('tabBtnRedis');
+        var btnFnRef = document.getElementById('tabBtnFnRef');
         var panelGeneral = document.getElementById('panelGeneral');
         var panelRedis = document.getElementById('panelRedis');
+        var panelFnRef = document.getElementById('panelFnRef');
+
+        btnGeneral.classList.remove('active');
+        btnRedis.classList.remove('active');
+        if (btnFnRef) btnFnRef.classList.remove('active');
+        panelGeneral.classList.remove('active');
+        panelRedis.classList.remove('active');
+        if (panelFnRef) panelFnRef.classList.remove('active');
 
         if (tab === 'redis') {
-            btnGeneral.classList.remove('active');
             btnRedis.classList.add('active');
-            panelGeneral.classList.remove('active');
             panelRedis.classList.add('active');
             fetchRedisDiagnostics();
+        } else if (tab === 'fnref') {
+            if (btnFnRef) btnFnRef.classList.add('active');
+            if (panelFnRef) panelFnRef.classList.add('active');
+            fetchFnRef();
         } else {
-            btnRedis.classList.remove('active');
             btnGeneral.classList.add('active');
-            panelRedis.classList.remove('active');
             panelGeneral.classList.add('active');
         }
+    }
+
+    async function fetchFnRef() {
+        if (fnRefData) return;
+        try {
+            var res = await fetch(API + '?action=get_fn_ref', { credentials: 'same-origin' });
+            var json = await res.json();
+            if (json.success) {
+                fnRefData = json.fn_ref;
+                renderFnRef('');
+            }
+        } catch (e) {
+            console.error('[DevSettings] failed to fetch fn ref', e);
+        }
+    }
+
+    function renderFnRef(filter) {
+        var container = document.getElementById('fnRefContainer');
+        if (!container || !fnRefData) return;
+        var q = (filter || '').toLowerCase();
+        var html = '';
+
+        Object.keys(fnRefData).forEach(function(catKey) {
+            var cat = fnRefData[catKey];
+            var items = cat.items.filter(function(item) {
+                return !q || item.name.toLowerCase().includes(q) || item.description.toLowerCase().includes(q) || item.category.toLowerCase().includes(q);
+            });
+
+            if (items.length > 0) {
+                html += '<div style="margin-bottom:24px;">' +
+                    '<h5 style="font-size:14px; font-weight:700; color:var(--primary, #0ea5e9); border-bottom:1px solid var(--border-color); padding-bottom:6px; margin-bottom:12px;">' + escapeHtml(cat.title) + '</h5>' +
+                    '<p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">' + escapeHtml(cat.description) + '</p>' +
+                    '<div style="display:grid; grid-template-columns:1fr; gap:12px;">';
+
+                items.forEach(function(it) {
+                    html += '<div style="background:var(--bg-subtle, #f8fafc); border:1px solid var(--border-color, #e2e8f0); border-radius:8px; padding:12px;">' +
+                        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">' +
+                            '<strong style="font-family:monospace; font-size:13px; color:var(--text-primary);">' + escapeHtml(it.name) + '</strong>' +
+                            '<span style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:12px; background:#e0f2fe; color:#0369a1;">' + escapeHtml(it.category) + '</span>' +
+                        '</div>' +
+                        '<div style="font-size:11px; font-family:monospace; color:#64748b; margin-bottom:6px;">' + escapeHtml(it.signature) + '</div>' +
+                        '<div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">' + escapeHtml(it.description) + '</div>' +
+                        '<pre style="margin:0; padding:8px; background:#0f172a; color:#f8fafc; border-radius:4px; font-size:11px; overflow-x:auto;">' + escapeHtml(it.example) + '</pre>' +
+                    '</div>';
+                });
+
+                html += '</div></div>';
+            }
+        });
+
+        container.innerHTML = html || '<p style="color:var(--text-muted); font-style:italic;">No matching functions found.</p>';
+    }
+
+    function filterFnRef(val) {
+        renderFnRef(val);
     }
 
     async function loadSettings() {
@@ -936,7 +1019,8 @@ var DevSettings = (function() {
         testRedisPing: testRedisPing,
         triggerStartRedisDaemon: triggerStartRedisDaemon,
         flushRedisCache: flushRedisCache,
-        toggleRedisConfig: toggleRedisConfig
+        toggleRedisConfig: toggleRedisConfig,
+        filterFnRef: filterFnRef
     };
 })();
 

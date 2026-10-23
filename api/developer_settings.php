@@ -26,6 +26,15 @@ $db = NuDatabase::getInstance();
 $action = $_GET['action'] ?? '';
 
 switch ($action) {
+    case 'get_fn_ref':
+        try {
+            require_once dirname(__DIR__) . '/core/FnRef.php';
+            echo json_encode(['success' => true, 'fn_ref' => NuFnRef::getReference()]);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'error' => 'Failed to load function reference: ' . $e->getMessage()]);
+        }
+        break;
+
     case 'get':
         try {
             $settings = [];

@@ -2,6 +2,7 @@
 require_once '../config.php';
 require_once '../core/Database.php';
 require_once '../core/Auth.php';
+require_once '../core/XlsxWriter.php';
 
 $auth = new NuAuth();
 if (!$auth->checkAuth()) {
@@ -11,7 +12,7 @@ if (!$auth->checkAuth()) {
 }
 
 $table = preg_replace('/[^a-z0-9_]/', '', $_GET['table'] ?? '');
-$format = $_GET['format'] ?? 'csv';
+$format = strtolower($_GET['format'] ?? 'csv');
 
 if (!$table) {
     echo 'Table required';
@@ -28,7 +29,23 @@ if ($format === 'json') {
     exit;
 }
 
-// CSV
+if ($format === 'xlsx' || $format === 'excel') {
+    $xlsx = NuXlsx::create($table);
+    $sheet = $xlsx->sheet($table);
+    if (!empty($records)) {
+        $headers = array_keys($records[0]);
+        $sheet->header($headers);
+        foreach ($records as $row) {
+            $sheet->row(array_values($row));
+        }
+    } else {
+        $sheet->header(['No records found']);
+    }
+    $xlsx->download($table . '.xlsx');
+    exit;
+}
+
+// Default: CSV
 header('Content-Type: text/csv');
 header('Content-Disposition: attachment; filename="' . $table . '.csv"');
 
