@@ -104,4 +104,15 @@ final class FormCustomizationTest extends TestCase
         $this->assertContains('last_name', $names);
         $this->assertContains('email', $names);
     }
+
+    public function testRowColumnSpanDistribution(): void
+    {
+        // 1 Col -> span 12, 2 Cols -> span 6, 3 Cols -> span 4, 4 Cols -> span 3
+        $calculateSpan = fn(int $cols): int => (int) floor(12 / max(1, min(4, $cols)));
+
+        $this->assertEquals(12, $calculateSpan(1));
+        $this->assertEquals(6, $calculateSpan(2));
+        $this->assertEquals(4, $calculateSpan(3));
+        $this->assertEquals(3, $calculateSpan(4));
+    }
 }
