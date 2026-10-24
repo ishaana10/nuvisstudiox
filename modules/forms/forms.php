@@ -1095,14 +1095,60 @@ foreach ($forms as $f) {
 
         <!-- Canvas -->
         <div class="nb-canvas-wrap flex flex-col flex-grow">
-          <div class="nb-canvas-topbar flex items-center justify-between mb-2">
-            <span class="nb-canvas-title text-[10px] font-bold uppercase tracking-wider text-slate-500">Form Layout</span>
-            <div class="nb-canvas-topbar-actions flex items-center gap-3">
-              <span class="text-[10px] text-slate-400">Drag components into rows · Click to configure</span>
+          <div class="nb-canvas-topbar flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div class="flex items-center gap-2">
+              <span class="nb-canvas-title text-[10px] font-bold uppercase tracking-wider text-slate-500">Form Layout</span>
+              <!-- View Mode Segmented Switcher -->
+              <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs">
+                <button type="button" id="nbViewModeGrid" class="px-2 py-1 rounded-md font-medium text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-700 shadow-sm" onclick="nbFormBuilder.setLayoutViewMode('grid')">📐 Canvas</button>
+                <button type="button" id="nbViewModePreview" class="px-2 py-1 rounded-md font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200" onclick="nbFormBuilder.setLayoutViewMode('preview')">👁 Live Preview</button>
+                <button type="button" id="nbViewModeJson" class="px-2 py-1 rounded-md font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200" onclick="nbFormBuilder.setLayoutViewMode('json')">{ } JSON</button>
+              </div>
+            </div>
+
+            <div class="nb-canvas-topbar-actions flex flex-wrap items-center gap-2">
+              <!-- Device Viewport Switcher -->
+              <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs me-1">
+                <button type="button" id="nbDeviceDesktop" class="px-2 py-1 rounded-md font-medium text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-700 shadow-sm" title="Desktop View (100%)" onclick="nbFormBuilder.setViewportDevice('desktop')">🖥 Desktop</button>
+                <button type="button" id="nbDeviceTablet" class="px-2 py-1 rounded-md font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200" title="Tablet View (768px)" onclick="nbFormBuilder.setViewportDevice('tablet')">📱 Tablet</button>
+                <button type="button" id="nbDeviceMobile" class="px-2 py-1 rounded-md font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200" title="Mobile View (375px)" onclick="nbFormBuilder.setViewportDevice('mobile')">📱 Mobile</button>
+              </div>
+
+              <!-- Zoom Controls -->
+              <div class="inline-flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg me-1">
+                <button type="button" class="px-1.5 py-0.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white" title="Zoom Out" onclick="nbFormBuilder.zoomCanvas(-0.1)">-</button>
+                <span id="nbZoomLabel" class="text-[11px] font-mono font-semibold px-1 min-w-[38px] text-center text-slate-600 dark:text-slate-300">100%</span>
+                <button type="button" class="px-1.5 py-0.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white" title="Zoom In" onclick="nbFormBuilder.zoomCanvas(0.1)">+</button>
+                <button type="button" class="px-1 text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" title="Reset Zoom" onclick="nbFormBuilder.setCanvasZoom(1.0)">Reset</button>
+              </div>
+
+              <!-- Auto-Layout Preset Dropdown -->
+              <div class="relative inline-block text-left me-1">
+                <select class="nu-input nu-input-sm text-xs bg-slate-100 dark:bg-slate-800 border-none font-semibold text-slate-700 dark:text-slate-200 cursor-pointer rounded-lg py-1 px-2" onchange="if(this.value){ nbFormBuilder.autoArrange(parseInt(this.value,10)); this.value=''; }" title="Auto Arrange Canvas Grid">
+                  <option value="">⚡ Auto-Layout Grid...</option>
+                  <option value="1">1 Column (Full Width)</option>
+                  <option value="2">2 Columns (Half Width)</option>
+                  <option value="3">3 Columns (1/3 Width)</option>
+                  <option value="4">4 Columns (1/4 Width)</option>
+                </select>
+              </div>
+
               <button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" id="nbToggleGridLines" onclick="nbFormBuilder.toggleGridLines()">📐 Grid Lines</button>
               <button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" id="nbToggleLivePreview" onclick="nbToggleLivePreviewSplit()">👁 Split Preview</button>
               <button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" onclick="nbFormBuilder.addRow()">+ Add Row</button>
             </div>
+          </div>
+
+          <!-- JSON Schema View Container (Hidden by default) -->
+          <div id="nbJsonViewContainer" class="hidden flex-grow flex flex-col gap-2 p-3 bg-slate-900 rounded-xl border border-slate-800 text-slate-100">
+            <div class="flex items-center justify-between text-xs text-slate-400 pb-2 border-b border-slate-800">
+              <span class="font-mono font-semibold">Raw Form Layout JSON Schema</span>
+              <div class="flex items-center gap-2">
+                <button type="button" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px]" onclick="nbFormBuilder.formatJsonSchema()">Format JSON</button>
+                <button type="button" class="px-2 py-1 bg-primary text-white rounded text-[11px] font-semibold" onclick="nbFormBuilder.applyJsonSchema()">Apply JSON to Canvas</button>
+              </div>
+            </div>
+            <textarea id="nbJsonSchemaEditor" class="w-full flex-grow font-mono text-xs p-3 bg-slate-950 text-emerald-400 rounded-lg border border-slate-800 focus:outline-none focus:ring-1 focus:ring-primary" style="min-height:350px; resize:vertical;"></textarea>
           </div>
 
           <div class="nb-canvas flex-grow relative rounded-xl border border-dashed border-slate-300 dark:border-slate-800" id="formCanvas">

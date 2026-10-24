@@ -63,6 +63,10 @@
       '.nb-cfield-actions .move-tab-btn{display:inline-block;margin-right:4px;}',
       '.nb-cfield-actions .move-tab-btn:hover{background:var(--bg-offset,#f5f7ff) !important;color:var(--color-primary,#4f6bed) !important;}',
       '#formCanvas.nb-canvas-tool-over{outline:2px dashed var(--color-primary,#4f6bed);outline-offset:3px;}',
+      '#formCanvas.nb-viewport-desktop{max-width:100%;margin:0 auto;transition:max-width .3s ease;}',
+      '#formCanvas.nb-viewport-tablet{max-width:768px;margin:0 auto;box-shadow:0 10px 30px rgba(0,0,0,0.15);transition:max-width .3s ease;}',
+      '#formCanvas.nb-viewport-mobile{max-width:375px;margin:0 auto;box-shadow:0 10px 30px rgba(0,0,0,0.15);transition:max-width .3s ease;}',
+      '.nb-canvas-zoom-wrapper{transform-origin:top center;transition:transform .2s ease;}',
       /* RIGHT SIDE PANEL */
       '#nb-props-panel{position:fixed;top:0;right:0;width:320px;height:100vh;background:var(--bg-card,#fff);border-left:2px solid var(--color-primary,#4f6bed);box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:9999;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);}',
       '#nb-props-panel.open{transform:translateX(0);}',
@@ -1700,6 +1704,189 @@ fields.forEach(function (f) {
   ═══════════════════════════════════════════════════════════════════ */
   window.nbFormBuilder = {
     _isDirty: false,
+    _currentZoom: 1.0,
+    _currentDevice: 'desktop',
+    _currentViewMode: 'grid',
+
+    setViewportDevice: function (device) {
+      var canvas = document.getElementById('formCanvas');
+      if (!canvas) return;
+      this._currentDevice = device || 'desktop';
+      canvas.classList.remove('nb-viewport-desktop', 'nb-viewport-tablet', 'nb-viewport-mobile');
+      canvas.classList.add('nb-viewport-' + this._currentDevice);
+
+      var btnD = document.getElementById('nbDeviceDesktop');
+      var btnT = document.getElementById('nbDeviceTablet');
+      var btnM = document.getElementById('nbDeviceMobile');
+
+      var activeClass = ['bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-slate-100'];
+      var inactiveClass = ['text-slate-500', 'hover:text-slate-800', 'dark:hover:text-slate-200'];
+
+      [btnD, btnT, btnM].forEach(function (btn) {
+        if (!btn) return;
+        btn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-slate-100', 'text-slate-500', 'hover:text-slate-800', 'dark:hover:text-slate-200');
+      });
+
+      if (btnD) btnD.classList.add.apply(btnD.classList, device === 'desktop' ? activeClass : inactiveClass);
+      if (btnT) btnT.classList.add.apply(btnT.classList, device === 'tablet' ? activeClass : inactiveClass);
+      if (btnM) btnM.classList.add.apply(btnM.classList, device === 'mobile' ? activeClass : inactiveClass);
+
+      try { localStorage.setItem('nu_form_builder_device', this._currentDevice); } catch (e) {}
+    },
+
+    setCanvasZoom: function (zoomLevel) {
+      var canvas = document.getElementById('formCanvas');
+      if (!canvas) return;
+      var z = Math.min(Math.max(parseFloat(zoomLevel) || 1.0, 0.4), 1.6);
+      this._currentZoom = Math.round(z * 10) / 10;
+      canvas.style.transform = 'scale(' + this._currentZoom + ')';
+      canvas.style.transformOrigin = 'top center';
+      var label = document.getElementById('nbZoomLabel');
+      if (label) label.textContent = Math.round(this._currentZoom * 100) + '%';
+    },
+
+    zoomCanvas: function (delta) {
+      this.setCanvasZoom(this._currentZoom + delta);
+    },
+
+    setLayoutViewMode: function (mode) {
+      this._currentViewMode = mode || 'grid';
+      var canvas = document.getElementById('formCanvas');
+      var jsonContainer = document.getElementById('nbJsonViewContainer');
+      var jsonEditor = document.getElementById('nbJsonSchemaEditor');
+      var btnG = document.getElementById('nbViewModeGrid');
+      var btnP = document.getElementById('nbViewModePreview');
+      var btnJ = document.getElementById('nbViewModeJson');
+
+      var activeClass = ['bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-slate-100'];
+      var inactiveClass = ['text-slate-500', 'hover:text-slate-800', 'dark:hover:text-slate-200'];
+
+      [btnG, btnP, btnJ].forEach(function (btn) {
+        if (!btn) return;
+        btn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-slate-100', 'text-slate-500', 'hover:text-slate-800', 'dark:hover:text-slate-200');
+      });
+
+      if (btnG) btnG.classList.add.apply(btnG.classList, mode === 'grid' ? activeClass : inactiveClass);
+      if (btnP) btnP.classList.add.apply(btnP.classList, mode === 'preview' ? activeClass : inactiveClass);
+      if (btnJ) btnJ.classList.add.apply(btnJ.classList, mode === 'json' ? activeClass : inactiveClass);
+
+      if (mode === 'json') {
+        if (canvas) canvas.classList.add('hidden');
+        if (jsonContainer) jsonContainer.classList.remove('hidden');
+        if (jsonEditor) {
+          try {
+            var layout = this.getLayout();
+            jsonEditor.value = JSON.stringify(layout, null, 2);
+          } catch (e) {
+            jsonEditor.value = '[]';
+          }
+        }
+      } else if (mode === 'preview') {
+        if (jsonContainer) jsonContainer.classList.add('hidden');
+        if (canvas) canvas.classList.remove('hidden');
+        if (window.nbToggleLivePreviewSplit) {
+          var pane = document.getElementById('nbLivePreviewPane');
+          if (pane && pane.classList.contains('hidden')) {
+            window.nbToggleLivePreviewSplit();
+          }
+        }
+      } else {
+        // Default Grid Canvas view
+        if (jsonContainer) jsonContainer.classList.add('hidden');
+        if (canvas) canvas.classList.remove('hidden');
+      }
+    },
+
+    formatJsonSchema: function () {
+      var jsonEditor = document.getElementById('nbJsonSchemaEditor');
+      if (!jsonEditor) return;
+      try {
+        var parsed = JSON.parse(jsonEditor.value);
+        jsonEditor.value = JSON.stringify(parsed, null, 2);
+        if (typeof NuApp !== 'undefined' && NuApp.toast) NuApp.toast('JSON schema formatted', 'success');
+      } catch (err) {
+        if (typeof NuApp !== 'undefined' && NuApp.toast) NuApp.toast('Invalid JSON schema: ' + err.message, 'error');
+      }
+    },
+
+    applyJsonSchema: function () {
+      var jsonEditor = document.getElementById('nbJsonSchemaEditor');
+      if (!jsonEditor) return;
+      try {
+        var parsed = JSON.parse(jsonEditor.value);
+        if (!Array.isArray(parsed)) {
+          throw new Error('Layout JSON schema must be an array of field objects');
+        }
+        if (window.nbHistory) window.nbHistory.saveState();
+        if (window.nbHistory && window.nbHistory._applyState) {
+          window.nbHistory._applyState(JSON.stringify(parsed));
+        }
+        if (typeof NuApp !== 'undefined' && NuApp.toast) NuApp.toast('JSON layout applied to canvas', 'success');
+        this.setLayoutViewMode('grid');
+      } catch (err) {
+        if (typeof NuApp !== 'undefined' && NuApp.toast) NuApp.toast('Cannot apply JSON: ' + err.message, 'error');
+      }
+    },
+
+    autoArrange: function (cols) {
+      cols = parseInt(cols, 10) || 2;
+      cols = Math.min(Math.max(cols, 1), 4);
+      var colSpan = Math.floor(12 / cols);
+
+      var currentLayout = this.getLayout();
+      if (!Array.isArray(currentLayout) || currentLayout.length === 0) {
+        if (typeof NuApp !== 'undefined' && NuApp.toast) NuApp.toast('No fields to arrange', 'info');
+        return;
+      }
+
+      if (window.nbHistory) window.nbHistory.saveState();
+
+      var styleNodes = [];
+      var fieldsToArrange = [];
+
+      currentLayout.forEach(function (node) {
+        if (node && node.type === '_form_style') {
+          styleNodes.push(node);
+        } else {
+          fieldsToArrange.push(node);
+        }
+      });
+
+      var newLayout = [];
+      var currentRowIndex = 0;
+      var currentColSum = 0;
+
+      fieldsToArrange.forEach(function (field) {
+        if (field.type === 'group' || field.type === 'tab' || field.type === 'divider') {
+          // Containers and dividers occupy full row
+          field.col = 12;
+          if (currentColSum > 0) {
+            currentRowIndex++;
+            currentColSum = 0;
+          }
+          field.row_index = currentRowIndex;
+          currentRowIndex++;
+        } else {
+          field.col = colSpan;
+          if (currentColSum + colSpan > 12) {
+            currentRowIndex++;
+            currentColSum = 0;
+          }
+          field.row_index = currentRowIndex;
+          currentColSum += colSpan;
+        }
+        newLayout.push(field);
+      });
+
+      styleNodes.forEach(function (s) { newLayout.push(s); });
+
+      if (window.nbHistory && window.nbHistory._applyState) {
+        window.nbHistory._applyState(JSON.stringify(newLayout));
+      }
+
+      this._isDirty = true;
+      if (typeof NuApp !== 'undefined' && NuApp.toast) NuApp.toast('Auto-arranged layout to ' + cols + ' column grid', 'success');
+    },
 
     /* ── FIX-J: edit method (was missing) ── */
     edit: function (formId) {
