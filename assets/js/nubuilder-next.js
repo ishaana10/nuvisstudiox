@@ -383,6 +383,22 @@ window.NuApp = {
   _initFormWidgets(scope) {
     if (scope) scope.dataset.nuS2Done = '1';
     if (typeof window.nuInitSelect2 === 'function') window.nuInitSelect2(scope);
+    if (scope && scope.querySelectorAll) {
+      scope.querySelectorAll('[required]').forEach(el => {
+        const id = el.id || el.getAttribute('name');
+        if (id) {
+          const label = scope.querySelector(`label[for="${id}"]`);
+          if (label && !label.querySelector('.nu-required-asterisk')) {
+            const star = document.createElement('span');
+            star.className = 'nu-required-asterisk';
+            star.style.cssText = 'color:#ef4444;font-weight:bold;margin-left:2px;';
+            star.title = 'Required field';
+            star.textContent = ' *';
+            label.appendChild(star);
+          }
+        }
+      });
+    }
   },
 
   _dispatchFormOpened(box) {
@@ -397,28 +413,32 @@ window.NuApp = {
 
   _renderBreadcrumb(crumbs) {
     const nav = document.createElement('nav');
+    nav.className = 'nu-breadcrumb';
     nav.setAttribute('aria-label', 'breadcrumb');
-    nav.style.cssText = 'margin-bottom:14px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:13px;';
+    nav.style.cssText = 'margin-bottom:14px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:13px;';
     crumbs.forEach((crumb, i) => {
       if (i > 0) {
         const sep = document.createElement('span');
-        sep.textContent = '/';
-        sep.style.cssText = 'color:var(--text-muted,#999);margin:0 2px;';
+        sep.className = 'nu-breadcrumb-separator';
+        sep.textContent = '›';
+        sep.style.cssText = 'color:var(--text-muted,#94a3b8);margin:0 2px;font-weight:bold;';
         nav.appendChild(sep);
       }
       if (crumb.action && i < crumbs.length - 1) {
         const a = document.createElement('a');
+        a.className = 'nu-breadcrumb-item nu-breadcrumb-link';
         a.href = '#';
         a.textContent = crumb.label;
-        a.style.cssText = 'color:var(--primary,#4f6bed);text-decoration:none;font-weight:500;';
+        a.style.cssText = 'color:var(--primary,#4f6bed);text-decoration:none;font-weight:500;transition:color 0.2s;';
         a.addEventListener('mouseenter', () => a.style.textDecoration = 'underline');
         a.addEventListener('mouseleave', () => a.style.textDecoration = 'none');
         a.addEventListener('click', (e) => { e.preventDefault(); crumb.action(); });
         nav.appendChild(a);
       } else {
         const span = document.createElement('span');
+        span.className = 'nu-breadcrumb-item nu-breadcrumb-active';
         span.textContent = crumb.label;
-        span.style.cssText = 'color:var(--text-muted,#666);font-weight:400;';
+        span.style.cssText = 'color:var(--text-muted,#64748b);font-weight:600;';
         nav.appendChild(span);
       }
     });
