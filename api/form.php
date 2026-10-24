@@ -1345,11 +1345,12 @@ function nu_render_field($field, $value = '', $record = []) {
         }
     }
 
+    $reqStar   = !empty($field['required']) ? ' <span class="nu-required-asterisk" style="color:#ef4444;font-weight:bold;" title="Required field">*</span>' : '';
     $labelHtml = '<label for="nuf_' . nu_attr($name) . '"'
                . ' style="display:block;font-weight:600;font-size:13px;color:#555;'
                . 'text-align:right;padding-right:10px;padding-top:7px;'
                . 'min-width:160px;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
-               . nu_html($label)
+               . nu_html($label) . $reqStar
                . '</label>';
 
     $wrapInner = '<div style="display:flex;align-items:flex-start;gap:0;width:100%;">'
