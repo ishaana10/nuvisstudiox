@@ -59,4 +59,49 @@ final class FormCustomizationTest extends TestCase
         $url = $nu->formUrl('customers', '101');
         $this->assertEquals('?p=form&code=customers&id=101', $url);
     }
+
+    public function testFlattenLayoutFieldsExtraction(): void
+    {
+        $layout = [
+            [
+                'type' => 'text',
+                'name' => 'first_name',
+                'label' => 'First Name',
+                'col' => 6,
+                'row_index' => 0
+            ],
+            [
+                'type' => 'text',
+                'name' => 'last_name',
+                'label' => 'Last Name',
+                'col' => 6,
+                'row_index' => 0
+            ],
+            [
+                'type' => 'group',
+                'name' => 'contact_group',
+                'label' => 'Contact Information',
+                'children' => [
+                    [
+                        'type' => 'email',
+                        'name' => 'email',
+                        'label' => 'Email Address',
+                        'col' => 12
+                    ]
+                ]
+            ],
+            [
+                'type' => '_form_style',
+                'density' => 'relaxed'
+            ]
+        ];
+
+        $flattened = nu_flatten_layout_fields($layout);
+
+        $this->assertCount(3, $flattened);
+        $names = array_column($flattened, 'name');
+        $this->assertContains('first_name', $names);
+        $this->assertContains('last_name', $names);
+        $this->assertContains('email', $names);
+    }
 }
