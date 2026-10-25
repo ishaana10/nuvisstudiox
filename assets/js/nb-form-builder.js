@@ -1702,6 +1702,16 @@ fields.forEach(function (f) {
     card.dataset.fieldCustomAttrs = caVal;
   }
 
+  var ctrl = card.querySelector('.nb-preview-control');
+  if (ctrl) {
+    var phVal = fd.placeholder || fd.default_value || fd.defaultvalue || '';
+    if (ctrl.tagName === 'INPUT' || ctrl.tagName === 'TEXTAREA') {
+      ctrl.placeholder = phVal || (fd.label || fd.name || '') + '...';
+    } else if (ctrl.tagName === 'SELECT' && ctrl.options[0]) {
+      ctrl.options[0].textContent = phVal ? '-- ' + phVal + ' --' : '-- Select Option --';
+    }
+  }
+
   if (type === 'upload') {
     var exts = card.querySelector('.nu-upload-exts');
     if (exts) { exts.value = fd.allowed_extensions || ''; exts.setAttribute('value', exts.value); }
@@ -2026,6 +2036,27 @@ fields.forEach(function (f) {
       if (window.nbHistory && window.nbHistory._applyState) {
         window.nbHistory._applyState(JSON.stringify(newLayout));
       }
+
+      var selectEl = document.getElementById('nbAutoLayoutSelect');
+      if (selectEl) selectEl.value = String(cols);
+
+      // Highlight active column buttons on all canvas rows
+      document.querySelectorAll('#formCanvas .nb-row').forEach(function (row) {
+        var colBtns = row.querySelectorAll('.nb-row-cols-btn');
+        colBtns.forEach(function (btn) {
+          if (parseInt(btn.dataset.cols, 10) === cols) {
+            btn.classList.add('active');
+            btn.style.color = 'var(--color-primary,#4f6bed)';
+            btn.style.fontWeight = '700';
+            btn.style.borderColor = 'var(--color-primary,#4f6bed)';
+          } else {
+            btn.classList.remove('active');
+            btn.style.color = '';
+            btn.style.fontWeight = '';
+            btn.style.borderColor = '';
+          }
+        });
+      });
 
       this._isDirty = true;
       if (typeof NuApp !== 'undefined' && NuApp.toast) NuApp.toast('Auto-arranged layout to ' + cols + ' column grid', 'success');
@@ -2632,6 +2663,38 @@ if (canvasType === 'subform' && sfData) {
 }
 /* ── END ADD ── */
 
+  function _buildCardCanvasPreview(canvasType, label, extra) {
+    extra = extra || {};
+    var ph = extra.placeholder || extra.default_value || extra.defaultvalue || '';
+    var type = (canvasType || 'text').toLowerCase();
+
+    if (type === 'group' || type === 'tab') return '';
+
+    var html = '<div class="nb-cfield-canvas-preview" style="padding:6px 8px 8px; background:var(--bg-surface,#fff); border-top:1px solid var(--border-color,#e5e7eb); pointer-events:none;">';
+
+    if (type === 'textarea') {
+      html += '<textarea class="nu-input nb-preview-control" rows="2" style="width:100%;font-size:11px;resize:none;background:var(--bg-elevated,#f9fafb);color:var(--text-secondary,#666);pointer-events:none;border-radius:6px;" placeholder="' + _esc(ph || 'Textarea input...') + '" readonly></textarea>';
+    } else if (type === 'select' || type === 'select2' || type === 'lookup') {
+      html += '<select class="nu-input nb-preview-control" style="width:100%;font-size:11px;background:var(--bg-elevated,#f9fafb);color:var(--text-secondary,#666);pointer-events:none;border-radius:6px;" readonly><option>' + _esc(ph ? '-- ' + ph + ' --' : '-- Select Option --') + '</option></select>';
+    } else if (type === 'checkbox' || type === 'radio' || type === 'checkbox_group') {
+      html += '<div class="nb-preview-control" style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-primary,#333);padding:2px 0;"><input type="checkbox" checked disabled style="pointer-events:none;"> <span class="nb-preview-cb-label">' + _esc(label || 'Checkbox label') + '</span></div>';
+    } else if (type === 'subform') {
+      html += '<div class="nb-preview-control" style="border:1px dashed var(--color-primary,#4f6bed);border-radius:6px;padding:8px;background:color-mix(in oklch,var(--color-primary,#4f6bed) 4%,var(--bg-surface,#fff));font-size:10px;color:var(--text-secondary,#666);"><div style="display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-bottom:4px;"><span style="color:var(--color-primary,#4f6bed);">⊟ SUBFORM GRID (' + _esc(extra.sf_form_code || extra.form_code || 'Linked Subform') + ')</span><span style="background:var(--color-primary,#4f6bed);color:#fff;padding:1px 6px;border-radius:4px;font-size:9px;">+ Add Row</span></div><div style="height:22px;background:var(--bg-surface,#fff);border:1px solid var(--border-color,#e5e7eb);border-radius:4px;display:flex;align-items:center;padding:0 8px;color:var(--text-tertiary,#888);">[ Subform Columns & Inline Data Grid ]</div></div>';
+    } else if (type === 'button') {
+      html += '<button type="button" class="nu-btn nu-btn-primary nu-btn-sm nb-preview-control" style="width:100%;font-size:11px;pointer-events:none;">' + _esc(extra.button_text || label || 'Button') + '</button>';
+    } else if (type === 'divider') {
+      html += '<hr style="border:none;border-top:1.5px dashed var(--border-color,#ccc);margin:6px 0;">';
+    } else if (type === 'html') {
+      html += '<div class="nb-preview-control" style="font-size:11px;color:var(--text-secondary,#555);font-style:italic;">' + (label || 'HTML Markup Content') + '</div>';
+    } else {
+      var inputType = type === 'number' || type === 'customnumber' ? 'number' : (type === 'date' ? 'date' : (type === 'datetime' ? 'datetime-local' : (type === 'time' ? 'time' : (type === 'email' ? 'email' : 'text'))));
+      html += '<input type="' + inputType + '" class="nu-input nb-preview-control" style="width:100%;font-size:11px;background:var(--bg-elevated,#f9fafb);color:var(--text-secondary,#666);pointer-events:none;border-radius:6px;" placeholder="' + _esc(ph || (label + '...')) + '" readonly>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
   card.innerHTML =
     '<div class="nb-cfield-header">'
       + '<span class="nb-cfield-drag">⠇</span>'
@@ -2643,6 +2706,7 @@ if (canvasType === 'subform' && sfData) {
         + '<button class="nb-cfield-btn del" type="button" title="Remove">✕</button>'
       + '</span>'
     + '</div>'
+    + _buildCardCanvasPreview(canvasType, label, extra)
     + '<div class="nb-cfield-body" style="display:none;">'
       + '<div class="nb-fp-grid">'
         + '<div class="nb-fp"><label>Label</label><input type="text" class="nu-input nu-field-label" value="' + _esc(label) + '"></div>'
@@ -2658,7 +2722,25 @@ if (canvasType === 'subform' && sfData) {
 
   var labelInput = card.querySelector('.nu-field-label');
   if (labelInput) {
-    labelInput.addEventListener('input', function () { var hdr = card.querySelector('.nb-cfield-label'); if (hdr) hdr.textContent = labelInput.value || '(no label)'; });
+    labelInput.addEventListener('input', function () {
+      var hdr = card.querySelector('.nb-cfield-label');
+      if (hdr) hdr.textContent = labelInput.value || '(no label)';
+      var cbLabel = card.querySelector('.nb-preview-cb-label');
+      if (cbLabel) cbLabel.textContent = labelInput.value || 'Checkbox label';
+    });
+  }
+  var phInput = card.querySelector('.nu-field-placeholder');
+  if (phInput) {
+    phInput.addEventListener('input', function () {
+      var ctrl = card.querySelector('.nb-preview-control');
+      if (ctrl) {
+        if (ctrl.tagName === 'INPUT' || ctrl.tagName === 'TEXTAREA') {
+          ctrl.placeholder = phInput.value || '';
+        } else if (ctrl.tagName === 'SELECT' && ctrl.options[0]) {
+          ctrl.options[0].textContent = phInput.value ? '-- ' + phInput.value + ' --' : '-- Select Option --';
+        }
+      }
+    });
   }
   var delBtn = card.querySelector('.nb-cfield-btn.del');
   if (delBtn) {
