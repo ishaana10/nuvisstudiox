@@ -42,12 +42,14 @@
       '.nb-cfield-tab-panel{display:none;flex-direction:column;}',
       '.nb-cfield-tab-panel.active{display:flex;}',
       '.nb-tab-panel-rows{padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-height:52px;}',
+      '.nb-row{transition:border-color .15s, box-shadow .15s; border:1px solid var(--border,#e0e4ef); border-radius:8px; margin-bottom:8px; background:var(--bg-card,#fff); cursor:pointer;}',
+      '.nb-row.nb-row-selected{border-color:var(--color-primary,#4f6bed) !important; box-shadow:0 0 0 2px rgba(79,107,237,.25) !important;}',
       '.nb-inner-row{border:1px solid var(--border,#e0e4ef);border-radius:7px;background:var(--bg-offset,#f8faff);margin:2px 0;}',
       '.nb-inner-row .nb-row-header{background:var(--bg-offset2,#edf0fc);border-radius:6px 6px 0 0;padding:4px 8px;}',
       '.nb-row.drag-row-over,.nb-container.drag-row-over{outline:2px dashed var(--color-primary,#4f6bed);outline-offset:2px;}',
       '.nb-row.drag-row-source,.nb-container.drag-row-source{opacity:.45;}',
       '.nb-row-drop-hint{color:var(--text-muted,#aaa);font-size:12px;text-align:center;padding:10px 0;width:100%;}',
-      '.nb-row-body{display:flex;flex-wrap:nowrap;align-items:stretch;gap:4px;padding:6px;min-height:48px;position:relative;max-width:100%;overflow-x:hidden;}',
+      '.nb-row-body{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;padding:8px;min-height:52px;position:relative;max-width:100%;}',
       '.nb-cfield{position:relative;display:flex;flex-direction:column;min-width:80px;max-width:100%;box-sizing:border-box;background:var(--bg-card,#fff);border:1.5px solid var(--border,#dde1f0);border-radius:7px;overflow:hidden;cursor:pointer;transition:border-color .15s;}',
       '.nb-cfield:hover{border-color:var(--color-primary,#4f6bed);}',
       '.nb-cfield.nb-cfield-selected{border-color:var(--color-primary,#4f6bed);box-shadow:0 0 0 2px rgba(79,107,237,.18);}',
@@ -1509,7 +1511,8 @@ function _openPropsPanel(card) {
     [1, 2, 3, 4].forEach(function(n) {
       var b = document.createElement('button');
       b.type = 'button';
-      b.className = 'nb-row-btn';
+      b.className = 'nb-row-btn nb-row-cols-btn';
+      b.dataset.cols = String(n);
       b.textContent = n === 1 ? '1 Col' : n + ' Cols';
       b.title = 'Set fields in this row to ' + n + ' column' + (n > 1 ? 's' : '');
       b.addEventListener('click', function(e) {
@@ -1871,25 +1874,49 @@ fields.forEach(function (f) {
       }
     },
 
+    selectRow: function (rowEl) {
+      document.querySelectorAll('#formCanvas .nb-row').forEach(function (r) {
+        r.classList.remove('nb-row-selected');
+      });
+      if (rowEl) {
+        rowEl.classList.add('nb-row-selected');
+      }
+    },
+
     setRowAlignment: function (rowEl, align) {
       if (!rowEl) return;
       align = align || 'left';
       if (['left', 'center', 'right'].indexOf(align) === -1) align = 'left';
 
+      this.selectRow(rowEl);
       rowEl.dataset.align = align;
       var rb = rowEl.querySelector('.nb-row-body');
       if (rb) {
         rb.dataset.align = align;
-        rb.style.justifyContent = align === 'right' ? 'flex-end' : (align === 'center' ? 'center' : 'flex-start');
       }
+
+      var cards = rowEl.querySelectorAll('.nb-cfield');
+      cards.forEach(function (card) {
+        card.dataset.rowAlign = align;
+        var span = parseInt(card.dataset.col, 10) || 6;
+        if (align === 'right') {
+          card.style.gridColumnStart = String(12 - span + 1);
+        } else if (align === 'center') {
+          card.style.gridColumnStart = String(Math.floor((12 - span) / 2) + 1);
+        } else {
+          card.style.gridColumnStart = '';
+        }
+      });
 
       var alignBtns = rowEl.querySelectorAll('.nb-row-align-btn');
       alignBtns.forEach(function (btn) {
         if (btn.dataset.align === align) {
+          btn.classList.add('active');
           btn.style.color = 'var(--color-primary,#4f6bed)';
           btn.style.fontWeight = '700';
           btn.style.borderColor = 'var(--color-primary,#4f6bed)';
         } else {
+          btn.classList.remove('active');
           btn.style.color = '';
           btn.style.fontWeight = '';
           btn.style.borderColor = '';
@@ -1908,6 +1935,7 @@ fields.forEach(function (f) {
       cols = Math.min(Math.max(cols, 1), 4);
       var span = Math.floor(12 / cols);
 
+      this.selectRow(rowEl);
       var rb = rowEl.querySelector('.nb-row-body');
       if (!rb) return;
 
@@ -1920,6 +1948,21 @@ fields.forEach(function (f) {
           me._applyColSpan(card, span);
         } else if (window.nbFormBuilder && window.nbFormBuilder._applyColSpan) {
           window.nbFormBuilder._applyColSpan(card, span);
+        }
+      });
+
+      var colBtns = rowEl.querySelectorAll('.nb-row-cols-btn');
+      colBtns.forEach(function (btn) {
+        if (parseInt(btn.dataset.cols, 10) === cols) {
+          btn.classList.add('active');
+          btn.style.color = 'var(--color-primary,#4f6bed)';
+          btn.style.fontWeight = '700';
+          btn.style.borderColor = 'var(--color-primary,#4f6bed)';
+        } else {
+          btn.classList.remove('active');
+          btn.style.color = '';
+          btn.style.fontWeight = '';
+          btn.style.borderColor = '';
         }
       });
 
@@ -2435,7 +2478,8 @@ fields.forEach(function (f) {
       [1, 2, 3, 4].forEach(function(n) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.className = 'nb-row-btn';
+        b.className = 'nb-row-btn nb-row-cols-btn';
+        b.dataset.cols = String(n);
         b.textContent = n === 1 ? '1 Col' : n + ' Cols';
         b.title = 'Set fields in this row to ' + n + ' column' + (n > 1 ? 's' : '');
         b.addEventListener('click', function(e) {
@@ -2788,14 +2832,18 @@ if (canvasType === 'subform' && sfData) {
       var c = Math.min(12, Math.max(1, parseInt(col, 10) || 6));
       card.dataset.col = String(c);
       card.style.gridColumn = 'span ' + c;
-      var parent = card.parentNode;
-      if (parent && parent.offsetWidth > 0 && parent.style.display === 'flex') {
-        var px = Math.round((c / 12) * parent.offsetWidth);
-        card.style.width = px + 'px'; card.style.flex = '0 0 ' + px + 'px';
+      card.style.width = '100%';
+      card.style.maxWidth = '100%';
+
+      var align = card.dataset.rowAlign || (card.closest('.nb-row') ? card.closest('.nb-row').dataset.align : '');
+      if (align === 'right') {
+        card.style.gridColumnStart = String(12 - c + 1);
+      } else if (align === 'center') {
+        card.style.gridColumnStart = String(Math.floor((12 - c) / 2) + 1);
       } else {
-        card.style.width = '';
-        card.style.flex = '';
+        card.style.gridColumnStart = '';
       }
+
       var badge = card.querySelector('.nb-cfield-span-badge');
       if (badge) badge.textContent = c + '/12';
     },
