@@ -414,18 +414,6 @@ if (!$currentUser || strtolower((string)$currentUser['usr_role']) !== 'globeadmi
             </button>
         </div>
 
-        <!-- Database Migrations Section -->
-        <div class="nu-dev-section" style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 24px;">
-            <h4 class="nu-section-title">Database Migrations</h4>
-            <p style="color:var(--text-muted); font-size:12px; margin-bottom:12px; line-height:1.4;">
-                Execute pending database schema migrations safely on demand.
-            </p>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <button type="button" class="nu-btn nu-btn-secondary" onclick="DevSettings.runMigrations()">🚀 Run Pending Migrations</button>
-                <span id="devMigrationStatus" style="font-size:12px; color:var(--text-muted);"></span>
-            </div>
-        </div>
-
         <!-- Save Controls -->
         <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end; gap:12px;">
             <button type="button" class="nu-btn nu-btn-ghost" onclick="DevSettings.loadSettings()">Discard Changes</button>
@@ -1020,27 +1008,6 @@ var DevSettings = (function() {
         bindFileUpload();
     }
 
-    async function runMigrations() {
-        var statusEl = document.getElementById('devMigrationStatus');
-        if (statusEl) statusEl.textContent = 'Running migrations...';
-        try {
-            var res = await fetch(API + '?action=run_migrations', { credentials: 'same-origin' });
-            var json = await res.json();
-            if (json.success) {
-                var msg = json.message || 'Migrations completed.';
-                if (statusEl) statusEl.textContent = msg;
-                if (window.NuApp) NuApp.toast(msg);
-            } else {
-                if (statusEl) statusEl.textContent = 'Error: ' + (json.error || 'Migration failed');
-                if (window.NuApp) NuApp.toast(json.error || 'Migration failed', 'error');
-            }
-        } catch (e) {
-            console.error('[DevSettings] failed to run migrations', e);
-            if (statusEl) statusEl.textContent = 'Migration request failed';
-            if (window.NuApp) NuApp.toast('Migration request failed', 'error');
-        }
-    }
-
     return {
         init: init,
         switchTab: switchTab,
@@ -1048,7 +1015,6 @@ var DevSettings = (function() {
         removeLogo: removeLogo,
         loadSettings: loadSettings,
         saveSettings: saveSettings,
-        runMigrations: runMigrations,
         fetchRedisDiagnostics: fetchRedisDiagnostics,
         testRedisPing: testRedisPing,
         triggerStartRedisDaemon: triggerStartRedisDaemon,
