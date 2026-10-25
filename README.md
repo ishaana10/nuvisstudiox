@@ -8,7 +8,7 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
-### v5.0.16 (Current Release)
+### v5.0.17 (Current Release)
 - **Form Builder Grid Alignment & Per-Row Options:** Added per-row column presets (`1 Col`, `2 Cols`, `3 Cols`, `4 Cols`) and element alignment controls (`Left`, `Center`, `Right`) to row action bars, persisting `row_align` in JSON schema and dynamically computing grid start/span offsets.
 - **12-Column Canvas Spans in Edit Mode:** Refactored edit-mode grid rendering (`_applyColSpan`) to set exact `grid-column` span properties on a 12-column `.nb-row-body` CSS grid, fixing card size rendering issues in edit mode.
 - **Responsive Viewport Fallbacks:** Enforced CSS media queries and canvas rules so fields automatically fall back to 2 columns (`span 6`) on tablet devices and 1 column full-width (`span 12`) on mobile viewports.
