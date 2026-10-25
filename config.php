@@ -2,7 +2,7 @@
 declare(strict_types=1);
 // nuvis - Master Configuration
 
-define('NU_VERSION', '5.0.17');
+define('NU_VERSION', '5.0.24');
 define('NU_BUILD_DATE', '2026-10-25');
 if (!defined('NU_ROOT')) define('NU_ROOT', __DIR__);
 
