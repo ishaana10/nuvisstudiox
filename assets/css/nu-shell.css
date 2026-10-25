@@ -1,0 +1,93 @@
+/* Nuvis StudioX — shell enhancements (nu-shell.js): command palette, toasts, header search, polish */
+
+/* ── Header search trigger ── */
+.nu-cmdk-trigger {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 10px 0 12px; min-width: 190px;
+  background: var(--bg-subtle); color: var(--text-tertiary);
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  font: inherit; font-size: var(--font-sm); cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+.nu-cmdk-trigger:hover { border-color: var(--primary); color: var(--text-primary); }
+.nu-cmdk-trigger svg { width: 15px; height: 15px; flex: none; }
+.nu-cmdk-trigger span { flex: 1; text-align: left; }
+.nu-cmdk-trigger kbd, .nu-cmdk kbd {
+  font: 600 10.5px/1 'Inter', system-ui, sans-serif; padding: 3px 6px;
+  background: var(--bg-card); color: var(--text-tertiary);
+  border: 1px solid var(--border-color); border-bottom-width: 2px; border-radius: 5px;
+}
+@media (max-width: 900px) {
+  .nu-cmdk-trigger { min-width: 0; width: 34px; padding: 0; justify-content: center; }
+  .nu-cmdk-trigger span, .nu-cmdk-trigger kbd { display: none; }
+}
+
+/* ── Command palette ── */
+.nu-cmdk-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: flex-start; justify-content: center; padding: 12vh 16px 16px;
+  background: rgba(8, 12, 24, .5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  animation: nu-cmdk-fade .14s ease-out;
+}
+.nu-cmdk {
+  width: min(600px, 100%); max-height: 70vh; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-card); color: var(--text-primary);
+  border: 1px solid var(--border-color); border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, .45);
+  animation: nu-cmdk-pop .16s cubic-bezier(.2, .9, .3, 1.1);
+}
+.nu-cmdk-input {
+  width: 100%; padding: 16px 18px; font: inherit; font-size: 1rem;
+  color: var(--text-primary); background: transparent;
+  border: 0; border-bottom: 1px solid var(--border-color); outline: none;
+}
+.nu-cmdk-input::placeholder { color: var(--text-tertiary); }
+.nu-cmdk-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; }
+.nu-cmdk-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-base);
+}
+.nu-cmdk-item.is-active { background: var(--bg-sidebar-active, rgba(37, 99, 235, .14)); }
+.nu-cmdk-item.is-active .nu-cmdk-label { color: var(--primary); }
+.nu-cmdk-label { flex: 1; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nu-cmdk-hint { font-size: var(--font-xs); color: var(--text-tertiary); }
+.nu-cmdk-empty { padding: 28px 12px; text-align: center; color: var(--text-tertiary); font-size: var(--font-base); }
+.nu-cmdk-foot {
+  display: flex; gap: 16px; padding: 9px 14px; font-size: var(--font-xs); color: var(--text-tertiary);
+  border-top: 1px solid var(--border-color); background: var(--bg-subtle);
+}
+.nu-cmdk-foot kbd { margin-right: 3px; }
+@keyframes nu-cmdk-fade { from { opacity: 0; } }
+@keyframes nu-cmdk-pop { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+
+/* ── Toasts (extends the base .nu-toast) ── */
+.nu-toast-container { max-width: min(380px, calc(100vw - 32px)); }
+.nu-toast {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 10px 12px 14px;
+  color: var(--text-primary); border: 1px solid var(--border-color); border-left-width: 4px;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.nu-toast.success { border-left-color: var(--color-success); }
+.nu-toast.error   { border-left-color: var(--color-error); color: var(--text-primary); }
+.nu-toast.warning { border-left-color: var(--color-warning); }
+.nu-toast.info    { border-left-color: var(--color-info); }
+.nu-toast-icon { display: inline-flex; margin-top: 1px; }
+.nu-toast-icon svg { width: 18px; height: 18px; }
+.nu-toast.success .nu-toast-icon { color: var(--color-success); }
+.nu-toast.error   .nu-toast-icon { color: var(--color-error); }
+.nu-toast.warning .nu-toast-icon { color: var(--color-warning); }
+.nu-toast.info    .nu-toast-icon { color: var(--color-info); }
+.nu-toast-msg { flex: 1; line-height: 1.45; overflow-wrap: anywhere; }
+.nu-toast-close {
+  border: 0; background: transparent; color: var(--text-tertiary); cursor: pointer;
+  font-size: 18px; line-height: 1; padding: 0 6px; border-radius: 4px;
+}
+.nu-toast-close:hover { color: var(--text-primary); background: var(--bg-hover); }
+.nu-toast.is-leaving { opacity: 0; transform: translateX(12px); }
+
+/* ── Global polish ── */
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.nu-sidebar, .nu-cmdk-list, .nu-main { scrollbar-width: thin; }
+@media (prefers-reduced-motion: reduce) {
+  .nu-cmdk-overlay, .nu-cmdk, .nu-toast { animation: none; transition: none; }
+}

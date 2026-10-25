@@ -791,1016 +791,56 @@ window.NuApp = {
   },
 
   // ── Browse table builder ─────────────────────────────────────────────────
+  // Implementation lives in assets/js/nu-browse-table.js (NuBrowseTable).
+  // The signature is unchanged so existing callers keep working.
   _buildBrowseTable(json, code, page, query, label, displayMode, container, onEdit, canEdit, canAdd, currentSortField, currentSortDir) {
-    const _canEdit          = (canEdit !== undefined) ? canEdit : NuPerms.canEdit();
-    const certTemplates     = json.certificate_templates || [];
-    const _canAdd           = (canAdd  !== undefined) ? canAdd  : NuPerms.canAdd();
-    const data              = json.data || {};
-    const layout            = Array.isArray(data.layout)  ? data.layout  : [];
-    let records             = Array.isArray(data.records) ? data.records : [];
-    const currentQuery      = data.query || query || '';
-    const searchEnabled     = String(data.browsesearchenabled || 0) === '1';
-    const searchPlaceholder = data.browsesearchplaceholder || 'Search...';
-    const formTable         = data.form_table || '';
-    const isGlobeAdmin      = (window.nuUserRole || '').toLowerCase() === 'globeadmin';
-    const deleteEnabled     = data.browse_delete_enabled !== undefined ? (parseInt(data.browse_delete_enabled, 10) === 1) : true;
-    const bulkEnabled       = deleteEnabled && isGlobeAdmin;
-
-    // Parse browse columns custom layout configuration
-    let browseLayout = [];
-    if (data.browse_layout) {
-      try { browseLayout = JSON.parse(data.browse_layout); } catch (e) { browseLayout = []; }
+    if (!window.NuBrowseTable) {
+      console.error('NuBrowseTable is not loaded (assets/js/nu-browse-table.js)');
+      this.toast('Browse table failed to load', 'error');
+      return null;
     }
-    if (!Array.isArray(browseLayout) || browseLayout.length === 0) {
-      browseLayout = layout.map(f => ({
-        fieldname: f.fieldname || f.name,
-        fieldlabel: f.fieldlabel || f.label || f.fieldname || f.name,
-        width: '',
-        align: 'left',
-        formatter: 'text',
-        sortable: true,
-        frozen: false
-      }));
-    }
-
-    container.innerHTML = '';
-
-    // Escape Helper for cells HTML
-    const escapeHTML = str => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-    // ── Image Lightbox Helper ──
-    if (!window._showImageLightbox) {
-      window._showImageLightbox = function (src) {
-        const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:100000;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
-        const img = document.createElement('img');
-        img.src = src;
-        img.style.cssText = 'max-width:90%;max-height:90%;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.5);';
-        overlay.appendChild(img);
-        overlay.onclick = () => overlay.remove();
-        document.body.appendChild(overlay);
-      };
-    }
-
-    // ── Conditional Formatting style runner (multi-rule support, badge style) ──
-    function _evaluateConditionalRules(col, val, cell) {
-      let rules = col.rules || [];
-      if (rules.length === 0 && col.cond_op) {
-        rules = [{ op: col.cond_op, val: col.cond_val, fg: col.cond_fg, bg: col.cond_bg }];
-      }
-      if (rules.length === 0) return;
-
-      const vStr = String(val).toLowerCase().trim();
-      const vNum = parseFloat(val);
-
-      for (const rule of rules) {
-        let matched = false;
-        const ruleVal = rule.val;
-        const rStr = String(ruleVal).toLowerCase().trim();
-        const rNum = parseFloat(ruleVal);
-
-        switch (rule.op) {
-          case '=':
-            matched = (vStr === rStr);
-            break;
-          case '!=':
-            matched = (vStr !== rStr);
-            break;
-          case '>':
-            if (!isNaN(vNum) && !isNaN(rNum)) matched = (vNum > rNum);
-            break;
-          case '<':
-            if (!isNaN(vNum) && !isNaN(rNum)) matched = (vNum < rNum);
-            break;
-          case 'contains':
-            matched = (vStr.indexOf(rStr) !== -1);
-            break;
-        }
-
-        if (matched) {
-          // Render value inside a beautiful badge/pill with custom rule colors
-          const fg = rule.fg || '#15803d';
-          const bg = rule.bg || '#dcfce7';
-          cell.innerHTML = `<span class="nu-badge-pill" style="padding:4px 10px;border-radius:12px;font-size:11.5px;font-weight:600;display:inline-block;color:${fg};background:${bg};border:1px solid ${fg}33;">${escapeHTML(String(val))}</span>`;
-          break; // apply only the first matching rule
-        }
-      }
-    }
-
-    // ── Local interactive filter panel ──
-    const filterRow = document.createElement('div');
-    filterRow.id = 'nuAdvancedFiltersPanel';
-    filterRow.style.cssText = 'display:none;background:var(--bg-elevated,#f8f9fa);padding:14px;border:1px solid var(--border-color,#e2e8f0);border-radius:8px;margin-bottom:16px;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:12px;';
-
-    browseLayout.forEach((col) => {
-      const colDiv = document.createElement('div');
-      colDiv.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
-      const fLabel = document.createElement('label');
-      fLabel.style.cssText = 'font-size:11px;font-weight:600;color:var(--text-secondary);';
-      fLabel.textContent = col.fieldlabel || col.fieldname;
-
-      let fInput;
-      if (col.formatter === 'date') {
-        fInput = document.createElement('div');
-        fInput.style.cssText = 'display:flex;gap:4px;';
-        const from = document.createElement('input');
-        from.type = 'date'; from.className = 'nu-input'; from.placeholder = 'From';
-        from.style.fontSize = '11px'; from.style.padding = '4px';
-        const to = document.createElement('input');
-        to.type = 'date'; to.className = 'nu-input'; to.placeholder = 'To';
-        to.style.fontSize = '11px'; to.style.padding = '4px';
-        fInput.appendChild(from);
-        fInput.appendChild(to);
-
-        const filterHandler = () => {
-          const fromVal = from.value ? new Date(from.value) : null;
-          const toVal = to.value ? new Date(to.value) : null;
-          _runClientFiltering(col.fieldname, (val) => {
-            if (!val) return !fromVal && !toVal;
-            const dVal = new Date(val);
-            if (isNaN(dVal)) return false;
-            if (fromVal && dVal < fromVal) return false;
-            if (toVal && dVal > toVal) return false;
-            return true;
-          });
-        };
-        from.onchange = filterHandler;
-        to.onchange = filterHandler;
-      } else {
-        fInput = document.createElement('input');
-        fInput.type = 'text'; fInput.className = 'nu-input';
-        fInput.placeholder = 'Filter ' + (col.fieldlabel || col.fieldname);
-        fInput.style.fontSize = '12px'; fInput.style.padding = '5px 8px';
-        fInput.oninput = () => {
-          const qVal = fInput.value.toLowerCase().trim();
-          _runClientFiltering(col.fieldname, (val) => String(val).toLowerCase().indexOf(qVal) !== -1);
-        };
-      }
-      colDiv.appendChild(fLabel);
-      colDiv.appendChild(fInput);
-      filterRow.appendChild(colDiv);
+    return window.NuBrowseTable.build(this, {
+      json: json, code: code, page: page, query: query, label: label, displayMode: displayMode,
+      container: container, onEdit: onEdit, canEdit: canEdit, canAdd: canAdd,
+      sort: currentSortField, dir: currentSortDir
     });
+  },
 
-    const activeFilters = {};
-    function _runClientFiltering(field, predicate) {
-      activeFilters[field] = predicate;
-      const rows = tbody.querySelectorAll('tr:not(.nu-empty-row)');
-      rows.forEach(r => {
-        let visible = true;
-        Object.keys(activeFilters).forEach(fKey => {
-          const cell = r.querySelector(`[data-field-cell="${fKey}"]`);
-          const cellVal = cell ? cell.dataset.rawVal : '';
-          if (!activeFilters[fKey](cellVal)) visible = false;
-        });
-        r.style.display = visible ? '' : 'none';
-      });
+  /**
+   * Start a browse request: invalidates any in-flight one (so a slow, stale
+   * response can't overwrite a newer view) and shows a loading state — dimming
+   * the existing table when there is one, a skeleton otherwise.
+   */
+  _browseBegin(container) {
+    this._browseToken = (this._browseToken || 0) + 1;
+    const prev = container.__nuBt;
+    if (prev && prev.root && prev.root.isConnected) {
+      prev.root.classList.add('is-loading');
+      prev.root.setAttribute('aria-busy', 'true');
+    } else if (window.NuBrowseTable) {
+      container.innerHTML = '';
+      window.NuBrowseTable.skeleton(container);
     }
-
-    // ── Search & Actions bar row ──
-    const searchWrap = document.createElement('div');
-    searchWrap.style.cssText = 'margin-bottom:16px;display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;';
-
-    if (searchEnabled) {
-      const searchInput = document.createElement('input');
-      searchInput.type = 'text'; searchInput.className = 'nu-input';
-      searchInput.placeholder = searchPlaceholder; searchInput.value = currentQuery;
-      searchInput.style.flex = '1';
-      searchInput.style.minWidth = '200px';
-
-      const searchBtn = document.createElement('button');
-      searchBtn.className = 'nu-btn nu-btn-primary'; searchBtn.textContent = 'Search';
-      searchBtn.onclick = () => this.browseForm(code, 1, searchInput.value.trim(), label, displayMode, currentSortField, currentSortDir);
-
-      const clearBtn = document.createElement('button');
-      clearBtn.className = 'nu-btn nu-btn-ghost'; clearBtn.textContent = 'Clear';
-      clearBtn.onclick = () => this.browseForm(code, 1, '', label, displayMode);
-
-      searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') this.browseForm(code, 1, searchInput.value.trim(), label, displayMode, currentSortField, currentSortDir);
-      });
-      searchWrap.appendChild(searchInput);
-      searchWrap.appendChild(searchBtn);
-      searchWrap.appendChild(clearBtn);
-    } else {
-      const spacer = document.createElement('div');
-      spacer.style.flex = '1';
-      searchWrap.appendChild(spacer);
-    }
-
-    // Advanced Filters Panel Toggle button
-    const filtersBtn = document.createElement('button');
-    filtersBtn.type = 'button';
-    filtersBtn.className = 'nu-btn nu-btn-ghost';
-    filtersBtn.innerHTML = '⚡ Advanced Filters';
-    filtersBtn.onclick = () => {
-      filterRow.style.display = filterRow.style.display === 'none' ? 'grid' : 'none';
-    };
-    searchWrap.appendChild(filtersBtn);
-
-    // View SQL button and modal for globeadmin only
-    if (isGlobeAdmin && data.browse_sql_debug) {
-      const sqlBtn = document.createElement('button');
-      sqlBtn.type = 'button';
-      sqlBtn.className = 'nu-btn nu-btn-ghost';
-      sqlBtn.innerHTML = '👁 View SQL';
-      sqlBtn.onclick = () => {
-        const debug = data.browse_sql_debug;
-
-        // Ensure parameters are formatted nicely
-        const formatParams = (params) => {
-          if (!params || (Array.isArray(params) && params.length === 0)) return 'None';
-          return JSON.stringify(params, null, 2);
-        };
-
-        const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100000;display:flex;align-items:center;justify-content:center;';
-
-        const box = document.createElement('div');
-        box.style.cssText = 'background:var(--bg-elevated,#fff);border:1px solid var(--border-color,#ccc);border-radius:12px;padding:24px;width:90%;max-width:850px;max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;gap:20px;box-shadow:0 10px 30px rgba(0,0,0,0.3);position:relative;color:var(--text-primary,#000);';
-
-        // Header
-        const header = document.createElement('div');
-        header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-color,#eee);padding-bottom:12px;';
-
-        const title = document.createElement('h3');
-        title.style.cssText = 'margin:0;font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;';
-        title.innerHTML = '📂 Generated Browse SQL <span style="font-size:11px;font-weight:normal;padding:2px 8px;border-radius:12px;background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.2);">globeadmin only</span>';
-
-        const closeBtn = document.createElement('button');
-        closeBtn.innerHTML = '&times;';
-        closeBtn.style.cssText = 'background:none;border:none;font-size:24px;cursor:pointer;color:var(--text-secondary,#666);line-height:1;padding:0;';
-        closeBtn.onclick = () => overlay.remove();
-
-        header.appendChild(title);
-        header.appendChild(closeBtn);
-        box.appendChild(header);
-
-        // Code block helper
-        const createSqlBlock = (titleLabel, sqlText, paramsText) => {
-          const container = document.createElement('div');
-          container.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
-
-          const titleRow = document.createElement('div');
-          titleRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
-
-          const label = document.createElement('span');
-          label.style.cssText = 'font-weight:600;font-size:13px;color:var(--text-secondary,#444);';
-          label.textContent = titleLabel;
-
-          const copyBtn = document.createElement('button');
-          copyBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
-          copyBtn.style.cssText = 'padding:2px 8px;font-size:11px;height:auto;line-height:1.5;';
-          copyBtn.textContent = '📋 Copy SQL';
-          copyBtn.onclick = () => {
-            navigator.clipboard.writeText(sqlText).then(() => {
-              copyBtn.textContent = '✅ Copied!';
-              setTimeout(() => { copyBtn.textContent = '📋 Copy SQL'; }, 2000);
-            });
-          };
-
-          titleRow.appendChild(label);
-          titleRow.appendChild(copyBtn);
-          container.appendChild(titleRow);
-
-          const pre = document.createElement('pre');
-          pre.style.cssText = 'margin:0;padding:12px;background:var(--bg-hover,#f8fafc);border:1px solid var(--border-color,#e2e8f0);border-radius:6px;overflow-x:auto;font-family:Consolas, Monaco, "Andale Mono", monospace;font-size:12px;line-height:1.5;color:var(--text-primary,#0f172a);max-height:200px;';
-          pre.textContent = sqlText;
-          container.appendChild(pre);
-
-          if (paramsText && paramsText !== 'None') {
-            const paramLabel = document.createElement('span');
-            paramLabel.style.cssText = 'font-weight:600;font-size:12px;color:var(--text-secondary,#444);margin-top:4px;';
-            paramLabel.textContent = 'Bound Parameters:';
-            container.appendChild(paramLabel);
-
-            const pPre = document.createElement('pre');
-            pPre.style.cssText = 'margin:0;padding:8px 12px;background:var(--bg-hover,#f8fafc);border:1px solid var(--border-color,#e2e8f0);border-radius:6px;overflow-x:auto;font-family:Consolas, Monaco, "Andale Mono", monospace;font-size:11px;line-height:1.4;color:var(--text-primary,#475569);max-height:100px;';
-            pPre.textContent = paramsText;
-            container.appendChild(pPre);
-          }
-
-          return container;
-        };
-
-        // Base SQL Block
-        box.appendChild(createSqlBlock('1. Base SQL Query', debug.base_sql, formatParams(debug.params)));
-
-        // Separator
-        const sep = document.createElement('hr');
-        sep.style.cssText = 'border:0;border-top:1px solid var(--border-color,#eee);margin:4px 0;';
-        box.appendChild(sep);
-
-        // Final SQL Block
-        box.appendChild(createSqlBlock('2. Final Paginated SQL Query (Includes sorting, limit, offset)', debug.final_sql, formatParams(debug.params)));
-
-        // Footer Actions
-        const footer = document.createElement('div');
-        footer.style.cssText = 'display:flex;justify-content:flex-end;margin-top:10px;border-top:1px solid var(--border-color,#eee);padding-top:12px;';
-
-        const closeFooterBtn = document.createElement('button');
-        closeFooterBtn.className = 'nu-btn nu-btn-ghost';
-        closeFooterBtn.textContent = 'Close';
-        closeFooterBtn.onclick = () => overlay.remove();
-
-        footer.appendChild(closeFooterBtn);
-        box.appendChild(footer);
-
-        overlay.appendChild(box);
-        document.body.appendChild(overlay);
-
-        // Close on clicking overlay background
-        overlay.onclick = (e) => {
-          if (e.target === overlay) overlay.remove();
-        };
-      };
-      searchWrap.appendChild(sqlBtn);
-    }
-
-    // Export Dropdown menu
-    const exportWrap = document.createElement('div');
-    exportWrap.style.cssText = 'position:relative;display:inline-block;';
-    const exportBtn = document.createElement('button');
-    exportBtn.type = 'button';
-    exportBtn.className = 'nu-btn nu-btn-ghost';
-    exportBtn.innerHTML = '⬇ Export ▾';
-
-    const exportMenu = document.createElement('div');
-    exportMenu.style.cssText = 'display:none;position:absolute;right:0;top:100%;background:var(--bg-elevated,#fff);border:1px solid var(--border-color,#ccc);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:9999;min-width:160px;margin-top:4px;overflow:hidden;';
-
-    const _addExportItem = (lbl, action) => {
-      const item = document.createElement('div');
-      item.style.cssText = 'padding:8px 12px;font-size:12px;cursor:pointer;color:var(--text-primary);transition:background 0.2s;';
-      item.textContent = lbl;
-      item.addEventListener('mouseover', () => item.style.background = 'var(--bg-hover,#f5f7ff)');
-      item.addEventListener('mouseout', () => item.style.background = 'none');
-      item.onclick = (e) => {
-        e.stopPropagation();
-        exportMenu.style.display = 'none';
-        action();
-      };
-      exportMenu.appendChild(item);
-    };
-
-    _addExportItem('Export Page as CSV', () => _localExport('csv'));
-    _addExportItem('Export Page as JSON', () => _localExport('json'));
-    _addExportItem('Export All Table (CSV)', () => {
-      window.location.href = 'api/export.php?code=' + encodeURIComponent(code);
-    });
-
-    function _localExport(type) {
-      if (!records.length) { NuApp.toast('No records to export', 'error'); return; }
-      if (type === 'json') {
-        const str = JSON.stringify(records, null, 2);
-        const blob = new Blob([str], { type: 'application/json' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = code + '_page_' + page + '.json';
-        link.click();
-      } else {
-        const headers = browseLayout.map(c => c.fieldlabel || c.fieldname);
-        const rows = records.map(r => browseLayout.map(c => r[c.fieldname] !== null ? r[c.fieldname] : ''));
-        const csvContent = [headers.join(','), ...rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(','))].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = code + '_page_' + page + '.csv';
-        link.click();
-      }
-      NuApp.toast('Exported successfully!');
-    }
-
-    exportBtn.onclick = (e) => {
-      e.stopPropagation();
-      exportMenu.style.display = exportMenu.style.display === 'none' ? 'block' : 'none';
-    };
-    document.addEventListener('click', () => exportMenu.style.display = 'none');
-    exportWrap.appendChild(exportBtn);
-    exportWrap.appendChild(exportMenu);
-    searchWrap.appendChild(exportWrap);
-
-    if (_canAdd) {
-      const addBtn = document.createElement('button');
-      addBtn.className = 'nu-btn nu-btn-primary';
-      addBtn.textContent = '+ Add New Record';
-      addBtn.onclick = () => this.addRecord(code, label, displayMode);
-      searchWrap.appendChild(addBtn);
-    }
-
-    container.appendChild(searchWrap);
-    container.appendChild(filterRow);
-
-    // ── Bulk Actions Floating bar ──
-    const bulkBar = document.createElement('div');
-    bulkBar.id = 'nuBulkActionsFloatingBar';
-    bulkBar.style.cssText = 'display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg-card,#1e293b);color:#fff;border-radius:30px;padding:10px 24px;box-shadow:0 8px 24px rgba(0,0,0,0.25);z-index:99999;align-items:center;gap:16px;border:1px solid rgba(255,255,255,0.1);transition:all 0.3s;';
-
-    const bulkCount = document.createElement('span');
-    bulkCount.style.cssText = 'font-size:13px;font-weight:600;';
-    bulkBar.appendChild(bulkCount);
-
-    const bulkDeleteBtn = document.createElement('button');
-    bulkDeleteBtn.type = 'button';
-    bulkDeleteBtn.className = 'nu-btn nu-btn-danger nu-btn-sm';
-    bulkDeleteBtn.style.borderRadius = '20px';
-    bulkDeleteBtn.textContent = '🗑 Bulk Delete';
-    bulkDeleteBtn.onclick = () => _executeBulkDelete();
-    bulkBar.appendChild(bulkDeleteBtn);
-
-    container.appendChild(bulkBar);
-
-    function _updateBulkSelectionCount() {
-      const checkedBoxes = tbody.querySelectorAll('.nu-row-checkbox:checked');
-      if (checkedBoxes.length > 0) {
-        bulkCount.textContent = checkedBoxes.length + ' records selected';
-        bulkBar.style.display = 'flex';
-      } else {
-        bulkBar.style.display = 'none';
-      }
-    }
-
-    async function _executeBulkDelete() {
-      const checkedBoxes = tbody.querySelectorAll('.nu-row-checkbox:checked');
-      if (checkedBoxes.length === 0) return;
-      if (!confirm(`Are you sure you want to delete all ${checkedBoxes.length} selected records permanently?`)) return;
-
-      const ids = Array.from(checkedBoxes).map(cb => cb.dataset.recordId);
-      let successCount = 0;
-      let errorMsg = '';
-      for (const rId of ids) {
-        try {
-          const res = await NuApp.apiJson(`api/crud.php?table=${encodeURIComponent(formTable)}&id=${encodeURIComponent(rId)}`, {
-            method: 'DELETE', credentials: 'same-origin'
-          });
-          if (res && res.success) successCount++;
-          else errorMsg = res.error || 'Failed';
-        } catch (err) {
-          errorMsg = err.message;
-        }
-      }
-      if (successCount > 0) {
-        NuApp.toast(`Successfully deleted ${successCount} records!`, 'success');
-        NuApp.browseForm(code, page, currentQuery, label, displayMode);
-      } else {
-        NuApp.toast('Bulk delete failed: ' + errorMsg, 'error');
-      }
-    }
-
-    // ── Columns Helper ──
-    const _swapColumns = (i, j) => {
-      if (i < 0 || i >= browseLayout.length || j < 0 || j >= browseLayout.length) return;
-      const tmp = browseLayout[i];
-      browseLayout[i] = browseLayout[j];
-      browseLayout[j] = tmp;
-
-      // Update data.browse_layout dynamically and trigger re-render of this table!
-      data.browse_layout = JSON.stringify(browseLayout);
-      this._buildBrowseTable(json, code, page, query, label, displayMode, container, onEdit, canEdit, canAdd, currentSortField, currentSortDir);
-    };
-
-    const _toggleHeaderSort = (field) => {
-      const newDir = (currentSortField === field && currentSortDir === 'ASC') ? 'DESC' : 'ASC';
-      this.browseForm(code, 1, currentQuery, label, displayMode, field, newDir);
-    };
-
-    // ── Sticky Frozen columns setup ──
-    let stickyOffset = 0;
-
-    const tableWrap = document.createElement('div');
-    tableWrap.style.cssText = 'overflow-x:auto;border-radius:10px;border:1px solid var(--border-color);position:relative;background:var(--bg-card);';
-
-    const table = document.createElement('table');
-    table.style.cssText = 'width:100%;border-collapse:collapse;table-layout:fixed;';
-    const thead = document.createElement('thead');
-    const headRow = document.createElement('tr');
-    headRow.style.cssText = 'border-bottom:2px solid var(--border-color,#ddd);background:var(--bg-subtle,#f8f9fa);';
-
-    // Bulk action select all checkbox column (conditional)
-    if (bulkEnabled) {
-      const bulkTh = document.createElement('th');
-      bulkTh.style.cssText = 'width:40px;padding:12px;text-align:center;position:sticky;left:0;z-index:15;background:inherit;';
-      const bulkSelectAll = document.createElement('input');
-      bulkSelectAll.type = 'checkbox';
-      bulkSelectAll.className = 'nu-select-all-checkbox';
-      bulkSelectAll.style.cursor = 'pointer';
-      bulkSelectAll.onchange = () => {
-        const c = bulkSelectAll.checked;
-        tbody.querySelectorAll('.nu-row-checkbox').forEach(cb => cb.checked = c);
-        _updateBulkSelectionCount();
-      };
-      bulkTh.appendChild(bulkSelectAll);
-      headRow.appendChild(bulkTh);
-      stickyOffset = 40; // width of bulkTh is 40
-    } else {
-      stickyOffset = 0;
-    }
-
-    const actionTh = document.createElement('th');
-    actionTh.textContent = 'Actions';
-    actionTh.style.cssText = 'padding:12px;text-align:left;font-size:13px;font-weight:600;width:120px;';
-    headRow.appendChild(actionTh);
-
-    browseLayout.forEach((col, idx) => {
-      const th = document.createElement('th');
-      th.style.position = col.frozen ? 'sticky' : 'relative';
-      if (col.frozen) {
-        th.style.left = stickyOffset + 'px';
-        th.style.zIndex = '15';
-        th.style.background = 'inherit';
-        // Add width
-        const widthVal = parseInt(col.width, 10) || 150;
-        stickyOffset += widthVal;
-      }
-
-      const widthStyle = col.width ? `width:${col.width};` : 'width:150px;';
-      th.style.cssText += `padding:12px;text-align:${col.align || 'left'};font-size:13px;font-weight:600;min-width:100px;${widthStyle}`;
-
-      const labelSpan = document.createElement('span');
-      labelSpan.textContent = col.fieldlabel || col.fieldname;
-      labelSpan.style.cursor = col.sortable !== false ? 'pointer' : 'default';
-      if (col.sortable !== false) {
-        labelSpan.onclick = () => _toggleHeaderSort(col.fieldname);
-      }
-      th.appendChild(labelSpan);
-
-      // Sort indicator
-      if (currentSortField === col.fieldname) {
-        const indicator = document.createElement('span');
-        indicator.style.cssText = 'margin-left:4px;font-size:11px;color:var(--primary);';
-        indicator.textContent = currentSortDir === 'ASC' ? '▲' : '▼';
-        th.appendChild(indicator);
-      }
-
-      // Reorder buttons
-      const reorderWrap = document.createElement('span');
-      reorderWrap.style.cssText = 'display:inline-flex;gap:1px;margin-left:8px;opacity:0;transition:opacity 0.2s;';
-      th.addEventListener('mouseenter', () => reorderWrap.style.opacity = '1');
-      th.addEventListener('mouseleave', () => reorderWrap.style.opacity = '0');
-
-      if (idx > 0) {
-        const moveLeft = document.createElement('button');
-        moveLeft.type = 'button'; moveLeft.innerHTML = '◀';
-        moveLeft.style.cssText = 'border:none;background:none;font-size:9px;cursor:pointer;padding:0;color:var(--text-secondary);';
-        moveLeft.onclick = (e) => { e.stopPropagation(); _swapColumns(idx, idx - 1); };
-        reorderWrap.appendChild(moveLeft);
-      }
-      if (idx < browseLayout.length - 1) {
-        const moveRight = document.createElement('button');
-        moveRight.type = 'button'; moveRight.innerHTML = '▶';
-        moveRight.style.cssText = 'border:none;background:none;font-size:9px;cursor:pointer;padding:0;color:var(--text-secondary);';
-        moveRight.onclick = (e) => { e.stopPropagation(); _swapColumns(idx, idx + 1); };
-        reorderWrap.appendChild(moveRight);
-      }
-      th.appendChild(reorderWrap);
-
-      // Resize handle
-      const resizer = document.createElement('span');
-      resizer.className = 'nu-th-resizer';
-      resizer.style.cssText = 'position:absolute;top:0;right:0;width:5px;height:100%;cursor:col-resize;background:transparent;user-select:none;z-index:20;';
-      resizer.addEventListener('mouseover', () => resizer.style.background = 'var(--primary)');
-      resizer.addEventListener('mouseout', () => resizer.style.background = 'transparent');
-      resizer.addEventListener('mousedown', (e) => {
-        e.preventDefault(); e.stopPropagation();
-        const startX = e.clientX;
-        const startWidth = th.offsetWidth;
-        const onMouseMove = (moveEvt) => {
-          const newWidth = Math.max(50, startWidth + (moveEvt.clientX - startX));
-          th.style.width = newWidth + 'px';
-          th.style.minWidth = newWidth + 'px';
-          col.width = newWidth + 'px';
-        };
-        const onMouseUp = () => {
-          document.removeEventListener('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-        };
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-      });
-      th.appendChild(resizer);
-
-      headRow.appendChild(th);
-    });
-
-    thead.appendChild(headRow); table.appendChild(thead);
-
-    const tbody = document.createElement('tbody');
-    if (!records.length) {
-      const tr = document.createElement('tr');
-      tr.className = 'nu-empty-row';
-      const td = document.createElement('td');
-      td.colSpan = browseLayout.length + 2;
-      td.style.cssText = 'padding:40px;text-align:center;color:var(--text-muted);background:transparent;';
-      td.textContent = currentQuery ? 'No matching records' : 'No records found';
-      tr.appendChild(td); tbody.appendChild(tr);
-    } else {
-      // ── Records iteration ──
-      records.forEach((row) => {
-        const tr = document.createElement('tr');
-        tr.style.cssText = 'border-bottom:1px solid var(--border-color,#ddd);transition:background 0.15s;background:inherit;';
-        tr.addEventListener('mouseenter', () => tr.style.background = 'var(--bg-hover, #f1f5f9)');
-        tr.addEventListener('mouseleave', () => tr.style.background = '');
-
-        // Row checkbox cell (conditional)
-        if (bulkEnabled) {
-          const bulkTd = document.createElement('td');
-          bulkTd.style.cssText = 'width:40px;padding:12px;text-align:center;position:sticky;left:0;z-index:10;background:inherit;';
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.className = 'nu-row-checkbox';
-          checkbox.style.cursor = 'pointer';
-          checkbox.dataset.recordId = row.id;
-          checkbox.onchange = () => _updateBulkSelectionCount();
-          bulkTd.appendChild(checkbox);
-          tr.appendChild(bulkTd);
-        }
-
-        // Actions cell (first column)
-        const actionTd = document.createElement('td');
-        actionTd.style.cssText = 'padding:12px;display:flex;gap:8px;align-items:center;';
-
-        if (_canEdit) {
-          const editBtn = document.createElement('button');
-          editBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
-          editBtn.innerHTML = `
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit
-          `;
-          editBtn.onclick = () => (onEdit ? onEdit(row) : this.editRecord(code, row.id, label, displayMode));
-          actionTd.appendChild(editBtn);
-        } else {
-          const viewBtn = document.createElement('button');
-          viewBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
-          viewBtn.style.cssText = 'color:var(--text-muted,#666);';
-          viewBtn.innerHTML = `
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg> View
-          `;
-          viewBtn.onclick = () => this.viewRecord(code, row.id, label, displayMode);
-          actionTd.appendChild(viewBtn);
-        }
-
-        // Render a dedicated action button for each available certificate template!
-        if (Array.isArray(certTemplates) && certTemplates.length > 0) {
-          certTemplates.forEach(t => {
-            const labelText = t.cert_button_label && t.cert_button_label.trim() !== ''
-              ? t.cert_button_label.trim()
-              : 'Certificates';
-
-            const certBtn = document.createElement('button');
-            certBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
-            certBtn.style.color = 'var(--color-primary, #4f6bed)';
-            certBtn.innerHTML = `
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> ${labelText}
-            `;
-            certBtn.onclick = (e) => {
-              e.stopPropagation();
-              this.openRecordCertificatesModal(code, row.id, t.cert_id);
-            };
-            actionTd.appendChild(certBtn);
-          });
-        }
-
-        // Single row delete button (conditional on deleteEnabled)
-        if (deleteEnabled && NuPerms.canDelete()) {
-          const delBtn = document.createElement('button');
-          delBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
-          delBtn.style.color = '#ef4444';
-          delBtn.innerHTML = `
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete
-          `;
-          delBtn.onclick = () => {
-            if (confirm('Are you sure you want to delete this record permanently?')) {
-              NuApp.apiJson(`api/crud.php?table=${encodeURIComponent(formTable)}&id=${encodeURIComponent(row.id)}`, {
-                method: 'DELETE', credentials: 'same-origin'
-              }).then(res => {
-                if (res && res.success) {
-                  NuApp.toast('Record deleted!', 'success');
-                  NuApp.browseForm(code, page, currentQuery, label, displayMode);
-                } else {
-                  NuApp.toast(res.error || 'Delete failed', 'error');
-                }
-              });
-            }
-          };
-          actionTd.appendChild(delBtn);
-        }
-
-        tr.appendChild(actionTd);
-
-        let cellStickyOffset = bulkEnabled ? 40 : 0;
-
-        browseLayout.forEach((col) => {
-          const td = document.createElement('td');
-          td.dataset.fieldCell = col.fieldname;
-
-          td.style.position = col.frozen ? 'sticky' : 'relative';
-          if (col.frozen) {
-            td.style.left = cellStickyOffset + 'px';
-            td.style.zIndex = '10';
-            td.style.background = 'inherit';
-            const widthVal = parseInt(col.width, 10) || 150;
-            cellStickyOffset += widthVal;
-          }
-
-          td.style.cssText += `padding:12px;text-align:${col.align || 'left'};word-break:break-all;overflow:hidden;text-overflow:ellipsis;`;
-
-          const fieldName  = col.fieldname;
-          const displayKey = fieldName + '_display';
-          let value = '';
-          if (row[displayKey] != null) value = row[displayKey];
-          else if (row[fieldName] != null) value = row[fieldName];
-
-          td.dataset.rawVal = String(value);
-
-          // Apply Formatter
-          let cellHtml = escapeHTML(String(value));
-          if (col.formatter === 'currency') {
-            const valNum = parseFloat(value);
-            cellHtml = isNaN(valNum) ? escapeHTML(String(value)) : '$' + valNum.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-          } else if (col.formatter === 'badge') {
-            const badgeColors = {
-              'active': 'background:#e0f2fe;color:#0369a1;',
-              'completed': 'background:#dcfce7;color:#15803d;',
-              'pending': 'background:#fef3c7;color:#b45309;',
-              'rejected': 'background:#fee2e2;color:#b91c1c;',
-              'cancelled': 'background:#f1f5f9;color:#475569;'
-            };
-            const key = String(value).toLowerCase().trim();
-            const colorStyle = badgeColors[key] || 'background:var(--bg-offset);color:var(--text-secondary);';
-            cellHtml = `<span class="nu-badge" style="padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;display:inline-block;${colorStyle}">${escapeHTML(String(value))}</span>`;
-          } else if (col.formatter === 'progress_bar') {
-            let pct = parseInt(value, 10);
-            if (isNaN(pct)) pct = 0;
-            pct = Math.max(0, Math.min(100, pct));
-            cellHtml = `
-              <div style="display:flex;align-items:center;gap:8px;min-width:100px;">
-                <div style="flex:1;background:var(--border-color);height:8px;border-radius:4px;overflow:hidden;">
-                  <div style="background:var(--primary);width:${pct}%;height:100%;border-radius:4px;"></div>
-                </div>
-                <span style="font-size:11px;font-weight:600;color:var(--text-secondary);">${pct}%</span>
-              </div>
-            `;
-          } else if (col.formatter === 'checkbox_toggle') {
-            const checked = !!value && value !== '0' && value !== 'false';
-            const icon = checked ? '✅' : '❌';
-            const color = checked ? '#22c55e' : '#ef4444';
-            cellHtml = `<span style="color:${color};font-weight:bold;font-size:14px;" title="${checked ? 'True' : 'False'}">${icon}</span>`;
-          } else if (col.formatter === 'image') {
-            cellHtml = value ? `<img src="uploads/${escapeHTML(String(value))}" style="max-height:40px;border-radius:4px;cursor:pointer;border:1px solid var(--border-color);" onclick="window._showImageLightbox('uploads/${escapeHTML(String(value))}')" title="Click to view">` : '<span style="color:var(--text-muted);font-size:11px;">No image</span>';
-          } else if (col.formatter === 'date') {
-            let dateVal = value;
-            if (value && !isNaN(Date.parse(value))) {
-              dateVal = new Date(value).toLocaleDateString();
-            }
-            cellHtml = escapeHTML(String(dateVal));
-          } else if (col.formatter === 'html') {
-            cellHtml = String(value);
-          } else if (col.formatter === 'custom_button') {
-            cellHtml = '';
-          }
-
-          if (col.formatter === 'html' || col.formatter === 'progress_bar' || col.formatter === 'badge' || col.formatter === 'image' || col.formatter === 'checkbox_toggle') {
-            td.innerHTML = cellHtml;
-          } else if (col.formatter === 'custom_button') {
-            const btn = document.createElement('button');
-            btn.className = col.btn_class || 'nu-btn nu-btn-primary nu-btn-sm';
-            btn.textContent = col.btn_label || 'Click';
-            btn.style.cursor = 'pointer';
-            btn.onclick = (e) => {
-              e.stopPropagation();
-              const executeJs = (selectionObj) => {
-                const onClickJs = col.btn_js || '';
-                if (onClickJs) {
-                  try {
-                    // Inject row meta context for easy referencing
-                    const rowContext = {
-                      _form_code: code,
-                      _form_label: label,
-                      _form_table: formTable,
-                      ...row
-                    };
-                    const fn = new Function('row', 'selection', 'nu', onClickJs);
-                    fn(rowContext, selectionObj, NuApp);
-                  } catch (err) {
-                    console.error('Custom button click error:', err);
-                    NuApp.toast('JS Error: ' + err.message, 'error');
-                  }
-                }
-              };
-
-              if (col.btn_has_lookup) {
-                this._openSelectionLookupModal(col, row, (selection) => {
-                  executeJs(selection);
-                });
-              } else {
-                executeJs(null);
-              }
-            };
-            td.appendChild(btn);
-          } else {
-            td.textContent = cellHtml;
-          }
-
-          // Apply Conditional Formatting Rules (multi-rule, badge-style)
-          _evaluateConditionalRules(col, value, td);
-
-          tr.appendChild(td);
-        });
-
-        tbody.appendChild(tr);
-      });
-    }
-
-    table.appendChild(tbody);
-
-    // ── Sticky Summary/Aggregation Footer row ──
-    if (records.length > 0) {
-      const tfoot = document.createElement('tfoot');
-      const footRow = document.createElement('tr');
-      footRow.style.cssText = 'border-top:2px solid var(--border-color);background:var(--bg-subtle,#f1f5f9);font-weight:bold;';
-
-      if (bulkEnabled) {
-        const bulkFoot = document.createElement('td');
-        bulkFoot.style.cssText = 'padding:12px;text-align:center;position:sticky;left:0;z-index:10;background:inherit;';
-        bulkFoot.textContent = 'Σ';
-        footRow.appendChild(bulkFoot);
-      }
-
-      const actionFoot = document.createElement('td');
-      actionFoot.textContent = '';
-      footRow.appendChild(actionFoot);
-
-      let footerStickyOffset = bulkEnabled ? 40 : 0;
-
-      browseLayout.forEach((col) => {
-        const td = document.createElement('td');
-        td.style.position = col.frozen ? 'sticky' : 'relative';
-        if (col.frozen) {
-          td.style.left = footerStickyOffset + 'px';
-          td.style.zIndex = '10';
-          td.style.background = 'inherit';
-          const widthVal = parseInt(col.width, 10) || 150;
-          footerStickyOffset += widthVal;
-        }
-
-        td.style.cssText += `padding:12px;text-align:${col.align || 'left'};font-size:12px;`;
-
-        let aggText = '';
-        const aggType = col.aggregate || 'none';
-
-        if (aggType !== 'none') {
-          const nonNullVals = records.map(r => r[col.fieldname]).filter(v => v !== null && v !== '');
-
-          if (aggType === 'sum') {
-            const sum = nonNullVals.reduce((acc, v) => {
-              const num = parseFloat(v);
-              return acc + (isNaN(num) ? 0 : num);
-            }, 0);
-            if (col.formatter === 'currency') {
-              aggText = 'Sum: $' + sum.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-            } else {
-              aggText = 'Sum: ' + Number(sum.toFixed(2));
-            }
-          } else if (aggType === 'avg') {
-            const nums = nonNullVals.map(v => parseFloat(v)).filter(v => !isNaN(v));
-            const sum = nums.reduce((acc, v) => acc + v, 0);
-            const avg = nums.length > 0 ? sum / nums.length : 0;
-            if (col.formatter === 'currency') {
-              aggText = 'Avg: $' + avg.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-            } else {
-              aggText = 'Avg: ' + Number(avg.toFixed(2));
-            }
-          } else if (aggType === 'count') {
-            aggText = 'Count: ' + nonNullVals.length;
-          }
-        }
-
-        td.textContent = aggText;
-        footRow.appendChild(td);
-      });
-
-      tfoot.appendChild(footRow);
-      table.appendChild(tfoot);
-    }
-
-    tableWrap.appendChild(table); container.appendChild(tableWrap);
-
-    // ── Pagination rendering ──
-    if ((data.pages || 1) > 1) {
-      const pagination = document.createElement('div');
-      pagination.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:16px;';
-
-      const totalPages = data.pages || 1;
-      const currentPage = data.page || 1;
-
-      // First Button
-      const firstBtn = document.createElement('button');
-      firstBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm'; firstBtn.textContent = '« First';
-      firstBtn.disabled = currentPage <= 1;
-      firstBtn.onclick = () => this.browseForm(code, 1, currentQuery, label, displayMode, currentSortField, currentSortDir);
-      pagination.appendChild(firstBtn);
-
-      // Prev Button
-      const prevBtn = document.createElement('button');
-      prevBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm'; prevBtn.textContent = '← Prev';
-      prevBtn.disabled = currentPage <= 1;
-      prevBtn.onclick = () => this.browseForm(code, currentPage - 1, currentQuery, label, displayMode, currentSortField, currentSortDir);
-      pagination.appendChild(prevBtn);
-
-      // Page indicators (numbers & ellipses)
-      const pagesToRender = [];
-      if (totalPages <= 10) {
-        for (let i = 1; i <= totalPages; i++) {
-          pagesToRender.push(i);
-        }
-      } else {
-        pagesToRender.push(1);
-
-        const start = Math.max(2, currentPage - 2);
-        const end = Math.min(totalPages - 1, currentPage + 2);
-
-        if (start > 2) {
-          pagesToRender.push('...');
-        }
-
-        for (let i = start; i <= end; i++) {
-          pagesToRender.push(i);
-        }
-
-        if (end < totalPages - 1) {
-          pagesToRender.push('...');
-        }
-
-        pagesToRender.push(totalPages);
-      }
-
-      pagesToRender.forEach(p => {
-        if (p === '...') {
-          const dots = document.createElement('span');
-          dots.style.cssText = 'padding:0 4px;color:#aaa;font-size:14px;font-weight:bold;cursor:default;user-select:none;';
-          dots.textContent = '...';
-          pagination.appendChild(dots);
-        } else {
-          const pageBtn = document.createElement('button');
-          pageBtn.className = 'nu-btn ' + (p === currentPage ? 'nu-btn-primary' : 'nu-btn-ghost') + ' nu-btn-sm';
-          pageBtn.textContent = p;
-          pageBtn.onclick = () => this.browseForm(code, p, currentQuery, label, displayMode, currentSortField, currentSortDir);
-          pagination.appendChild(pageBtn);
-        }
-      });
-
-      // Next Button
-      const nextBtn = document.createElement('button');
-      nextBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm'; nextBtn.textContent = 'Next →';
-      nextBtn.disabled = currentPage >= totalPages;
-      nextBtn.onclick = () => this.browseForm(code, currentPage + 1, currentQuery, label, displayMode, currentSortField, currentSortDir);
-      pagination.appendChild(nextBtn);
-
-      // Last Button
-      const lastBtn = document.createElement('button');
-      lastBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm'; lastBtn.textContent = 'Last »';
-      lastBtn.disabled = currentPage >= totalPages;
-      lastBtn.onclick = () => this.browseForm(code, totalPages, currentQuery, label, displayMode, currentSortField, currentSortDir);
-      pagination.appendChild(lastBtn);
-
-      const meta = document.createElement('span');
-      meta.style.cssText = 'margin-left:8px;color:#666;font-size:13px;';
-      meta.textContent = 'Total: ' + (data.total || 0) + ' records';
-      pagination.appendChild(meta); container.appendChild(pagination);
-    }
+    return this._browseToken;
   },
 
   async _browseInline(code, page, query, formLabel, sort, dir) {
+    const container = document.getElementById('contentArea');
+    if (!container) { this.toast('Content area not found', 'error'); return; }
+    const token = this._browseBegin(container);
     try {
       const _canAdd  = NuPerms.canAdd();
       const _canEdit = NuPerms.canEdit();
       const json  = await this._fetchBrowseData(code, page, query, sort, dir);
-      const data  = json.data || {};
-      const label = formLabel || data.form_name || code;
-      const container = document.getElementById('contentArea');
-      if (!container) { this.toast('Content area not found', 'error'); return; }
-      container.innerHTML = '';
-      const bc = this._renderBreadcrumb([
-        { label: 'Forms', action: () => this.loadModule('forms') },
-        { label: label,   action: () => this._browseInline(code, 1, '', label, sort, dir) },
-        { label: 'Browse' }
-      ]);
-      container.appendChild(bc);
-      const header = document.createElement('div');
-      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
-      const h3 = document.createElement('h3');
-      h3.style.cssText = 'margin:0;font-size:18px;'; h3.textContent = label;
-      header.appendChild(h3);
-      const btnGroup = document.createElement('div');
-      btnGroup.style.cssText = 'display:flex;gap:8px;align-items:center;';
-      const previewBtn = document.createElement('button');
-      previewBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm'; previewBtn.textContent = '\u229e Preview Form';
-      previewBtn.onclick = () => this.previewForm(code, label);
-      btnGroup.appendChild(previewBtn);
-      const backBtn = document.createElement('button');
-      backBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm'; backBtn.textContent = '\u2190 Forms';
-      backBtn.onclick = () => this.loadModule('forms');
-      btnGroup.appendChild(backBtn);
-      header.appendChild(btnGroup); container.appendChild(header);
+      if (token !== this._browseToken) return;
+      const label = formLabel || (json.data || {}).form_name || code;
       this._buildBrowseTable(json, code, page, query, label, 'inline', container, null, _canEdit, _canAdd, sort, dir);
-    } catch (err) { console.error('_browseInline error', err); this.toast('Error: ' + err.message, 'error'); }
+    } catch (err) {
+      if (token !== this._browseToken) return;
+      console.error('_browseInline error', err);
+      this.toast('Error: ' + err.message, 'error');
+      if (window.NuBrowseTable) window.NuBrowseTable.errorState(container, err.message, () => this._browseInline(code, page, query, formLabel, sort, dir));
+    }
   },
 
   async _browseModal(code, page, query, formLabel, sort, dir) {
@@ -1815,26 +855,27 @@ window.NuApp = {
       if (!overlay) {
         isNew = true;
         overlay = document.createElement('div');
-        overlay.className = 'nu-browse-overlay nu-form-overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
+        overlay.className = 'nu-browse-overlay nu-form-overlay nu-bt-modal-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', label + ' records');
       }
       const box = document.createElement('div');
-      box.style.cssText = 'background:var(--card-bg,#fff);border-radius:12px;padding:24px;width:96%;max-width:1100px;max-height:92vh;overflow-y:auto;';
+      box.className = 'nu-bt-modal';
       const header = document.createElement('div');
-      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;';
+      header.className = 'nu-bt-modal-head';
       const bc = this._renderBreadcrumb([
         { label: 'Forms', action: () => { overlay.remove(); this.loadModule('forms'); } },
         { label: label,   action: () => this._browseModal(code, 1, '', label, sort, dir) },
         { label: 'Browse' }
       ]);
       bc.style.marginBottom = '0'; header.appendChild(bc);
-      const rightBtns = document.createElement('div');
-      rightBtns.style.cssText = 'display:flex;gap:6px;flex-shrink:0;align-items:center;';
       const closeBtn = document.createElement('button');
-      closeBtn.type = 'button'; closeBtn.innerHTML = '&times;';
-      closeBtn.style.cssText = 'background:none;border:none;font-size:22px;cursor:pointer;line-height:1;padding:0 4px;color:var(--text,#333);';
+      closeBtn.type = 'button'; closeBtn.className = 'nu-bt-icon-btn';
+      closeBtn.setAttribute('aria-label', 'Close'); closeBtn.title = 'Close (Esc)';
+      closeBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
       closeBtn.addEventListener('click', () => overlay.remove());
-      rightBtns.appendChild(closeBtn); header.appendChild(rightBtns);
+      header.appendChild(closeBtn);
       box.appendChild(header);
       const tableContainer = document.createElement('div');
       this._buildBrowseTable(json, code, page, query, label, 'modal', tableContainer, null, _canEdit, _canAdd, sort, dir);
@@ -1843,40 +884,52 @@ window.NuApp = {
       if (isNew) {
         document.body.appendChild(overlay);
         overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+        overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); });
       }
+      // Move focus into the dialog so Esc / keyboard users land inside it (re-focused after each re-render).
+      box.setAttribute('tabindex', '-1');
+      box.focus({ preventScroll: true });
     } catch (err) { console.error('_browseModal error', err); this.toast('Error: ' + err.message, 'error'); }
   },
 
   async _browseFullPage(code, page, query, formLabel, sort, dir) {
+    const container = document.getElementById('contentArea');
+    if (!container) { this.toast('Content area not found', 'error'); return; }
     try {
       const _canAdd  = NuPerms.canAdd();
       const _canEdit = NuPerms.canEdit();
+      const token = this._browseBegin(container);
       const json  = await this._fetchBrowseData(code, page, query, sort, dir);
+      if (token !== this._browseToken) return;
       const data  = json.data || {};
       const label = formLabel || data.form_name || code;
       this._enterFullPage();
-      const container = document.getElementById('contentArea');
-      if (!container) { this.toast('Content area not found', 'error'); return; }
       container.innerHTML = '';
-      const bc = this._renderBreadcrumb([
-        { label: 'Forms', action: () => { this._exitFullPage(); this.loadModule('forms'); } },
-        { label: label,   action: () => this._browseFullPage(code, 1, '', label, sort, dir) },
-        { label: 'Browse' }
-      ]);
-      container.appendChild(bc);
-      const header = document.createElement('div');
-      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
-      const h3 = document.createElement('h3');
-      h3.style.cssText = 'margin:0;font-size:20px;'; h3.textContent = label;
-      header.appendChild(h3);
-      const btnGroup = document.createElement('div');
-      btnGroup.style.cssText = 'display:flex;gap:8px;';
+
+      // Full-page mode hides the app chrome, so it carries its own title + exit.
+      const head = document.createElement('div');
+      head.className = 'nu-bt-pagehead';
+      const title = document.createElement('h2');
+      title.className = 'nu-bt-pagetitle'; title.textContent = label;
+      const actions = document.createElement('div');
+      actions.className = 'nu-bt-pagehead-actions';
       const exitBtn = document.createElement('button');
-      exitBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm'; exitBtn.textContent = '\u2715 Exit Full Page';
+      exitBtn.type = 'button'; exitBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
+      exitBtn.textContent = 'Exit full page';
       exitBtn.onclick = () => { this._exitFullPage(); this.loadModule('forms'); };
-      btnGroup.appendChild(exitBtn); header.appendChild(btnGroup); container.appendChild(header);
-      this._buildBrowseTable(json, code, page, query, label, 'fullpage', container, null, _canEdit, _canAdd, sort, dir);
-    } catch (err) { this._exitFullPage(); console.error('_browseFullPage error', err); this.toast('Error: ' + err.message, 'error'); }
+      actions.appendChild(exitBtn);
+      head.append(title, actions);
+      container.appendChild(head);
+
+      const mount = document.createElement('div');
+      container.appendChild(mount);
+      this._buildBrowseTable(json, code, page, query, label, 'fullpage', mount, null, _canEdit, _canAdd, sort, dir);
+    } catch (err) {
+      this._exitFullPage();
+      console.error('_browseFullPage error', err);
+      this.toast('Error: ' + err.message, 'error');
+      if (window.NuBrowseTable) window.NuBrowseTable.errorState(container, err.message, () => this._browseFullPage(code, page, query, formLabel, sort, dir));
+    }
   },
 
   async _openFormInline(code, formLabel, id, isPreview) {
