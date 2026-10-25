@@ -1397,7 +1397,16 @@ foreach ($forms as $f) {
 
                 var wrapper = document.createElement('div');
                 var span = f.col || 6;
+                var align = f.row_align || f.align || 'left';
                 wrapper.className = 'col-span-' + span + ' flex flex-col gap-1 mb-2';
+                if (align === 'right') {
+                  wrapper.style.marginLeft = 'auto';
+                  wrapper.style.gridColumnStart = String(12 - span + 1);
+                } else if (align === 'center') {
+                  wrapper.style.marginLeft = 'auto';
+                  wrapper.style.marginRight = 'auto';
+                  wrapper.style.gridColumnStart = String(Math.floor((12 - span) / 2) + 1);
+                }
 
                 var labelEl = document.createElement('label');
                 labelEl.className = 'text-[11px] font-semibold text-slate-600 dark:text-slate-400';
