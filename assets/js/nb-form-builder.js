@@ -1520,6 +1520,28 @@ function _openPropsPanel(card) {
     });
     ra.appendChild(colBtns);
 
+    var alignBtns = document.createElement('span');
+    alignBtns.className = 'nb-row-align-bar';
+    alignBtns.style.cssText = 'display:inline-flex;gap:3px;margin-right:6px;border-left:1px solid var(--border-color);padding-left:6px;';
+    [
+      { code: 'left', label: '⇠ Left', title: 'Align elements to left' },
+      { code: 'center', label: '↔ Center', title: 'Align elements to center' },
+      { code: 'right', label: '⇢ Right', title: 'Align elements to right' }
+    ].forEach(function(a) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'nb-row-btn nb-row-align-btn';
+      b.dataset.align = a.code;
+      b.textContent = a.label;
+      b.title = a.title;
+      b.addEventListener('click', function(e) {
+        e.stopPropagation();
+        window.nbFormBuilder.setRowAlignment(row, a.code);
+      });
+      alignBtns.appendChild(b);
+    });
+    ra.appendChild(alignBtns);
+
     var db = document.createElement('button'); db.className = 'nb-row-btn del'; db.type = 'button'; db.textContent = '✕';
     db.addEventListener('click', function () {
       if (!confirm("Are you sure you want to delete this row and all its fields?")) return;
@@ -1847,6 +1869,37 @@ fields.forEach(function (f) {
       } catch (err) {
         if (typeof NuApp !== 'undefined' && NuApp.toast) NuApp.toast('Cannot apply JSON: ' + err.message, 'error');
       }
+    },
+
+    setRowAlignment: function (rowEl, align) {
+      if (!rowEl) return;
+      align = align || 'left';
+      if (['left', 'center', 'right'].indexOf(align) === -1) align = 'left';
+
+      rowEl.dataset.align = align;
+      var rb = rowEl.querySelector('.nb-row-body');
+      if (rb) {
+        rb.dataset.align = align;
+        rb.style.justifyContent = align === 'right' ? 'flex-end' : (align === 'center' ? 'center' : 'flex-start');
+      }
+
+      var alignBtns = rowEl.querySelectorAll('.nb-row-align-btn');
+      alignBtns.forEach(function (btn) {
+        if (btn.dataset.align === align) {
+          btn.style.color = 'var(--color-primary,#4f6bed)';
+          btn.style.fontWeight = '700';
+          btn.style.borderColor = 'var(--color-primary,#4f6bed)';
+        } else {
+          btn.style.color = '';
+          btn.style.fontWeight = '';
+          btn.style.borderColor = '';
+        }
+      });
+
+      this._isDirty = true;
+      if (window.nbHistory) window.nbHistory.saveState();
+      if (window.nbUpdateLivePreview) window.nbUpdateLivePreview();
+      if (typeof NuApp !== 'undefined' && NuApp.toast) NuApp.toast('Row element alignment set to ' + align, 'success');
     },
 
     setRowColumns: function (rowEl, cols) {
@@ -2392,6 +2445,28 @@ fields.forEach(function (f) {
         colBtns.appendChild(b);
       });
       ra.appendChild(colBtns);
+
+      var alignBtns = document.createElement('span');
+      alignBtns.className = 'nb-row-align-bar';
+      alignBtns.style.cssText = 'display:inline-flex;gap:3px;margin-right:6px;border-left:1px solid var(--border-color);padding-left:6px;';
+      [
+        { code: 'left', label: '⇠ Left', title: 'Align elements to left' },
+        { code: 'center', label: '↔ Center', title: 'Align elements to center' },
+        { code: 'right', label: '⇢ Right', title: 'Align elements to right' }
+      ].forEach(function(a) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'nb-row-btn nb-row-align-btn';
+        b.dataset.align = a.code;
+        b.textContent = a.label;
+        b.title = a.title;
+        b.addEventListener('click', function(e) {
+          e.stopPropagation();
+          window.nbFormBuilder.setRowAlignment(row, a.code);
+        });
+        alignBtns.appendChild(b);
+      });
+      ra.appendChild(alignBtns);
 
       var db = document.createElement('button'); db.className = 'nb-row-btn del'; db.type = 'button'; db.textContent = '✕';
       db.addEventListener('click', function () {
@@ -3138,6 +3213,9 @@ entry.fields.forEach(function (f) {
   var sm   = card.querySelector('.nu-field-select-mode');
   var isMs = (t === 'select' || t === 'select2') && sm && sm.value === 'multi';
 
+  var parentRow = card.closest('.nb-row');
+  var rowAlign = (parentRow && parentRow.dataset.align) ? parentRow.dataset.align : 'left';
+
   var field = {
     type:                  t,
     label:                 _val('.nu-field-label'),
@@ -3154,6 +3232,7 @@ entry.fields.forEach(function (f) {
     help_text:             _val('.nu-field-help'),
     col:                   parseInt(card.dataset.col, 10) || 6,
     row_index:             (rowIndex !== undefined && rowIndex !== null) ? rowIndex : -1,
+    row_align:             rowAlign,
     custom_attributes:     _val('.nu-field-custom-attrs')
   };
 

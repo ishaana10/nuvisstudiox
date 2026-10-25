@@ -115,4 +115,28 @@ final class FormCustomizationTest extends TestCase
         $this->assertEquals(4, $calculateSpan(3));
         $this->assertEquals(3, $calculateSpan(4));
     }
+
+    public function testRowElementAlignmentGridMath(): void
+    {
+        // Math for grid column start calculation based on span and alignment
+        $calculateGridStart = function(int $span, string $align): ?int {
+            if ($align === 'right') {
+                return 12 - $span + 1;
+            }
+            if ($align === 'center') {
+                return (int) (floor((12 - $span) / 2) + 1);
+            }
+            return null; // Left alignment relies on standard grid flow
+        };
+
+        // For a span 4 element in a 12-column grid:
+        // Right alignment -> starts at column 9 (9..12)
+        $this->assertEquals(9, $calculateGridStart(4, 'right'));
+
+        // Center alignment -> starts at column 5 (5..8)
+        $this->assertEquals(5, $calculateGridStart(4, 'center'));
+
+        // Left alignment -> null (default flow starting column 1)
+        $this->assertNull($calculateGridStart(4, 'left'));
+    }
 }

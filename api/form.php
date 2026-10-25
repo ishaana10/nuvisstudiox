@@ -1361,8 +1361,20 @@ function nu_render_field($field, $value = '', $record = []) {
                . '</div>'
                . '</div>';
 
+    $rowAlign = strtolower((string)($field['row_align'] ?? ($field['align'] ?? 'left')));
+    $gridColCss = "grid-column: span {$col};";
+    if (!empty($field['grid_column_style'])) {
+        $gridColCss = $field['grid_column_style'];
+    } elseif ($rowAlign === 'right') {
+        $startCol = 12 - $col + 1;
+        $gridColCss = "grid-column: {$startCol} / span {$col}; margin-left: auto;";
+    } elseif ($rowAlign === 'center') {
+        $startCol = (int)floor((12 - $col) / 2) + 1;
+        $gridColCss = "grid-column: {$startCol} / span {$col}; margin-left: auto; margin-right: auto;";
+    }
+
     return '<div class="nu-field-wrapper" data-field="' . nu_attr($name) . '"'
-         . ' style="grid-column:span ' . $col . ';min-width:0;margin-bottom:6px;">'
+         . ' style="' . $gridColCss . 'min-width:0;margin-bottom:6px;">'
          . $wrapInner
          . '</div>';
 }
