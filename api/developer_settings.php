@@ -26,21 +26,6 @@ $db = NuDatabase::getInstance();
 $action = $_GET['action'] ?? '';
 
 switch ($action) {
-    case 'run_migrations':
-        try {
-            require_once dirname(__DIR__) . '/core/MigrationRunner.php';
-            $runner = new MigrationRunner($db->getPdo());
-            $executed = $runner->migrate();
-            echo json_encode([
-                'success' => true,
-                'executed' => $executed,
-                'message' => empty($executed) ? 'No pending migrations to run.' : 'Successfully applied ' . count($executed) . ' migration(s).'
-            ]);
-        } catch (Throwable $e) {
-            echo json_encode(['success' => false, 'error' => 'Migration failed: ' . $e->getMessage()]);
-        }
-        break;
-
     case 'get_fn_ref':
         try {
             require_once dirname(__DIR__) . '/core/FnRef.php';

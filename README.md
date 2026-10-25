@@ -20,6 +20,7 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 - **Properties Panel Width Preset Buttons:** Extended column span presets in the properties panel (`1`, `2`, `3`, `4`, `6`, `8`, `12`) with active highlighting for all 12 grid span selections.
 - **Realistic Canvas Element Previews:** Added live mockups (`_buildCardCanvasPreview`) directly on canvas cards rendering text inputs, textareas, dropdowns, checkboxes, subforms, and buttons during design mode.
 - **Browse Table Actions First Column:** Moved the Actions column (containing Edit, View, Certificates, and Delete action buttons) to the **first column** across all browse forms and subform grids.
+- **Asset Architecture Modernization:** Upgraded asset pipeline architecture across `assets/css/nubuilder-next.css` (semantic CSS grid tokens, viewport scaling, dark mode variables) and `assets/js/` (`nb-form-builder.js`, `nubuilder-next.js`, `nusubform.js`, `nb-ace-manager.js`), implementing responsive 12-column grid canvas rendering, real-time control previews, and re-architected first-column browse action tables.
 
 ### v5.0.0 - v5.0.23
 - **Visual Refresh & CSS Tokens (`assets/css/nubuilder-next.css`):** Complete semantic CSS custom properties scale (`--primary`, `--primary-hover`, `--bg-app`, `--bg-card`, `--border-color`, `--shadow-sm`, `--shadow-md`, `--radius-lg`, `--color-success`, `--color-info`, `--surface-elevated`, `--focus-ring`) covering both Light and Dark mode variations.
@@ -135,11 +136,11 @@ nuvis/
 │   └── sso/                      # SSO identity provider configuration UI
 │
 └── assets/
-    ├── css/nubuilder-next.css    # Design system (CSS custom properties, tokens, dark mode)
-    ├── js/nubuilder-next.js      # App framework + utilities (includes Lookup & Select controllers)
-    ├── js/nb-form-builder.js     # Drag-and-drop Visual Form designer client-side canvas
+    ├── css/nubuilder-next.css    # Design system, CSS custom properties, responsive 12-col grid tokens, dark mode
+    ├── js/nubuilder-next.js      # App framework, SPA router, Browse Data Grids (Actions 1st Col), Lookup & Select controllers
+    ├── js/nb-form-builder.js     # Visual Form designer canvas (12-col grid spans, device viewports, live previews, row presets)
     ├── js/nb-ace-manager.js      # Global Ace Code Editor instance controller with Beautify and Popup Sync
-    ├── js/nusubform.js           # Subform runtime rendering, Inline Inputs & lookup handler
+    ├── js/nusubform.js           # Subform runtime rendering, Inline Inputs, first-column actions grid & lookup handler
     ├── js/nu-select2-init.js     # Dynamically bounds standard dropdowns to Select2 search boxes
     ├── js/nu-errorlogger.js      # Captures Javascript client-side errors and logs them to the server
     └── js/email-manager.js       # Admin panel client logic for template, credentials, and live send logs
