@@ -1124,7 +1124,7 @@ foreach ($forms as $f) {
 
               <!-- Auto-Layout Preset Dropdown -->
               <div class="relative inline-block text-left me-1">
-                <select class="nu-input nu-input-sm text-xs bg-slate-100 dark:bg-slate-800 border-none font-semibold text-slate-700 dark:text-slate-200 cursor-pointer rounded-lg py-1 px-2" onchange="if(this.value){ nbFormBuilder.autoArrange(parseInt(this.value,10)); this.value=''; }" title="Auto Arrange Canvas Grid">
+                <select id="nbAutoLayoutSelect" class="nu-input nu-input-sm text-xs bg-slate-100 dark:bg-slate-800 border-none font-semibold text-slate-700 dark:text-slate-200 cursor-pointer rounded-lg py-1 px-2" onchange="if(this.value){ nbFormBuilder.autoArrange(parseInt(this.value,10)); }" title="Auto Arrange Canvas Grid">
                   <option value="">⚡ Auto-Layout Grid...</option>
                   <option value="1">1 Column (Full Width)</option>
                   <option value="2">2 Columns (Half Width)</option>
