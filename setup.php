@@ -317,22 +317,12 @@ function checkRequirement($name, $check, $required = true) {
                         }
                     }
 
-                    // Ensure all new columns on nu_menus exist, in case the table already existed
+                    // Execute all pending migrations via MigrationRunner
                     try {
-                        $pdo->exec("ALTER TABLE nu_menus ADD COLUMN menu_role_access VARCHAR(512) DEFAULT NULL");
-                    } catch (PDOException $ignored) {}
-                    try {
-                        $pdo->exec("ALTER TABLE nu_menus ADD COLUMN menu_open_mode VARCHAR(30) NOT NULL DEFAULT 'inline|browse'");
-                    } catch (PDOException $ignored) {}
-                    try {
-                        $pdo->exec("ALTER TABLE nu_menus ADD COLUMN menu_browse_mode VARCHAR(10) NOT NULL DEFAULT 'inline'");
-                    } catch (PDOException $ignored) {}
-                    try {
-                        $pdo->exec("ALTER TABLE nu_menus ADD COLUMN menu_preview_mode VARCHAR(10) NOT NULL DEFAULT 'inline'");
-                    } catch (PDOException $ignored) {}
-                    try {
-                        $pdo->exec("ALTER TABLE nu_menus ADD COLUMN menu_default_view VARCHAR(10) NOT NULL DEFAULT 'browse'");
-                    } catch (PDOException $ignored) {}
+                        require_once __DIR__ . '/core/MigrationRunner.php';
+                        $runner = new MigrationRunner($pdo);
+                        $runner->migrate();
+                    } catch (Exception $ignored) {}
 
                     // Lock installation
                     @file_put_contents(__DIR__ . '/installed.lock', 'Installed on ' . date('Y-m-d H:i:s'));
