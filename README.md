@@ -8,6 +8,11 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased
+- **Browse Table redesign (`nu-browse-table.js`, `nu-browse.css`):** replaces the inline-styled grid with a namespaced component — sticky header, server-side search/sort/pagination, per-column filters, column show/hide/reorder/resize (saved per form), density toggle, bulk select + delete, export, keyboard navigation, skeleton/error/empty states, and a card layout on mobile.
+- **Command palette (`nu-shell.js`):** `Ctrl/Cmd+K` (or `/`) jumps to any sidebar destination or runs quick actions (theme, sidebar). Header search button added; `[` toggles the sidebar.
+- **Toasts:** icons, dismiss button, hover-to-pause, stack limit and screen-reader announcements.
+
 ### v5.0.24 (Current Release)
 - **Form Builder Grid Alignment & Per-Row Options:** Added per-row column presets (`1 Col`, `2 Cols`, `3 Cols`, `4 Cols`) and element alignment controls (`Left`, `Center`, `Right`) to row action bars, persisting `row_align` in JSON schema and dynamically computing grid start/span offsets.
 - **12-Column Canvas Spans in Edit Mode:** Refactored edit-mode grid rendering (`_applyColSpan`) to set exact `grid-column` span properties on a 12-column `.nb-row-body` CSS grid, fixing card size rendering issues in edit mode.

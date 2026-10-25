@@ -1,0 +1,373 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Nuvis StudioX — Browse Table  (nu-browse.css)
+   Styles for assets/js/nu-browse-table.js. Uses the design tokens declared in
+   nubuilder-next.css, so light/dark themes work without extra rules.
+   All selectors are namespaced `.nu-bt*` to avoid touching other modules.
+──────────────────────────────────────────────────────────────────────────── */
+
+.nu-bt {
+  --bt-row-py: 12px;
+  --bt-cell-px: 14px;
+  --bt-font: var(--font-base, .875rem);
+  --bt-head-bg: var(--bg-subtle, #f1f5f9);
+  --bt-stripe: color-mix(in srgb, var(--text-primary) 2.5%, transparent);
+  --bt-select-bg: color-mix(in srgb, var(--primary) 10%, transparent);
+  --bt-focus: var(--focus-ring, rgba(37, 99, 235, .3));
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.nu-bt[data-density="compact"] { --bt-row-py: 6px; --bt-cell-px: 10px; --bt-font: var(--font-sm, .8125rem); }
+
+/* The `hidden` attribute must beat component display rules (e.g. .nu-bt-count). */
+.nu-bt [hidden], .nu-bt-bulkbar[hidden] { display: none !important; }
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.nu-bt-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.nu-bt-search {
+  position: relative; flex: 1 1 260px; min-width: 200px; max-width: 520px; display: flex;
+}
+.nu-bt-search .nu-input { width: 100%; padding-left: 36px !important; padding-right: 34px !important; }
+.nu-bt-search-icon {
+  position: absolute; left: 11px; top: 50%; translate: 0 -50%;
+  width: 16px; height: 16px; color: var(--text-muted); pointer-events: none;
+}
+.nu-bt-search-clear {
+  position: absolute; right: 6px; top: 50%; translate: 0 -50%;
+  width: 24px; height: 24px; display: none; place-items: center;
+  border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.nu-bt-search-clear:hover { background: var(--bg-hover); color: var(--text-primary); }
+.nu-bt-search.has-value .nu-bt-search-clear { display: grid; }
+.nu-bt-spacer { flex: 1 1 auto; }
+.nu-bt-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+.nu-bt-btn {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.nu-bt-btn svg { width: 15px; height: 15px; flex: none; }
+.nu-bt-count {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--primary); color: var(--primary-fg); font-size: 11px; font-weight: 700;
+  display: inline-grid; place-items: center; line-height: 1;
+}
+.nu-bt-icon-btn {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+  background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.nu-bt-icon-btn:hover { background: var(--bg-hover); color: var(--primary); border-color: var(--primary); }
+.nu-bt-icon-btn svg { width: 16px; height: 16px; }
+.nu-bt button:focus-visible, .nu-bt-menu button:focus-visible, .nu-bt a:focus-visible,
+.nu-bt [tabindex]:focus-visible, .nu-bt input:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 2px;
+}
+
+/* ── Menus (export / columns) ────────────────────────────────────────────── */
+.nu-bt-menu-wrap { position: relative; }
+.nu-bt-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 220px; max-width: 320px;
+  max-height: min(60vh, 420px); overflow: auto; padding: 6px;
+  background: var(--bg-elevated, var(--bg-card)); border: 1px solid var(--border-color);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+}
+.nu-bt-menu[hidden] { display: none; }
+.nu-bt-menu-title {
+  padding: 6px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.nu-bt-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px;
+  border: 0; border-radius: var(--radius-sm); background: none; color: var(--text-primary);
+  font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.nu-bt-menu-item:hover, .nu-bt-menu-item:focus-visible { background: var(--bg-hover); }
+.nu-bt-menu-item svg { width: 15px; height: 15px; color: var(--text-muted); flex: none; }
+.nu-bt-menu-sep { height: 1px; margin: 6px 4px; background: var(--border-color); }
+.nu-bt-col-row { display: flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border-radius: var(--radius-sm); }
+.nu-bt-col-row:hover { background: var(--bg-hover); }
+.nu-bt-col-row label { flex: 1; display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; cursor: pointer; min-width: 0; }
+.nu-bt-col-row label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nu-bt-col-move { display: inline-flex; }
+.nu-bt-col-move button {
+  width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: none;
+  color: var(--text-muted); border-radius: 4px; cursor: pointer;
+}
+.nu-bt-col-move button:hover:not(:disabled) { background: var(--bg-subtle); color: var(--text-primary); }
+.nu-bt-col-move button:disabled { opacity: .3; cursor: default; }
+
+/* ── Filter chips + panel ────────────────────────────────────────────────── */
+.nu-bt-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.nu-bt-chips[hidden] { display: none; }
+.nu-bt-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px;
+  border-radius: 999px; background: var(--bt-select-bg); color: var(--primary);
+  font-size: 12px; font-weight: 600;
+}
+.nu-bt-chip button {
+  width: 18px; height: 18px; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: transparent; color: inherit; cursor: pointer; font-size: 14px; line-height: 1;
+}
+.nu-bt-chip button:hover { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+.nu-bt-chips-note { font-size: 12px; color: var(--text-muted); }
+.nu-bt-linkbtn {
+  border: 0; background: none; padding: 2px 4px; color: var(--primary); font: inherit;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.nu-bt-linkbtn:hover { text-decoration: underline; }
+
+.nu-bt-filters {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px;
+  padding: 14px; border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--bg-elevated, var(--bg-card));
+}
+.nu-bt-filters[hidden] { display: none; }
+.nu-bt-filter { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nu-bt-filter > label { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+.nu-bt-filter .nu-input { font-size: 12px; padding: 6px 8px; }
+.nu-bt-filter-range { display: flex; gap: 4px; }
+.nu-bt-filter-range .nu-input { min-width: 0; flex: 1; }
+.nu-bt-filters-note { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--text-muted); }
+
+/* ── Table surface ───────────────────────────────────────────────────────── */
+.nu-bt-surface {
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--bg-card); overflow: hidden; box-shadow: var(--shadow-sm);
+}
+.nu-bt-scroll {
+  overflow: auto; max-height: var(--bt-max-h, 68vh); position: relative;
+  scrollbar-width: thin; overscroll-behavior: contain;
+}
+.nu-bt[data-mode="fullpage"] { --bt-max-h: calc(100vh - 230px); }
+.nu-bt[data-mode="modal"] { --bt-max-h: 56vh; }
+
+.nu-bt-table {
+  width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed;
+  font-size: var(--bt-font); color: var(--text-primary);
+}
+.nu-bt-table th, .nu-bt-table td {
+  padding: var(--bt-row-py) var(--bt-cell-px);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-card);
+  overflow: hidden; text-overflow: ellipsis; vertical-align: middle;
+}
+.nu-bt-table td { overflow-wrap: anywhere; }
+.nu-bt-table thead th {
+  position: sticky; top: 0; z-index: 3; background: var(--bt-head-bg);
+  font-size: 12px; font-weight: 700; letter-spacing: .02em; text-align: left;
+  color: var(--text-secondary); white-space: nowrap; user-select: none;
+  border-bottom: 2px solid var(--border-color);
+}
+.nu-bt-table tbody tr:last-child td { border-bottom: 0; }
+.nu-bt-table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--bg-card) 97.5%, var(--text-primary)); }
+.nu-bt-table tbody tr { transition: background var(--transition); }
+.nu-bt-table tbody tr:hover td { background: var(--bg-hover-solid, color-mix(in srgb, var(--bg-card) 94%, var(--primary))); }
+.nu-bt-table tbody tr.is-selected td { background: color-mix(in srgb, var(--bg-card) 88%, var(--primary)); }
+.nu-bt-table tbody tr.is-clickable { cursor: pointer; }
+.nu-bt-table tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.nu-bt-table .is-frozen { position: sticky; z-index: 2; }
+.nu-bt-table thead .is-frozen { z-index: 4; }
+.nu-bt-table .is-frozen-edge { box-shadow: 1px 0 0 var(--border-color), 6px 0 8px -6px rgba(15, 23, 42, .25); }
+.nu-bt-table th[hidden], .nu-bt-table td[hidden] { display: none; }
+
+.nu-bt-th-inner { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nu-bt-sort {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 0; border: 0;
+  background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer;
+}
+.nu-bt-sort > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.nu-bt-sort:hover { color: var(--primary); }
+.nu-bt-sort-icon { width: 12px; height: 12px; flex: none; opacity: .35; }
+th[aria-sort="ascending"] .nu-bt-sort-icon, th[aria-sort="descending"] .nu-bt-sort-icon { opacity: 1; color: var(--primary); }
+th[aria-sort="descending"] .nu-bt-sort-icon { transform: rotate(180deg); }
+.nu-bt-label-static { overflow: hidden; text-overflow: ellipsis; }
+.nu-bt-resizer {
+  position: absolute; top: 0; right: -3px; width: 8px; height: 100%; cursor: col-resize; z-index: 5; touch-action: none;
+}
+.nu-bt-resizer::after {
+  content: ""; position: absolute; top: 25%; bottom: 25%; left: 3px; width: 2px; border-radius: 1px;
+  background: transparent; transition: background var(--transition);
+}
+.nu-bt-table th:hover .nu-bt-resizer::after, .nu-bt-resizer.is-active::after { background: var(--primary); }
+.nu-bt-table th.is-drop-target { box-shadow: inset 3px 0 0 var(--primary); }
+.nu-bt-table th.is-dragging { opacity: .5; }
+
+.nu-bt-col-select { width: 44px; text-align: center; padding-left: 0; padding-right: 0; }
+.nu-bt-col-actions { width: 132px; }
+.nu-bt-actions { display: flex; align-items: center; gap: 2px; }
+.nu-bt-act {
+  display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.nu-bt-act:hover { background: var(--bg-hover); color: var(--primary); }
+.nu-bt-act--danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); color: var(--error); }
+.nu-bt-act--cert { color: var(--primary); }
+.nu-bt-act svg { width: 16px; height: 16px; }
+.nu-bt-check { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); vertical-align: middle; }
+.nu-bt-col-select .nu-bt-check { display: block; margin: 0 auto; }
+
+.nu-bt-table tfoot td {
+  position: sticky; bottom: 0; z-index: 2; font-size: 12px; font-weight: 700;
+  background: var(--bt-head-bg); border-top: 2px solid var(--border-color); border-bottom: 0;
+}
+.nu-bt-table tfoot .is-frozen { z-index: 4; }
+
+/* ── Cell formatters ─────────────────────────────────────────────────────── */
+.nu-bt-badge {
+  display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  line-height: 1.5; color: var(--bt-fg, var(--text-secondary)); background: var(--bt-bg, var(--bg-subtle));
+  border: 1px solid color-mix(in srgb, var(--bt-fg, var(--text-secondary)) 22%, transparent);
+}
+.nu-bt-badge--active    { --bt-fg: #0369a1; --bt-bg: #e0f2fe; }
+.nu-bt-badge--completed { --bt-fg: #15803d; --bt-bg: #dcfce7; }
+.nu-bt-badge--pending   { --bt-fg: #b45309; --bt-bg: #fef3c7; }
+.nu-bt-badge--rejected  { --bt-fg: #b91c1c; --bt-bg: #fee2e2; }
+.nu-bt-badge--cancelled { --bt-fg: #475569; --bt-bg: #f1f5f9; }
+[data-theme="dark"] .nu-bt-badge--active    { --bt-fg: #7dd3fc; --bt-bg: rgba(14, 165, 233, .16); }
+[data-theme="dark"] .nu-bt-badge--completed { --bt-fg: #86efac; --bt-bg: rgba(34, 197, 94, .16); }
+[data-theme="dark"] .nu-bt-badge--pending   { --bt-fg: #fcd34d; --bt-bg: rgba(245, 158, 11, .16); }
+[data-theme="dark"] .nu-bt-badge--rejected  { --bt-fg: #fca5a5; --bt-bg: rgba(239, 68, 68, .16); }
+[data-theme="dark"] .nu-bt-badge--cancelled { --bt-fg: #cbd5e1; --bt-bg: rgba(148, 163, 184, .16); }
+.nu-bt-progress { display: flex; align-items: center; gap: 8px; min-width: 90px; }
+.nu-bt-progress-track { flex: 1; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg-subtle); border: 1px solid var(--border-color); }
+.nu-bt-progress-bar { height: 100%; border-radius: 4px; background: var(--primary); }
+.nu-bt-progress-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.nu-bt-bool { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; }
+.nu-bt-bool svg { width: 14px; height: 14px; }
+.nu-bt-bool--true  { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); }
+.nu-bt-bool--false { color: var(--text-muted); background: var(--bg-subtle); }
+.nu-bt-thumb { padding: 0; border: 1px solid var(--border-color); border-radius: 6px; background: none; cursor: zoom-in; line-height: 0; overflow: hidden; }
+.nu-bt-thumb img { max-height: 40px; max-width: 100%; object-fit: cover; }
+.nu-bt-num { font-variant-numeric: tabular-nums; }
+.nu-bt-muted { color: var(--text-muted); }
+
+/* ── Footer / pagination ─────────────────────────────────────────────────── */
+.nu-bt-footer {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+}
+.nu-bt-summary { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.nu-bt-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.nu-bt-page {
+  min-width: 32px; height: 32px; padding: 0 8px; display: inline-grid; place-items: center;
+  border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-card);
+  color: var(--text-primary); font: inherit; font-size: 13px; cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+.nu-bt-page:hover:not(:disabled):not([aria-current="page"]) { background: var(--bg-hover); border-color: var(--primary); color: var(--primary); }
+.nu-bt-page[aria-current="page"] { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); font-weight: 700; cursor: default; }
+.nu-bt-page:disabled { opacity: .4; cursor: default; }
+.nu-bt-ellipsis { padding: 0 4px; color: var(--text-muted); user-select: none; }
+
+/* ── Empty state / skeleton ──────────────────────────────────────────────── */
+.nu-bt-empty { display: grid; justify-items: center; gap: 8px; padding: 56px 20px; text-align: center; }
+.nu-bt-empty svg { width: 44px; height: 44px; color: var(--text-muted); opacity: .7; }
+.nu-bt-empty-title { margin: 4px 0 0; font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.nu-bt-empty-text { margin: 0; font-size: 13px; color: var(--text-muted); max-width: 42ch; }
+.nu-bt-empty-actions { display: flex; gap: 8px; margin-top: 8px; }
+.nu-bt-skel-row { display: flex; gap: 16px; padding: 14px var(--bt-cell-px, 14px); border-bottom: 1px solid var(--border-color); }
+.nu-bt-skel-row:last-child { border-bottom: 0; }
+.nu-bt-skel-cell { height: 12px; border-radius: 6px; flex: 1; background: linear-gradient(90deg, var(--bg-subtle) 25%, var(--bg-hover) 50%, var(--bg-subtle) 75%); background-size: 200% 100%; animation: nu-bt-shimmer 1.3s linear infinite; }
+.nu-bt-skel-cell:first-child { flex: 0 0 90px; }
+@keyframes nu-bt-shimmer { to { background-position: -200% 0; } }
+
+/* ── Bulk selection bar ──────────────────────────────────────────────────── */
+.nu-bt-bulkbar {
+  position: fixed; left: 50%; bottom: 24px; translate: -50% 0; z-index: 900;
+  display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 18px;
+  border-radius: 999px; background: #0f172a; color: #f8fafc; box-shadow: var(--shadow-lg);
+  animation: nu-bt-rise .18s ease;
+}
+[data-theme="dark"] .nu-bt-bulkbar { background: #1e293b; border: 1px solid var(--border-color); }
+.nu-bt-bulkbar[hidden] { display: none; }
+.nu-bt-bulkbar strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.nu-bt-bulkbar .nu-btn { border-radius: 999px; }
+.nu-bt-bulkbar .nu-bt-bulk-clear { border-color: transparent; background: transparent; color: #cbd5e1; }
+.nu-bt-bulkbar .nu-bt-bulk-clear:hover { color: #fff; background: rgba(255,255,255,.1); }
+@keyframes nu-bt-rise { from { opacity: 0; translate: -50% 10px; } to { opacity: 1; translate: -50% 0; } }
+
+/* ── Confirm dialog + lightbox + SQL viewer ──────────────────────────────── */
+.nu-dialog {
+  border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 0;
+  background: var(--bg-elevated, var(--bg-card)); color: var(--text-primary);
+  box-shadow: var(--shadow-lg); width: min(440px, calc(100vw - 32px));
+}
+.nu-dialog::backdrop { background: rgba(2, 6, 23, .55); backdrop-filter: blur(3px); }
+.nu-dialog--wide { width: min(860px, calc(100vw - 32px)); }
+.nu-dialog-body { padding: 22px 24px 8px; }
+.nu-dialog-title { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+.nu-dialog-text { margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
+.nu-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px 20px; }
+.nu-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 24px 0; }
+.nu-dialog-head .nu-dialog-title { margin: 0; }
+.nu-dialog-scroll { max-height: 62vh; overflow: auto; padding: 14px 24px 0; display: grid; gap: 10px; }
+.nu-dialog-code {
+  margin: 0; padding: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+  border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-subtle);
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--text-primary);
+}
+.nu-dialog-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.nu-lightbox { padding: 0; border: 0; background: transparent; max-width: 94vw; max-height: 94vh; }
+.nu-lightbox::backdrop { background: rgba(0, 0, 0, .85); }
+.nu-lightbox img { display: block; max-width: 92vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,.5); }
+
+/* ── Page header used by the browse screens ──────────────────────────────── */
+.nu-bt-pagehead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.nu-bt-pagetitle { margin: 0; font-size: var(--font-xl, 1.125rem); font-weight: 700; letter-spacing: -.01em; }
+.nu-bt-pagehead-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ── Small screens: rows become cards ────────────────────────────────────── */
+@media (max-width: 640px) {
+  .nu-bt-search { max-width: none; flex-basis: 100%; }
+  .nu-bt-tools { width: 100%; }
+  .nu-bt-tools .nu-bt-btn-label { display: none; }
+  .nu-bt-scroll { max-height: none; overflow: visible; }
+  .nu-bt-surface { background: transparent; border: 0; box-shadow: none; overflow: visible; }
+  .nu-bt-table, .nu-bt-table tbody, .nu-bt-table tr, .nu-bt-table td { display: block; width: 100% !important; }
+  .nu-bt-table { min-width: 0 !important; }
+  .nu-bt-table thead, .nu-bt-table tfoot, .nu-bt-table colgroup { display: none; }
+  .nu-bt-table tbody tr {
+    margin-bottom: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-md);
+    background: var(--bg-card); box-shadow: var(--shadow-sm); overflow: hidden;
+  }
+  .nu-bt-table td { border-bottom: 1px solid var(--border-color); display: flex; gap: 12px; align-items: baseline; justify-content: space-between; text-align: right !important; position: static !important; left: auto !important; box-shadow: none !important; }
+  .nu-bt-table td::before { content: attr(data-label); flex: none; max-width: 42%; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); text-align: left; }
+  .nu-bt-table td.nu-bt-cell-actions::before, .nu-bt-table td.nu-bt-cell-select::before { content: none; }
+  .nu-bt-table td.nu-bt-cell-actions { justify-content: flex-start; background: var(--bt-head-bg); }
+  .nu-bt-table td.nu-bt-cell-select { justify-content: flex-start; padding-bottom: 0; border-bottom: 0; }
+  .nu-bt-footer { justify-content: center; }
+  .nu-bt-bulkbar { width: calc(100vw - 24px); justify-content: space-between; bottom: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nu-bt *, .nu-bt-bulkbar { animation: none !important; transition: none !important; }
+}
+@media print {
+  .nu-bt-toolbar, .nu-bt-chips, .nu-bt-filters, .nu-bt-bulkbar, .nu-bt-footer .nu-bt-pages,
+  .nu-bt-col-select, .nu-bt-col-actions, .nu-bt-cell-actions, .nu-bt-cell-select, .nu-bt-resizer { display: none !important; }
+  .nu-bt-scroll { max-height: none; overflow: visible; }
+}
+
+/* ── Loading state (stale table dimmed while the next page loads) ────────── */
+.nu-bt.is-loading { opacity: .55; pointer-events: none; transition: opacity .15s ease; }
+
+/* ── Modal presentation of the browse screen ─────────────────────────────── */
+.nu-bt-modal-overlay {
+  position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(2, 6, 23, .55); backdrop-filter: blur(3px);
+}
+.nu-bt-modal {
+  width: 100%; max-width: 1180px; max-height: 92vh; overflow-y: auto; padding: 20px 22px 22px;
+  background: var(--bg-card); color: var(--text-primary);
+  border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+}
+.nu-bt-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+@media (max-width: 640px) {
+  .nu-bt-modal-overlay { padding: 0; align-items: flex-end; }
+  .nu-bt-modal { max-height: 94vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 16px; }
+}

@@ -169,6 +169,11 @@ declare(strict_types=1);
         </script>
         <?php endif; ?>
 
+        <button type="button" class="nu-cmdk-trigger" data-nu-cmdk title="Search pages and actions" aria-label="Open command palette">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <span>Search…</span><kbd>Ctrl K</kbd>
+        </button>
+
         <button class="nu-btn nu-btn-ghost" id="nuThemeToggleBtn" title="Theme: Auto (System)"
                 onclick="(function(){
                     var btn=document.getElementById('nuThemeToggleBtn');

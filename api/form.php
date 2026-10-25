@@ -2924,6 +2924,7 @@ function nu_handle_list() {
     $responseData = [
         'layout'  => nu_flatten_layout_for_grid($layout), 'records' => $records,
         'page'    => $page,   'pages'   => $pages,   'total' => $total,
+        'page_size' => $pageSize ?? null,
         'query'   => $q,      'browsesearchenabled'   => $searchEnabled,
         'browsesearchplaceholder' => $form[$c['browse_search_placeholder']] ?? 'Search...',
         'browse_layout' => $form[$c['browse_layout']] ?? null,
