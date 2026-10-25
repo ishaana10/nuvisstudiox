@@ -8,7 +8,7 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
-### v5.0.16 (Current Release)
+### v5.0.24 (Current Release)
 - **Form Builder Grid Alignment & Per-Row Options:** Added per-row column presets (`1 Col`, `2 Cols`, `3 Cols`, `4 Cols`) and element alignment controls (`Left`, `Center`, `Right`) to row action bars, persisting `row_align` in JSON schema and dynamically computing grid start/span offsets.
 - **12-Column Canvas Spans in Edit Mode:** Refactored edit-mode grid rendering (`_applyColSpan`) to set exact `grid-column` span properties on a 12-column `.nb-row-body` CSS grid, fixing card size rendering issues in edit mode.
 - **Responsive Viewport Fallbacks:** Enforced CSS media queries and canvas rules so fields automatically fall back to 2 columns (`span 6`) on tablet devices and 1 column full-width (`span 12`) on mobile viewports.
@@ -16,7 +16,7 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 - **Realistic Canvas Element Previews:** Added live mockups (`_buildCardCanvasPreview`) directly on canvas cards rendering text inputs, textareas, dropdowns, checkboxes, subforms, and buttons during design mode.
 - **Browse Table Actions First Column:** Moved the Actions column (containing Edit, View, Certificates, and Delete action buttons) to the **first column** across all browse forms and subform grids.
 
-### v5.0.0 - v5.0.15
+### v5.0.0 - v5.0.23
 - **Visual Refresh & CSS Tokens (`assets/css/nubuilder-next.css`):** Complete semantic CSS custom properties scale (`--primary`, `--primary-hover`, `--bg-app`, `--bg-card`, `--border-color`, `--shadow-sm`, `--shadow-md`, `--radius-lg`, `--color-success`, `--color-info`, `--surface-elevated`, `--focus-ring`) covering both Light and Dark mode variations.
 - **Card-Based UI & Skeleton Loaders:** Modern card layouts with soft shadows, subtle borders, and content-aware skeleton placeholder loaders (`.nu-skeleton`) during data fetches.
 - **16 Configurable Dashboard Widget Types:** Stat/KPI, Metric Trend (Sparkline + % Change), Sparkline, Bar Chart, Line Chart, Area Chart, Pie Chart, Doughnut Chart, Radar Chart, Data Table, Quick Links, Quick Actions, Activity Feed, Progress Bar, External iFrame, and Custom HTML.
