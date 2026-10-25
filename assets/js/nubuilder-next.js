@@ -1294,6 +1294,11 @@ window.NuApp = {
       stickyOffset = 0;
     }
 
+    const actionTh = document.createElement('th');
+    actionTh.textContent = 'Actions';
+    actionTh.style.cssText = 'padding:12px;text-align:left;font-size:13px;font-weight:600;width:120px;';
+    headRow.appendChild(actionTh);
+
     browseLayout.forEach((col, idx) => {
       const th = document.createElement('th');
       th.style.position = col.frozen ? 'sticky' : 'relative';
@@ -1375,10 +1380,6 @@ window.NuApp = {
       headRow.appendChild(th);
     });
 
-    const actionTh = document.createElement('th');
-    actionTh.textContent = 'Actions';
-    actionTh.style.cssText = 'padding:12px;text-align:left;font-size:13px;font-weight:600;width:120px;';
-    headRow.appendChild(actionTh);
     thead.appendChild(headRow); table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
@@ -1411,6 +1412,77 @@ window.NuApp = {
           bulkTd.appendChild(checkbox);
           tr.appendChild(bulkTd);
         }
+
+        // Actions cell (first column)
+        const actionTd = document.createElement('td');
+        actionTd.style.cssText = 'padding:12px;display:flex;gap:8px;align-items:center;';
+
+        if (_canEdit) {
+          const editBtn = document.createElement('button');
+          editBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
+          editBtn.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit
+          `;
+          editBtn.onclick = () => (onEdit ? onEdit(row) : this.editRecord(code, row.id, label, displayMode));
+          actionTd.appendChild(editBtn);
+        } else {
+          const viewBtn = document.createElement('button');
+          viewBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
+          viewBtn.style.cssText = 'color:var(--text-muted,#666);';
+          viewBtn.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg> View
+          `;
+          viewBtn.onclick = () => this.viewRecord(code, row.id, label, displayMode);
+          actionTd.appendChild(viewBtn);
+        }
+
+        // Render a dedicated action button for each available certificate template!
+        if (Array.isArray(certTemplates) && certTemplates.length > 0) {
+          certTemplates.forEach(t => {
+            const labelText = t.cert_button_label && t.cert_button_label.trim() !== ''
+              ? t.cert_button_label.trim()
+              : 'Certificates';
+
+            const certBtn = document.createElement('button');
+            certBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
+            certBtn.style.color = 'var(--color-primary, #4f6bed)';
+            certBtn.innerHTML = `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> ${labelText}
+            `;
+            certBtn.onclick = (e) => {
+              e.stopPropagation();
+              this.openRecordCertificatesModal(code, row.id, t.cert_id);
+            };
+            actionTd.appendChild(certBtn);
+          });
+        }
+
+        // Single row delete button (conditional on deleteEnabled)
+        if (deleteEnabled && NuPerms.canDelete()) {
+          const delBtn = document.createElement('button');
+          delBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
+          delBtn.style.color = '#ef4444';
+          delBtn.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete
+          `;
+          delBtn.onclick = () => {
+            if (confirm('Are you sure you want to delete this record permanently?')) {
+              NuApp.apiJson(`api/crud.php?table=${encodeURIComponent(formTable)}&id=${encodeURIComponent(row.id)}`, {
+                method: 'DELETE', credentials: 'same-origin'
+              }).then(res => {
+                if (res && res.success) {
+                  NuApp.toast('Record deleted!', 'success');
+                  NuApp.browseForm(code, page, currentQuery, label, displayMode);
+                } else {
+                  NuApp.toast(res.error || 'Delete failed', 'error');
+                }
+              });
+            }
+          };
+          actionTd.appendChild(delBtn);
+        }
+
+        tr.appendChild(actionTd);
 
         let cellStickyOffset = bulkEnabled ? 40 : 0;
 
@@ -1532,76 +1604,7 @@ window.NuApp = {
           tr.appendChild(td);
         });
 
-        // Actions cell
-        const actionTd = document.createElement('td');
-        actionTd.style.cssText = 'padding:12px;display:flex;gap:8px;align-items:center;';
-
-        if (_canEdit) {
-          const editBtn = document.createElement('button');
-          editBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
-          editBtn.innerHTML = `
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit
-          `;
-          editBtn.onclick = () => (onEdit ? onEdit(row) : this.editRecord(code, row.id, label, displayMode));
-          actionTd.appendChild(editBtn);
-        } else {
-          const viewBtn = document.createElement('button');
-          viewBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
-          viewBtn.style.cssText = 'color:var(--text-muted,#666);';
-          viewBtn.innerHTML = `
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg> View
-          `;
-          viewBtn.onclick = () => this.viewRecord(code, row.id, label, displayMode);
-          actionTd.appendChild(viewBtn);
-        }
-
-        // Render a dedicated action button for each available certificate template!
-        if (Array.isArray(certTemplates) && certTemplates.length > 0) {
-          certTemplates.forEach(t => {
-            const labelText = t.cert_button_label && t.cert_button_label.trim() !== ''
-              ? t.cert_button_label.trim()
-              : 'Certificates';
-
-            const certBtn = document.createElement('button');
-            certBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
-            certBtn.style.color = 'var(--color-primary, #4f6bed)';
-            certBtn.innerHTML = `
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> ${labelText}
-            `;
-            certBtn.onclick = (e) => {
-              e.stopPropagation();
-              this.openRecordCertificatesModal(code, row.id, t.cert_id);
-            };
-            actionTd.appendChild(certBtn);
-          });
-        }
-
-        // Single row delete button (conditional on deleteEnabled)
-        if (deleteEnabled && NuPerms.canDelete()) {
-          const delBtn = document.createElement('button');
-          delBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm';
-          delBtn.style.color = '#ef4444';
-          delBtn.innerHTML = `
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete
-          `;
-          delBtn.onclick = () => {
-            if (confirm('Are you sure you want to delete this record permanently?')) {
-              NuApp.apiJson(`api/crud.php?table=${encodeURIComponent(formTable)}&id=${encodeURIComponent(row.id)}`, {
-                method: 'DELETE', credentials: 'same-origin'
-              }).then(res => {
-                if (res && res.success) {
-                  NuApp.toast('Record deleted!', 'success');
-                  NuApp.browseForm(code, page, currentQuery, label, displayMode);
-                } else {
-                  NuApp.toast(res.error || 'Delete failed', 'error');
-                }
-              });
-            }
-          };
-          actionTd.appendChild(delBtn);
-        }
-
-        tr.appendChild(actionTd); tbody.appendChild(tr);
+        tbody.appendChild(tr);
       });
     }
 
@@ -1619,6 +1622,10 @@ window.NuApp = {
         bulkFoot.textContent = 'Σ';
         footRow.appendChild(bulkFoot);
       }
+
+      const actionFoot = document.createElement('td');
+      actionFoot.textContent = '';
+      footRow.appendChild(actionFoot);
 
       let footerStickyOffset = bulkEnabled ? 40 : 0;
 
@@ -1669,9 +1676,6 @@ window.NuApp = {
         footRow.appendChild(td);
       });
 
-      const actionFoot = document.createElement('td');
-      actionFoot.textContent = '';
-      footRow.appendChild(actionFoot);
       tfoot.appendChild(footRow);
       table.appendChild(tfoot);
     }

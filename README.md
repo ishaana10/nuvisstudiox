@@ -6,26 +6,23 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ---
 
-## Recent Major Enhancements & Upgrades (May 2026)
+## Version Changelog
 
-### 🎨 Visual Refresh & CSS Design Tokens System
-- **Expanded Token Set (`assets/css/nubuilder-next.css`):** Complete semantic CSS custom properties scale (`--primary`, `--primary-hover`, `--bg-app`, `--bg-card`, `--border-color`, `--shadow-sm`, `--shadow-md`, `--radius-lg`, `--color-success`, `--color-info`, `--surface-elevated`, `--focus-ring`) covering both Light and Dark mode variations.
+### v5.0.16 (Current Release)
+- **Form Builder Grid Alignment & Per-Row Options:** Added per-row column presets (`1 Col`, `2 Cols`, `3 Cols`, `4 Cols`) and element alignment controls (`Left`, `Center`, `Right`) to row action bars, persisting `row_align` in JSON schema and dynamically computing grid start/span offsets.
+- **12-Column Canvas Spans in Edit Mode:** Refactored edit-mode grid rendering (`_applyColSpan`) to set exact `grid-column` span properties on a 12-column `.nb-row-body` CSS grid, fixing card size rendering issues in edit mode.
+- **Responsive Viewport Fallbacks:** Enforced CSS media queries and canvas rules so fields automatically fall back to 2 columns (`span 6`) on tablet devices and 1 column full-width (`span 12`) on mobile viewports.
+- **Properties Panel Width Preset Buttons:** Extended column span presets in the properties panel (`1`, `2`, `3`, `4`, `6`, `8`, `12`) with active highlighting for all 12 grid span selections.
+- **Realistic Canvas Element Previews:** Added live mockups (`_buildCardCanvasPreview`) directly on canvas cards rendering text inputs, textareas, dropdowns, checkboxes, subforms, and buttons during design mode.
+- **Browse Table Actions First Column:** Moved the Actions column (containing Edit, View, Certificates, and Delete action buttons) to the **first column** across all browse forms and subform grids.
+
+### v5.0.0 - v5.0.15
+- **Visual Refresh & CSS Tokens (`assets/css/nubuilder-next.css`):** Complete semantic CSS custom properties scale (`--primary`, `--primary-hover`, `--bg-app`, `--bg-card`, `--border-color`, `--shadow-sm`, `--shadow-md`, `--radius-lg`, `--color-success`, `--color-info`, `--surface-elevated`, `--focus-ring`) covering both Light and Dark mode variations.
 - **Card-Based UI & Skeleton Loaders:** Modern card layouts with soft shadows, subtle borders, and content-aware skeleton placeholder loaders (`.nu-skeleton`) during data fetches.
-
-### 📊 Modernized Dashboard Widgets & Advanced Charting
-- **16 Configurable Widget Types:** Stat/KPI, Metric Trend (Sparkline + % Change), Sparkline, Bar Chart, Line Chart, Area Chart, Pie Chart, Doughnut Chart, Radar Chart, Data Table, Quick Links, Quick Actions, Activity Feed, Progress Bar, External iFrame, and Custom HTML.
+- **16 Configurable Dashboard Widget Types:** Stat/KPI, Metric Trend (Sparkline + % Change), Sparkline, Bar Chart, Line Chart, Area Chart, Pie Chart, Doughnut Chart, Radar Chart, Data Table, Quick Links, Quick Actions, Activity Feed, Progress Bar, External iFrame, and Custom HTML.
 - **Dynamic SQL Placeholders:** Full placeholder support (`{{user_id}}`, `{{role}}`, `{{today}}`, `{{this_month}}`, `{{this_year}}`) evaluated at runtime against the active session user and date context.
-- **Auto-Refresh & Responsive Grid:** Live widget polling configured via `refresh_interval` (seconds) with content-aware skeleton loaders and a 12-column responsive layout grid.
-- **Comprehensive Guide:** Updated documentation in `docs/widgets.md`.
-
-### ⚡ Redis High-Performance Cache & Session Management
-- **Redis Service & Session Storage (`core/Cache.php`, `core/RedisSessionHandler.php`):** High-speed singleton caching wrapper using `phpredis` (supporting Unix domain sockets and TCP) with prefixing (`nuvis:*`), `remember()` pattern, and custom session handler registered before `session_start()`.
-- **Developer Diagnostics Panel (`modules/developer_settings/developer_settings.php` & `api/redis_actions.php`):** Live Redis memory usage diagnostics, latency benchmark tool, A2 Hosting daemon trigger (`~/.redis.on`), cache flushing, and live cached key TTL inspector.
-
-### 🔒 Security Hardening, MFA & SSO Integration
-- **Strict Session Management:** Configured custom session cookie identifier `nuvisstudioxssid` in `core/SessionBootstrap.php` with `use_strict_mode`, `cookie_httponly`, `cookie_secure`, and `cookie_samesite = Strict`.
-- **Two-Factor Authentication (TOTP MFA):** Secret key generation, QR code setup, OTP verification, and 8-digit backup code recovery (`api/mfa.php` and `modules/mfa/mfa.php`).
-- **Single Sign-On (SSO):** SAML 2.0 and OpenID Connect (OIDC) identity provider configuration and auth callback gateway (`api/sso.php` and `core/Sso/`).
+- **Redis High-Performance Cache & Session Storage (`core/Cache.php`, `core/RedisSessionHandler.php`):** High-speed singleton caching wrapper using `phpredis` (supporting Unix domain sockets and TCP) with prefixing (`nuvis:*`), `remember()` pattern, and custom session handler registered before `session_start()`.
+- **Strict Session Management & MFA:** Configured custom session cookie identifier `nuvisstudioxssid` in `core/SessionBootstrap.php` with strict security flags, TOTP Two-Factor Authentication, and SAML 2.0 / OIDC SSO integration.
 
 ---
 
@@ -176,7 +173,6 @@ cp config.local.php.example config.local.php
 
 ---
 
-
 ## Core Features
 
 ### Design System
@@ -220,7 +216,7 @@ cp config.local.php.example config.local.php
 - **QueryExecutor** — parameter binding, SELECT-only validation, CSV export
 
 ### Builders
-- Visual form builder with drag-and-drop canvas, multi-level layout flattening, and instant rendering
+- Visual form builder with drag-and-drop canvas, multi-level layout flattening, instant rendering, per-row column presets, element alignments, and 12-column grid layout controls
 - Report builder with SQL + column definitions + chart support
 - Query builder with parameter definitions
 - Menu builder for navigation management
@@ -243,89 +239,6 @@ cp config.local.php.example config.local.php
 
 ---
 
-## Completed Extended Modules
-
-### 🔄 Workflow Engine & Simulator
-An advanced, production-ready business process automation module comprising:
-- **Visual Builder:** Powered by Mermaid.js integration for beautiful, stage-colored flowchart representations.
-- **Workflow Simulator:** Sandbox simulator where users run mock data JSON objects against defined transition conditional rules (`wft_condition`), dynamically highlighting the evaluated path on the flowchart in real time.
-- **Kanban Board:** Dynamic, stage-colored drag-and-drop style Kanban board mapping active workflow instances across standard stages (Active, Completed, Rejected, Cancelled).
-- **Transition Action Hooks:** Fully integrated action triggers (`wft_hook`) executing automatic emails (`send_email`), invoking external webhooks (`call_webhook`), or updating linked record database values (`update_record`) upon successful advances.
-- **Robust Schema:** Implemented definitions, stage pipelines, instances, transition condition strings, and history trackers across `nu_workflows`, `nu_workflow_stages`, `nu_workflow_transitions`, `nu_workflow_instances`, and `nu_workflow_history`.
-
-### 🌐 Outgoing Webhooks & Integrations
-A highly configurable and secure external notification hub:
-- **Customizable Requests:** Fully customizable outgoing webhook dispatchers with supports for distinct HTTP methods (GET, POST, PUT, PATCH) and dynamic key-value HTTP headers.
-- **JSON Payload Templates:** Custom JSON or text template rendering with deep nested dot-notation placeholder resolution (e.g., `{{data.field}}`).
-- **Trigger Actions:** Hooked directly into standard application saves, dynamic form builder saves, REST API CRUD events, successful logins (`Auth.php`), and workflow engine stage transitions.
-- **Interactive Verification:** Live testing console equipped with a local mock webhook receiver (`api/webhook_demo_listener.php`) displaying delivery payloads and logs (`webhook_demo_logs.json`) interactively.
-
-### 📥 Import / Export Wizard
-A modern data-import pipeline built for rapid, reliable bulk uploads:
-- **Interactive Wizard:** Multi-step wizard supporting file selection, CSV parsing on the client, and mapping.
-- **Fuzzy Auto-Mapping:** Automatically analyzes CSV headers and matches them to physical database columns using an intuitive name-based fuzzy logic algorithm.
-- **Flexible Parser & Type Casts:** Intelligent backend importing (`api/import.php`) featuring automatic date-parsing, numeric formatting cleanup (stripping symbols/currency), boolean normalization, and NULL-handling.
-- **Security Checkpoints:** Strictly limits bulk-write operations to authorized tables, preventing overwrite attempts on sensitive core metadata tables (e.g. `nu_users`, `nu_forms`) by non-globeadmin users.
-
-### ✉️ Email Administration & Send Log
-A fully managed SMTP system and notification tracker:
-- **Tabbed Settings UI:** Dynamic email configuration panel integrating SMTP credentials management, Email Template creation, and a centralized Send Log.
-- **Send Log Popup Overlay:** Fully integrated modal detailed popup viewer presenting complete email transmission metadata (recipients, subjects, templates, errors, and actual raw mail headers) instantly upon row selection.
-- **Transactional Hooks:** Mail automation bound directly to form submissions, custom scripts, and transition workflows.
-
-### ⚙️ System Updater & Git Manager
-The official system administrative terminal (locked to `globeadmin` or `admin` roles):
-- **Git Connection Tester:** Visual interface equipped with an interactive **⚡ Test Git Connection** verification mechanism validating local executable paths and working directories.
-- **Interactive Initialization:** Automates Git setups through an in-place "Initialize & Link Git Repository" command in instances where standard `.git` directories are missing.
-- **Remote Update Panel:** Select, fetch, and pull commits directly from remote branches on the configured repository root, with strict overrides bypasses targeting modern web hosting permissions (e.g. `www-data` context safe directory checks).
-
-### 📝 Word (.docx) & PDF Certificates Template Engine
-A comprehensive certificates designer allowing administrators to map layout variables to document templates:
-- **Format Support:** Supports both Word `.docx` templates (processed backend using lightweight `ZipArchive` extraction, node modification, and replacement) and raw HTML template maps.
-- **Recursive XML-to-HTML Parser:** Includes a sophisticated recursive table-aware Word XML parsing algorithm (`convertDocxXmlToHtml`) capable of translating nested paragraphs, bold, italic, underline, alignment, borders, colspans, and custom cell background colors into responsive inline-styled HTML layouts, generating pixel-perfect PDFs automatically.
-- **Dynamic Checkbox & Helper Placeholders**: Automatically creates user-friendly template helpers for all system and custom fields (such as `{{field_name_box}}` rendering as ☑/☐, and `{{field_name_yesno}}` rendering as Yes/No).
-- **Responsive Context Actions:** Leverages a lightweight client-side pre-fetch engine in `nubuilder-next.js` to render custom certificates action buttons directly onto browse rows and header actions, launching styled certificate previews in dynamic modal overlays.
-
-### 🔑 Advanced Forgot Password & Recovery Module
-A secure, self-service user login recovery framework:
-- **Configurable Password Policies:** Governed by an interactive administration switch `forgot_password_enabled` within `nu_system_settings`.
-- **Token-Based Verification:** Leverages cryptographically secure random SHA-256 tokens stored inside the self-healing table `nu_password_resets` enforcing strict 1-hour expiration.
-- **HTML Transactional Emails:** Dispatches automated modern HTML reset links leveraging the core `EmailService`.
-- **Credential Protection Rules:** Secure Reset password view that enforces password complexity checks, handles visual transition cards, and validates input passwords against recent password reuse histories.
-
-### 🚀 Unified REST API Gateway & Interactive Log
-A robust gateway pattern bridging internal application layers with third-party networks:
-- **Dynamic Routing:** Centered around `api/gateway.php` providing deep sub-route resolving (e.g. `/customers/123`).
-- **Secure Token Authentication:** Employs bearer authentication tokens stored in `nu_api_tokens`, verifying corresponding role permissions to enforce strict RBAC endpoints.
-- **Full Form Integration:** Automatically triggers backend validations, security controls, `NuAudit` entries, and executes `form_insert`, `form_update`, or `form_delete` outgoing webhook hooks dynamically on API mutations.
-- **Visual Logs Analyzer:** An interactive diagnostic dashboard (`modules/api_manager/`) displaying client IP addresses, execution metrics, payload structures, response headers, and HTTP status outputs stored inside the self-healing table `nu_api_logs`.
-
-### 💾 Centralized Custom PHP Procedures (Functions)
-A robust modular script repository enabling server-side execution of custom PHP code blocks:
-- **Database Storage:** Saves code snippets securely by unique identifiers inside the self-healing `nu_procedures` database table.
-- **Sandboxed Test Console:** Embedded Code Editor combined with an interactive test runtime panel allowing developers to mock inputs, execute procedures safely, and review execution time, output buffers, and exceptions.
-- **Unified Client-Server Bridge**: Allows immediate client-side invocation via a simple asynchronous javascript API `callPHP(code, params, callback)` or its alias `runProcedure(code, params, callback)`. Under the hood, procedures are executed via static helper `NuProcedure::run($code, $params)` or global functions `nu_run_procedure()` / `run_procedure()`.
-
-### 📁 Multi-Project Management & Metadata Isolation
-A multi-tenant project isolation engine within a single Nuvis instance:
-- **Project Context & Switcher**: Header dropdown allowing users to switch active project context in real time.
-- **Isolated Metadata**: Filters forms, menus, reports, queries, procedures, and workflows by `project_id`.
-- **Project Members & Security**: Assigns users to projects via `nu_project_members` with roles (`owner`, `admin`, `member`), enforcing RBAC across non-`globeadmin` users.
-- **Single-Project SQL Exports**: AppCloner integration (`exportProject`) exporting project definitions and registered form data tables into portable SQL bundles.
-- **Version Snapshots & Rollback**: Point-in-time JSON metadata snapshot creation and restoration (`nu_project_versions`).
-
-### 🏷️ Barcodes, Products & Self-Healing Inventory
-A dedicated products tracking system:
-- **Self-Healing Schema**: Automatically checks for, creates, and populates the `nu_products` table on database connect using session-cached flags, preventing runtime errors.
-- **Interactive UI Operations**: Integrated barcode lookup and printing triggers, including custom print-label buttons that safely override popup blockers and handle standard browser form submissions without page reloads.
-
-### ☁️ Microsoft OneDrive Picker Integration
-Provides a seamless hybrid cloud and local file upload system:
-- **OneDrive Hybrid Uploads**: Standard file upload controls inside the visual Form Builder can be configured to load files directly from the cloud using the integrated Microsoft OneDrive SDK.
-- **Uppy Unified Upload Dashboard**: Configured dynamically based on field attributes (`allowed_extensions`, `max_files`, `max_file_size_mb`), fallback to global variables, and supports deleting physically uploaded files via `api/upload.php?action=delete` locked with CSRF headers.
-
----
-
 ## Technical Developments & Changelog
 
 Over the course of recent developments, we have performed deep architectural refactoring to secure compatibility, clean developer experience, and robustness:
@@ -337,26 +250,12 @@ Over the course of recent developments, we have performed deep architectural ref
 - **Safe SQL Splitter Parser:** Re-implemented the database installer parser (`setup.php`) to utilize a robust character-by-character SQL parsing algorithm. This correctly distinguishes semicolons inside single or double-quoted string literals (like inline CSS style statements in HTML templates) from statement delimiters, avoiding syntax crashes during database setup.
 
 ### 🖥️ Form Builder & Property Panel Enhancements
+- **Per-Row Column Presets & Alignments:** Added interactive row action buttons (`1 Col`, `2 Cols`, `3 Cols`, `4 Cols` and `Left`, `Center`, `Right`) to control row element width and alignment dynamically.
+- **12-Column CSS Grid Canvas:** Updated `.nb-row-body` grid styling so field column spans (`1` through `12`) scale accurately in edit mode.
+- **First-Column Actions in Browse Tables:** Positioned the Actions column (Edit, View, Certificates, Delete) as the first column in browse forms and subform tables for improved usability.
 - **Fixed Viewport Fullscreen Mode:** Toggled via an interactive `⛶ Fullscreen` button or by pressing the `Escape` key. Toggling expands `#formBuilderCard` to cover 100% of the viewport (fixed position with high-z-index), scales the `.nb-builder-wrap` canvas container height dynamically, and locks background scroll on the document body.
 - **Row & Group Drag-and-Drop Rearranging:** Added a highly intuitive, global drag-and-drop mechanism `_attachRowContainerDragAndDrop(container)` allowing users to rearrange rows and containers (Groups/Tabs) up or down. Supports transferring rows between canvas levels and nested group containers, utilizing dynamic class toggles and drag handle isolates.
 - **Customizable Group Containers:** Added setting configurations (`_openGroupSettingsModal`) for collapsible/accordion toggles, background colors, header colors, custom borders, text colors, and border widths, rendered at runtime with circular expand/collapse icons on the right.
-- **Automatic MySQL Column Insertion Positioning:** When adding a new database column dynamically for custom form fields, `api/forms.php` analyzes current columns, detects the first system/audit column (e.g., `user_id`, `created_at`), and structures an `ALTER TABLE ... ADD COLUMN ... AFTER` query positioning the custom field before standard audit blocks.
-- **Quiet Field Evaluations:** Silenced unneeded and noisy client-side developer console errors stemming from blank optional properties or missing placeholders in form inputs to ensure clean browser error logging.
-
-### 🛡️ Core Security & Performance
-- **Menu Security Fallbacks & CSV/JSON Double Sync:** Enhanced `NuMenuRenderer` to retrieve menu listings via `SELECT * FROM nu_menus` and dynamically default missing database schema values at runtime. Simultaneously writes role constraints across both `menu_role_access` (JSON) and legacy `menu_roles` (comma-separated string) to maintain absolute backward compatibility.
-- **User Custom Fields Schema:** Structured custom user fields to write as JSON sequences directly inside the `usr_custom_fields` column of the `nu_users` table, with support for customizable dynamic database lookups (`lookup_table` and `lookup_field`).
-- **JS Dynamic Script Scope Security:** Changed system JavaScript module definitions (such as Roles, Users, Webhooks) from block-scoped `const` to global-scoped `var` definitions to prevent `Uncaught SyntaxError` redeclaration errors when modules are dynamically loaded or re-evaluated inside the SPA application shell.
-- **Inline UUID Handlers:** Enforced strict string wrapping (using quotes) when rendering Hyphenated UUIDs inside inline HTML event handlers (such as `onclick="Users.openEdit('<?php echo $u['usr_id']; ?>')"`), preventing Javascript syntax crashes.
-
-### 📊 Advanced Data Grid, Subforms, & Calculated Fields
-- **Select & Select2 Fields inside Subforms:** Supports rendering standard and Select2 fields in subform rows. Option values populate backend using `$decorateField` lambda and map frontend array saves. Select2 elements initialize dynamically via `window.nuInitSelect2`.
-- **Dynamic Lookup Fields inside Subforms:** Lookups inside subform inline and modal edits utilize hidden inputs for ID tracking and editable text inputs with `data-lookup-*` attributes, communicating with `api/crud.php` and rendering matching resolved label keys (`{field_name}_display`).
-- **Automated Lookup Modal & Typing Resolution:** Handled through document-level event listeners triggering `triggerAutoLookup` upon change or Enter. If a single matching record is found, it auto-populates mappings; otherwise, it spawns a searchable list pre-seeded with the search query.
-- **Calculated Fields with Double-Hash & Global Fallbacks**: Updated calculated fields engine `nuCalculateFields` to support double-hash placeholder notations (e.g. `##tax_rate##`). It evaluates complex formulas, handling custom operators, parentheses, brackets, and falling back to global settings `window.nuUserMeta` when DOM fields are missing.
-- **View SQL Debugging Tool:** Restricted exclusively to users with the `globeadmin` role. In Form Browse Grids, clicking `👁 View SQL` launches a copyable modal overlay displaying the raw base SQL, the final paginated SQL, and bind parameters returned by `nu_handle_list()`.
-- **Forms list dashboard toggle & Search**: Includes an interactive UI toggle in `modules/forms/forms.php` enabling users to switch between Card View and detailed Browse Table View (persisted in `localStorage`), with an Enter-key or button-triggered search filter.
-- **Global Ace Editor Externalization (`window.nbAce`)**: Centralized editor scripts inside `assets/js/nb-ace-manager.js`, introducing js-beautify formatting, distraction-free fullscreen overlays, pop-up tab synchronization, and custom height resizing handles.
 
 ---
 
@@ -379,21 +278,6 @@ Over the course of recent developments, we have performed deep architectural ref
 - `nu_project_members` — User-to-project access control mapping
 - `nu_project_tables` — Form table registry per project
 - `nu_project_versions` — JSON metadata snapshot version control
-
-### System Tables
-- `nu_api_tokens` — API keys for incoming REST integrations
-- `nu_api_logs` — Gateway request traffic details, execution times, payload structures, and headers
-- `nu_procedures` — Centralized reusable Custom PHP scripting blocks
-- `nu_password_resets` — Secure SHA-256 tokens for self-service recovery with expirations
-- `nu_products` — Product catalog and inventory tracking
-- `nu_api_usage` — Rate limiting logs
-- `nu_audit_log` — Core activity logging (protecting system column fields automatically)
-- `nu_files` — Upload tracking
-- `nu_email_*` — Email config, templates, queue, send logs
-- `nu_error_log` — Structured error log
-- `nu_widgets` — Dashboard widget definitions
-- `nu_app_templates` — App Cloner templates
-- `nu_webhooks` — Outgoing webhook routes and parameters
 
 ---
 
