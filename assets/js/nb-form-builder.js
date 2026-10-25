@@ -471,7 +471,7 @@ function _renderPropsInPanel(card, body) {
   spanLabel.className = 'text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-2';
   spanLabel.textContent = 'Width (cols)';
   spanBar.appendChild(spanLabel);
-  [3, 4, 6, 8, 12].forEach(function (n) {
+  [1, 2, 3, 4, 6, 8, 12].forEach(function (n) {
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'nb-span-btn px-2 py-1 text-xs border border-slate-200 dark:border-slate-800 rounded ' + (n === col ? 'bg-primary text-white font-bold' : 'bg-transparent text-slate-500');
@@ -482,7 +482,7 @@ function _renderPropsInPanel(card, body) {
       spanBar.querySelectorAll('.nb-span-btn').forEach(function (b) {
         b.className = 'nb-span-btn px-2 py-1 text-xs border border-slate-200 dark:border-slate-800 rounded ' + (parseInt(b.dataset.span, 10) === n ? 'bg-primary text-white font-bold' : 'bg-transparent text-slate-500');
       });
-      window.nbUpdateLivePreview();
+      if (window.nbUpdateLivePreview) window.nbUpdateLivePreview();
     });
     spanBar.appendChild(btn);
   });
@@ -1914,7 +1914,7 @@ fields.forEach(function (f) {
         } else if (align === 'center') {
           card.style.gridColumnStart = String(Math.floor((12 - span) / 2) + 1);
         } else {
-          card.style.gridColumnStart = '';
+          card.style.gridColumnStart = 'auto';
         }
       });
 
@@ -2913,7 +2913,8 @@ if (canvasType === 'subform' && sfData) {
       if (!card) return;
       var c = Math.min(12, Math.max(1, parseInt(col, 10) || 6));
       card.dataset.col = String(c);
-      card.style.gridColumn = 'span ' + c;
+      card.style.gridColumn = 'span ' + c + ' / span ' + c;
+      card.style.gridColumnEnd = 'span ' + c;
       card.style.width = '100%';
       card.style.maxWidth = '100%';
 
@@ -2923,7 +2924,7 @@ if (canvasType === 'subform' && sfData) {
       } else if (align === 'center') {
         card.style.gridColumnStart = String(Math.floor((12 - c) / 2) + 1);
       } else {
-        card.style.gridColumnStart = '';
+        card.style.gridColumnStart = 'auto';
       }
 
       var badge = card.querySelector('.nb-cfield-span-badge');
