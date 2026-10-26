@@ -547,82 +547,11 @@ window.NuApp = {
     try {
       const json = await this.apiJson('api/form.php?action=render&code=' + encodeURIComponent(code), { credentials: 'same-origin' });
       if (!json.success) { this.toast(json.error || 'Preview failed', 'error'); return; }
-
       const label = formLabel || code;
-      const sizes = {
-        compact:  { maxWidth: '560px',  maxHeight: '80vh' },
-        standard: { maxWidth: '900px',  maxHeight: '90vh' },
-        full:     { maxWidth: '98vw',   maxHeight: '96vh' },
-      };
-      let currentSize = this._previewModalSize || 'standard';
-
-      const overlay = document.createElement('div');
-      overlay.className = 'nu-form-overlay';
-      overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
-
-      const box = document.createElement('div');
-      box.style.cssText = 'background:var(--card-bg,#fff);border-radius:12px;padding:24px;width:92%;overflow-y:auto;transition:max-width 0.2s,max-height 0.2s;max-width:' + sizes[currentSize].maxWidth + ';max-height:' + sizes[currentSize].maxHeight + ';';
-
-      const applySize = (s) => {
-        currentSize = s; this._previewModalSize = s;
-        box.style.maxWidth  = sizes[s].maxWidth;
-        box.style.maxHeight = sizes[s].maxHeight;
-        box.querySelectorAll('.nu-size-btn').forEach(b => {
-          b.style.fontWeight = b.dataset.size === s ? '700' : '400';
-          b.style.background = b.dataset.size === s ? 'var(--primary,#4f6bed)' : 'transparent';
-          b.style.color      = b.dataset.size === s ? '#fff' : 'var(--text,#333)';
-        });
-      };
-
-      const header = document.createElement('div');
-      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;';
-      const titleWrap = document.createElement('div');
-      titleWrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;min-width:0;';
-      const bc = this._renderBreadcrumb([
-        { label: 'Forms', action: () => { overlay.remove(); this.loadModule('forms'); } },
-        { label: label }
-      ]);
-      bc.style.marginBottom = '0';
-      titleWrap.appendChild(bc);
-      header.appendChild(titleWrap);
-
-      const controls = document.createElement('div');
-      controls.style.cssText = 'display:flex;align-items:center;gap:4px;flex-shrink:0;';
-      ['compact','standard','full'].forEach(s => {
-        const btn = document.createElement('button');
-        btn.type = 'button'; btn.className = 'nu-size-btn'; btn.dataset.size = s;
-        btn.textContent = s === 'compact' ? '\u25a3 Sm' : s === 'standard' ? '\u25a3 Md' : '\u26f6 Lg';
-        btn.title = s.charAt(0).toUpperCase() + s.slice(1);
-        btn.style.cssText = 'border:1px solid var(--border-color,#ddd);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;background:transparent;color:var(--text,#333);transition:all 0.15s;';
-        btn.addEventListener('click', () => applySize(s));
-        controls.appendChild(btn);
+      window.NuFormShell.openModal(this, {
+        mode: 'preview', code: code, title: label, html: json.html,
+        crumbs: [{ label: 'Forms', action: () => this.loadModule('forms') }, { label: label }]
       });
-      const closeBtn = document.createElement('button');
-      closeBtn.type = 'button'; closeBtn.innerHTML = '&times;';
-      closeBtn.style.cssText = 'background:none;border:none;font-size:22px;cursor:pointer;line-height:1;padding:0 4px;color:var(--text,#333);margin-left:4px;';
-      closeBtn.addEventListener('click', () => overlay.remove());
-      controls.appendChild(closeBtn);
-      header.appendChild(controls);
-      box.appendChild(header);
-
-      const formWrap = document.createElement('div');
-      formWrap.innerHTML = json.html;
-      box.appendChild(formWrap);
-
-      const formEl = box.querySelector('.nu-generated-form');
-      if (formEl) formEl.dataset.displayMode = 'modal';
-
-      overlay.appendChild(box);
-      document.body.appendChild(overlay);
-      applySize(currentSize);
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-      this._initFormWidgets(box);
-      this._execModuleScripts(box);
-      this._dispatchFormOpened(box);
-      if (window.nuForm && typeof window.nuForm.init === 'function') {
-        if (formEl) window.nuForm.init(formEl.dataset.formCode || code, {}, true);
-      }
     } catch (err) {
       console.error('previewForm error', err);
       this.toast('Preview error: ' + err.message, 'error');
@@ -638,47 +567,14 @@ window.NuApp = {
     try {
       const json = await this.apiJson('api/form.php?action=render&code=' + encodeURIComponent(code) + '&id=' + encodeURIComponent(id), { credentials: 'same-origin' });
       if (!json.success) { this.toast(json.error || 'Failed', 'error'); return; }
-
-      const overlay = document.createElement('div');
-      overlay.className = 'nu-form-overlay';
-      overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
-
-      const box = document.createElement('div');
-      box.style.cssText = 'background:var(--card-bg,#fff);border-radius:12px;padding:24px;max-width:900px;max-height:90vh;overflow-y:auto;width:92%;';
-
-      const header = document.createElement('div');
-      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;';
-      const bc = this._renderBreadcrumb([
-        { label: 'Forms',     action: () => { overlay.remove(); this.loadModule('forms'); } },
-        { label: browseLabel, action: () => { overlay.remove(); this.browseForm(code, 1, '', browseLabel, mode); } },
-        { label: 'Edit #' + id }
-      ]);
-      bc.style.marginBottom = '0';
-      header.appendChild(bc);
-      const closeBtn = document.createElement('button');
-      closeBtn.type = 'button'; closeBtn.innerHTML = '&times;';
-      closeBtn.style.cssText = 'background:none;border:none;font-size:22px;cursor:pointer;line-height:1;padding:0 4px;color:var(--text,#333);';
-      closeBtn.addEventListener('click', () => overlay.remove());
-      header.appendChild(closeBtn);
-      box.appendChild(header);
-
-      const formWrap = document.createElement('div');
-      formWrap.innerHTML = json.html;
-      box.appendChild(formWrap);
-
-      const formEl = box.querySelector('.nu-generated-form');
-      if (formEl) formEl.dataset.displayMode = 'modal';
-
-      overlay.appendChild(box);
-      document.body.appendChild(overlay);
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-      this._initFormWidgets(box);
-      this._execModuleScripts(box);
-      this._dispatchFormOpened(box);
-      if (window.nuForm && typeof window.nuForm.init === 'function') {
-        if (formEl) window.nuForm.init(formEl.dataset.formCode || code, {}, false);
-      }
+      window.NuFormShell.openModal(this, {
+        mode: 'edit', id: id, code: code, title: browseLabel, html: json.html,
+        crumbs: [
+          { label: 'Forms',     action: () => this.loadModule('forms') },
+          { label: browseLabel, action: () => this.browseForm(code, 1, '', browseLabel, mode) },
+          { label: 'Edit #' + id }
+        ]
+      });
     } catch (err) {
       console.error('editRecord error', err);
       this.toast('Error: ' + err.message, 'error');
@@ -695,62 +591,14 @@ window.NuApp = {
         { credentials: 'same-origin' }
       );
       if (!json.success) { this.toast(json.error || 'Failed', 'error'); return; }
-
-      const overlay = document.createElement('div');
-      overlay.className = 'nu-form-overlay';
-      overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
-
-      const box = document.createElement('div');
-      box.style.cssText = 'background:var(--card-bg,#fff);border-radius:12px;padding:24px;max-width:900px;max-height:90vh;overflow-y:auto;width:92%;';
-
-      const header = document.createElement('div');
-      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;';
-      const bc = this._renderBreadcrumb([
-        { label: browseLabel, action: () => { overlay.remove(); this.browseForm(code, 1, '', browseLabel, mode); } },
-        { label: 'View #' + id }
-      ]);
-      bc.style.marginBottom = '0';
-      header.appendChild(bc);
-
-      const badge = document.createElement('span');
-      badge.textContent = '\uD83D\uDD12 View Only';
-      badge.style.cssText = 'font-size:11px;padding:3px 8px;border-radius:10px;background:var(--bg-elevated,#f0f0f0);color:var(--text-muted,#888);margin-right:8px;';
-      header.appendChild(badge);
-
-      const closeBtn = document.createElement('button');
-      closeBtn.type = 'button'; closeBtn.innerHTML = '&times;';
-      closeBtn.style.cssText = 'background:none;border:none;font-size:22px;cursor:pointer;line-height:1;padding:0 4px;color:var(--text,#333);';
-      closeBtn.addEventListener('click', () => overlay.remove());
-      header.appendChild(closeBtn);
-      box.appendChild(header);
-
-      const formWrap = document.createElement('div');
-      formWrap.innerHTML = json.html;
-      box.appendChild(formWrap);
-
-      box.querySelectorAll('input, textarea, select, button[type="submit"]').forEach(el => {
-        if (el.type === 'submit') { el.style.display = 'none'; return; }
-        el.setAttribute('disabled', 'disabled');
-        el.style.opacity = '0.7';
-        el.style.cursor  = 'default';
+      window.NuFormShell.openModal(this, {
+        mode: 'view', id: id, code: code, title: browseLabel, html: json.html,
+        onEdit: NuPerms.canEdit() ? () => this.editRecord(code, id, browseLabel, 'modal') : null,
+        crumbs: [
+          { label: browseLabel, action: () => this.browseForm(code, 1, '', browseLabel, mode) },
+          { label: 'View #' + id }
+        ]
       });
-      box.querySelectorAll('button.nu-btn-ghost').forEach(el => {
-        if (el.textContent.trim() === 'Cancel') el.textContent = 'Close';
-      });
-
-      const formEl = box.querySelector('.nu-generated-form');
-      if (formEl) {
-        formEl.dataset.displayMode = 'modal';
-        formEl.dataset.viewOnly    = '1';
-      }
-
-      overlay.appendChild(box);
-      document.body.appendChild(overlay);
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-      this._initFormWidgets(box);
-      this._execModuleScripts(box);
-      this._dispatchFormOpened(box);
     } catch (err) {
       console.error('viewRecord error', err);
       this.toast('Error: ' + err.message, 'error');
@@ -961,6 +809,10 @@ window.NuApp = {
       if (window.nuForm && typeof window.nuForm.init === 'function') {
         if (formEl) window.nuForm.init(formEl.dataset.formCode || code, {}, isPreview);
       }
+      window.NuFormShell.decoratePage(container, {
+        mode: isPreview ? 'preview' : (id ? 'edit' : 'new'), id: id,
+        close: () => this.browseForm(code, 1, '', label, 'inline')
+      });
     } catch (err) { console.error('_openFormInline error', err); this.toast('Error: ' + err.message, 'error'); }
   },
 
@@ -1088,7 +940,7 @@ window.NuApp = {
       ]));
       const exitBtn = document.createElement('button');
       exitBtn.className = 'nu-btn nu-btn-ghost nu-btn-sm'; exitBtn.style.cssText = 'margin-bottom:12px;';
-      exitBtn.textContent = '\u2715 Exit Full Page'; exitBtn.onclick = exitAction;
+      exitBtn.textContent = '\u2715 Exit Full Page'; exitBtn.onclick = () => window.NuFormShell.guard(container.querySelector('.nu-generated-form'), exitAction);
       container.appendChild(exitBtn);
       const formWrap = document.createElement('div');
       formWrap.innerHTML = json.html;
@@ -1101,6 +953,9 @@ window.NuApp = {
       if (window.nuForm && typeof window.nuForm.init === 'function') {
         if (formEl) window.nuForm.init(formEl.dataset.formCode || code, {}, isPreview);
       }
+      window.NuFormShell.decoratePage(container, {
+        mode: isPreview ? 'preview' : (id ? 'edit' : 'new'), id: id, close: exitAction
+      });
     } catch (err) { this._exitFullPage(); console.error('_openFormFullPage error', err); this.toast('Error: ' + err.message, 'error'); }
   }
 };
@@ -1112,9 +967,19 @@ if (document.readyState === 'loading') {
 }
 
 window.closeNuForm = function (btn) {
+  const form    = btn ? btn.closest('form') : null;
   const overlay = btn ? btn.closest('.nu-form-overlay') : null;
-  if (overlay) { overlay.remove(); return; }
-  NuApp.loadModule('forms');
+  const go = () => {
+    if (overlay) { overlay.remove(); return; }
+    const fromBrowse = form && form.dataset.fromBrowse;
+    if (form && form.dataset.formCode && form.dataset.displayMode === 'inline') {
+      NuApp.browseForm(form.dataset.formCode, 1, '', fromBrowse || null, 'inline');
+      return;
+    }
+    if (document.body.dataset.nuFullPage) NuApp._exitFullPage();
+    NuApp.loadModule('forms');
+  };
+  if (window.NuFormShell && form) window.NuFormShell.guard(form, go); else go();
 };
 
 window.submitNuForm = async function (formElement) {
@@ -1124,36 +989,41 @@ window.submitNuForm = async function (formElement) {
 
   // Clear existing validation highlights & error messages
   formElement.querySelectorAll('.nu-validation-error-msg').forEach(el => el.remove());
-  formElement.querySelectorAll('.nu-input-error').forEach(el => {
+  formElement.querySelectorAll('.nu-input-error, [aria-invalid="true"]').forEach(el => {
     el.classList.remove('nu-input-error');
-    el.style.borderColor = '';
+    el.removeAttribute('aria-invalid');
   });
 
-  // Real-time Visual validation feedback
-  let isFormValid = true;
+  // Required-field validation (inline messages, cleared as the user fixes them)
+  let invalidCount = 0;
   let firstInvalidElement = null;
   formElement.querySelectorAll('[required]').forEach((el) => {
+    if (el.disabled) return;
+    const isCheck = el.type === 'checkbox' || el.type === 'radio';
+    const empty = isCheck ? !el.checked : (el.value == null || String(el.value).trim() === '');
+    if (!empty) return;
+    invalidCount++;
     const isSelect2 = el.classList.contains('nu-select2');
     const targetEl = isSelect2 ? el.nextElementSibling || el : el;
-    const value = el.value ? el.value.trim() : '';
-    if (value === '') {
-      isFormValid = false;
-      el.classList.add('nu-input-error');
-      targetEl.style.borderColor = '#ef4444';
-      targetEl.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.2)';
-
-      const errorMsg = document.createElement('div');
-      errorMsg.className = 'nu-validation-error-msg';
-      errorMsg.style.cssText = 'color:#ef4444;font-size:11px;font-weight:600;margin-top:4px;display:flex;align-items:center;gap:4px;transition:all 0.2s;';
-      errorMsg.innerHTML = '⚠️ This field is required';
-      targetEl.parentNode.appendChild(errorMsg);
-
-      if (!firstInvalidElement) firstInvalidElement = el;
-    }
+    el.classList.add('nu-input-error');
+    el.setAttribute('aria-invalid', 'true');
+    targetEl.classList.add('nu-input-error');
+    const errorMsg = document.createElement('div');
+    errorMsg.className = 'nu-validation-error-msg';
+    errorMsg.setAttribute('role', 'alert');
+    errorMsg.textContent = 'This field is required';
+    targetEl.parentNode.appendChild(errorMsg);
+    const clear = () => {
+      el.classList.remove('nu-input-error'); targetEl.classList.remove('nu-input-error');
+      el.removeAttribute('aria-invalid'); errorMsg.remove();
+    };
+    el.addEventListener('input', clear, { once: true });
+    el.addEventListener('change', clear, { once: true });
+    if (!firstInvalidElement) firstInvalidElement = el;
   });
 
-  if (!isFormValid) {
-    NuApp.toast('Please fill out all required fields.', 'error');
+  if (invalidCount) {
+    NuApp.toast(invalidCount === 1 ? 'Please fill out the highlighted required field.' : 'Please fill out the ' + invalidCount + ' highlighted required fields.', 'error');
     if (firstInvalidElement) {
       firstInvalidElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       firstInvalidElement.focus();
@@ -1204,13 +1074,27 @@ window.submitNuForm = async function (formElement) {
       try { const v = await result; if (v === false) return; } catch (e) { return; }
     }
   }
+  const saveBtn = formElement.querySelector('button[type="submit"]');
+  const setBusy = (busy) => {
+    formElement.classList.toggle('is-saving', busy);
+    if (!saveBtn) return;
+    saveBtn.disabled = busy;
+    if (busy) {
+      saveBtn.dataset.html = saveBtn.innerHTML;
+      saveBtn.innerHTML = '<span class="nu-fs-spin"></span> Saving\u2026';
+    } else if (saveBtn.dataset.html) {
+      saveBtn.innerHTML = saveBtn.dataset.html;
+    }
+  };
+  setBusy(true);
   try {
     const json = await NuApp.apiJson(url, {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (!json.success) { NuApp.toast(json.error || 'Save failed', 'error'); return; }
+    if (!json.success) { setBusy(false); NuApp.toast(json.error || 'Save failed', 'error'); return; }
+    if (window.NuFormShell) window.NuFormShell.markClean(formElement);
     NuApp.toast(recordId ? 'Updated' : 'Saved');
     if (window._nuFormAfterSave && typeof window._nuFormAfterSave[formCode] === 'function') {
       window._nuFormAfterSave[formCode](formElement, json);
@@ -1222,7 +1106,7 @@ window.submitNuForm = async function (formElement) {
     } else {
       NuApp.loadModule('forms');
     }
-  } catch (e) { console.error('submitNuForm error', e); NuApp.toast('Error: ' + e.message, 'error'); }
+  } catch (e) { setBusy(false); console.error('submitNuForm error', e); NuApp.toast('Error: ' + e.message, 'error'); }
 };
 
 window.openFormBuilder = function ()                               { return NuApp.openFormBuilder ? NuApp.openFormBuilder() : (window.nbFormBuilder ? window.nbFormBuilder.open() : null); };

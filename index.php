@@ -199,6 +199,7 @@ try {
     <link rel="stylesheet" href="<?= nu_asset('assets/css/select2.min.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-browse.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-shell.css') ?>">
+    <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-form-shell.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('lib/uppy/uppy.min.css') ?>">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0b1020">
