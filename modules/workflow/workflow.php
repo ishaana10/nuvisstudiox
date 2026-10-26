@@ -30,6 +30,8 @@ $workflows = $db->fetchAll(
       <input type="text" class="nu-input" id="wfSearchInput" placeholder="Search workflows…" oninput="WF.search(this.value)" style="padding-left:30px;width:200px;font-size:13px;">
     </div>
     <?php if ($auth->hasPermission('workflow', 'create')): ?>
+    <input type="file" id="wfImportFile" accept="application/json,.json" style="display:none;" onchange="WF.importFile(this)">
+    <button class="nu-btn nu-btn-ghost" onclick="document.getElementById('wfImportFile').click()" title="Import a workflow exported from another project">Import</button>
     <button class="nu-btn nu-btn-primary" onclick="WF.openNew()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New Workflow
@@ -108,6 +110,10 @@ $totalRun     = array_sum(array_column($workflows, 'total_instances'));
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         Instances
       </button>
+      <?php if ($auth->hasPermission('workflow', 'create')): ?>
+      <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.duplicate(<?= $wf['wf_id'] ?>)" title="Duplicate this workflow">Copy</button>
+      <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.exportWf(<?= $wf['wf_id'] ?>)" title="Download as a JSON file">Export</button>
+      <?php endif; ?>
       <?php if ($auth->hasPermission('workflow', 'delete')): ?>
       <button class="nu-btn nu-btn-danger nu-btn-sm" onclick="WF.delete(<?= $wf['wf_id'] ?>, '<?= htmlspecialchars($wf['wf_name'], ENT_QUOTES) ?>')">
         Delete
@@ -285,49 +291,53 @@ $totalRun     = array_sum(array_column($workflows, 'total_instances'));
 <!-- ══════════════════════════════════════════════════════════════════════════════
      HOOK CONFIGURATION MODAL
 ═══════════════════════════════════════════════════════════════════════════════ -->
-<div id="wfHookConfigModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:910;align-items:center;justify-content:center;">
-  <div style="background:var(--bg-primary,#fff);border-radius:12px;width:min(620px,94vw);max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;">
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;background:var(--bg-primary,#fff);z-index:1;">
+<div id="wfRuleModal" class="wfb-modal">
+  <div class="wfb-modal-card">
+    <div class="wfb-modal-head">
       <div>
-        <h3 style="font-size:15px;font-weight:600;margin:0 0 2px;">Transition Hook Configuration</h3>
-        <p style="font-size:11px;color:var(--text-tertiary);margin:0;">Configure custom actions, target tables, update fields, or email templates.</p>
+        <h3 id="wfRuleTitle" style="font-size:16px;font-weight:700;margin:0 0 2px;">Rules &amp; actions</h3>
+        <p id="wfRuleSub" style="font-size:12px;color:var(--text-tertiary);margin:0;"></p>
       </div>
-      <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.closeHookConfig()">✕</button>
+      <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.closeRule()" aria-label="Close">✕</button>
     </div>
-    <div style="padding:20px;flex:1;overflow-y:auto;">
-      <input type="hidden" id="wfHookConfigIdx">
-      <div style="margin-bottom:14px;">
-        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">JSON Configuration Payload</label>
-        <textarea class="nu-input" id="wfHookConfigPayload" rows="10" style="font-family:monospace;font-size:12px;width:100%;tab-size:2;height:200px;" placeholder='{ "action": "update_record", "field": "status", "value": "In Progress" }'></textarea>
-      </div>
-
-      <div>
-        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">Choose a Quick Template to Load:</label>
-        <div style="display:grid;grid-template-columns:1fr;gap:8px;">
-          <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.loadHookTemplate(&#39;update_status&#39;)" style="text-align:left;font-size:11px;display:flex;align-items:center;justify-content:space-between;">
-            <span>📝 Update status to "In Progress" (Linked Request)</span>
-            <span style="font-size:10px;color:var(--text-tertiary);">Load</span>
-          </button>
-          <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.loadHookTemplate(&#39;update_field&#39;)" style="text-align:left;font-size:11px;display:flex;align-items:center;justify-content:space-between;">
-            <span>📝 Update any arbitrary custom table & field</span>
-            <span style="font-size:10px;color:var(--text-tertiary);">Load</span>
-          </button>
-          <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.loadHookTemplate(&#39;send_custom_email&#39;)" style="text-align:left;font-size:11px;display:flex;align-items:center;justify-content:space-between;">
-            <span>📧 Send Custom email notification</span>
-            <span style="font-size:10px;color:var(--text-tertiary);">Load</span>
-          </button>
-          <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.loadHookTemplate(&#39;multiple_actions&#39;)" style="text-align:left;font-size:11px;display:flex;align-items:center;justify-content:space-between;">
-            <span>⚙️ Combined: Update field + Send email notification</span>
-            <span style="font-size:10px;color:var(--text-tertiary);">Load</span>
-          </button>
+    <div class="wfb-tabs" id="wfRuleTabs">
+      <button type="button" class="is-active" data-tab="when" onclick="WF.ruleTab('when')">1 · When — rules &amp; who</button>
+      <button type="button" data-tab="then" onclick="WF.ruleTab('then')">2 · Then — actions</button>
+    </div>
+    <div class="wfb-modal-body">
+      <div class="wfb-pane" id="wfPaneWhen">
+        <p style="margin:0 0 8px;font-size:13px;color:var(--text-secondary);">This step can only be taken when the rule below is true. Leave it empty to always allow it.</p>
+        <div id="wfCondHost"></div>
+        <div class="wfb-testbar">
+          <input class="nu-input" id="wfTestRec" placeholder="record id (blank = latest record)" style="width:230px;height:32px;font-size:12.5px;">
+          <button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.testRule()">Test this rule on a real record</button>
+          <span id="wfTestRes" class="wfb-test-res"></span>
+        </div>
+        <div class="wfb-opts">
+          <label class="wfb-opt"><input type="checkbox" id="wfOptComment"><span><b>Require a comment</b><small>The person must explain before taking this step.</small></span></label>
+          <label class="wfb-opt"><input type="checkbox" id="wfOptAuto"><span><b>Run automatically</b><small>Fires by itself as soon as the rule is true (checked on every step and by the scheduled job).</small></span></label>
+          <label class="wfb-opt"><input type="checkbox" id="wfOptSla"><span><b>Use when the stage SLA is exceeded</b><small>Escalate automatically if the instance sits too long (set SLA hours on the stage).</small></span></label>
+        </div>
+        <div style="margin-top:14px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-secondary);">Who can take this step?</div>
+          <div class="wfb-roles" id="wfRoles"></div>
+          <p class="wfb-note">Leave all unticked to allow everyone (or the stage’s role). Administrators can always act.</p>
+        </div>
+        <div style="margin-top:14px;max-width:520px;">
+          <label style="font-size:12px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:4px;">Ask for confirmation first (optional)</label>
+          <input class="nu-input" id="wfOptConfirm" placeholder="e.g. This will notify the customer. Continue?" style="height:32px;font-size:12.5px;">
         </div>
       </div>
+      <div class="wfb-pane" id="wfPaneThen" hidden>
+        <p id="wfThenHint" style="margin:0 0 10px;font-size:13px;color:var(--text-secondary);">These run, in order, right after the step is taken. Use <b>Update a record</b> to change fields in this record or in any other table.</p>
+        <div id="wfActHost"></div>
+      </div>
     </div>
-    <div style="padding:16px 20px;border-top:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;background:var(--bg-secondary);">
-      <span id="wfHookConfigError" style="font-size:11px;color:var(--color-danger);font-family:monospace;"></span>
-      <div style="display:flex;gap:8px;">
-        <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.closeHookConfig()">Cancel</button>
-        <button class="nu-btn nu-btn-primary nu-btn-sm" onclick="WF.saveHookConfig()">Apply Changes</button>
+    <div class="wfb-modal-foot">
+      <span id="wfRuleErr" style="font-size:12px;color:var(--color-error);"></span>
+      <div style="display:flex;gap:8px;margin-left:auto;">
+        <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.closeRule()">Cancel</button>
+        <button class="nu-btn nu-btn-primary nu-btn-sm" onclick="WF.applyRule()">Apply</button>
       </div>
     </div>
   </div>
@@ -416,6 +426,7 @@ window.WF = (() => {
   let _stageCount  = 0;
   let _transCount  = 0;
   let _currentWfId = null;
+  var _wfCtx = { fields: [], table: '', roles: [], forFor: null };
   let _instancesWfId = null;
   let _loadedInstancesList = [];
   let _viewLayout  = 'list';
@@ -454,6 +465,7 @@ window.WF = (() => {
       _transitions = d.transitions || [];
       _renderStages();
       _renderTransitions();
+      _loadContext();
     } catch (e) { toast('Failed to load workflow', 'error'); }
     _showDrawer();
   }
@@ -480,12 +492,26 @@ window.WF = (() => {
       toast('Workflow saved', 'success');
 
       // Save stages (save any new or existing updated stage rows)
+      const errs = [], idMap = {};
       const stageRows = document.querySelectorAll('.wf-stage-row');
-      for (const row of stageRows) { await _saveStageRow(row, d.wf_id); }
+      for (const row of stageRows) {
+        const res = await _saveStageRow(row, d.wf_id);
+        if (res && !res.success) errs.push(res.error);
+        else if (res && row.dataset.new === '1') idMap[row.dataset.id] = res.wfs_id;
+      }
+      // Transitions may point at stages that were only just created: translate their temporary ids.
+      _transitions.forEach(t => {
+        if (idMap[t.wft_from_id]) t.wft_from_id = idMap[t.wft_from_id];
+        if (idMap[t.wft_to_id])   t.wft_to_id   = idMap[t.wft_to_id];
+      });
 
       // Save transitions (save any new or existing updated transition rows)
       const transRows = document.querySelectorAll('.wf-trans-row');
-      for (const row of transRows) { await _saveTransRow(row, d.wf_id); }
+      for (const row of transRows) {
+        const res = await _saveTransRow(row, d.wf_id);
+        if (res && !res.success) errs.push(res.error);
+      }
+      if (errs.length) { toast('Saved with problems: ' + errs.join('; '), 'error'); return; }
 
       // Close drawer then reload workflow module in-place (no full page reload)
       closeDrawer();
@@ -535,7 +561,7 @@ window.WF = (() => {
     list.innerHTML = _stages.map((s, i) => {
       const isNew = String(s.wfs_id).startsWith('new_');
       return `<div class="wf-stage-row" data-idx="${i}" data-new="${isNew?1:0}" data-id="${esc(s.wfs_id)}"
-           style="display:grid;grid-template-columns:16px auto 1fr 90px 80px 70px 50px 32px;gap:8px;align-items:center;padding:8px;border-radius:6px;margin-bottom:6px;background:var(--bg-secondary);">
+           style="display:grid;grid-template-columns:16px auto 1fr 90px 80px 70px 50px 40px 32px;gap:8px;align-items:center;padding:8px;border-radius:6px;margin-bottom:6px;background:var(--bg-secondary);">
         <span style="color:var(--text-tertiary);cursor:grab;user-select:none;font-size:14px;">⠿</span>
         <input type="color" value="${esc(s.wfs_color)}" data-field="color" onchange="WF._patchStage(${i},'color',this.value)" style="width:28px;height:28px;border:none;border-radius:6px;cursor:pointer;padding:1px;background:none;">
         <input type="text" class="nu-input" value="${esc(s.wfs_name)}" data-field="name" placeholder="Stage name" oninput="WF._patchStage(${i},'name',this.value)" style="font-size:13px;padding:5px 8px;">
@@ -547,6 +573,7 @@ window.WF = (() => {
         <label style="font-size:11px;color:var(--text-tertiary);white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:3px;">
           <input type="checkbox" ${s.wfs_is_end==1?'checked':''} onchange="WF._patchStage(${i},'is_end',this.checked?1:0)" style="width:13px;height:13px;"> End
         </label>
+        <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.openStageActions(${i})" style="padding:4px 7px;${_stageActCount(s)?'color:var(--primary);':''}" title="Actions to run when a record enters this stage${_stageActCount(s)?' ('+_stageActCount(s)+')':''}">⚡${_stageActCount(s)||''}</button>
         <button class="nu-btn nu-btn-danger nu-btn-sm" onclick="WF._deleteStage(${i})" style="padding:4px 7px;">×</button>
       </div>`;
     }).join('');
@@ -582,7 +609,7 @@ window.WF = (() => {
   async function _saveStageRow(row, wfId) {
     const idx   = parseInt(row.dataset.idx);
     const stage = _stages[idx];
-    if (!stage || !stage.wfs_name.trim()) return;
+    if (!stage || !stage.wfs_name.trim()) return null;
     const payload = {
       wfs_wf_id:     wfId,
       wfs_id:        String(stage.wfs_id).startsWith('new_') ? null : stage.wfs_id,
@@ -594,10 +621,12 @@ window.WF = (() => {
       wfs_order:     idx,
       wfs_sla_hours: stage.wfs_sla_hours || null,
       wfs_role:      stage.wfs_role || null,
+      wfs_on_enter:  stage.wfs_on_enter || null,
     };
     try {
-      await fetch('api/workflow.php?action=save_stage', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    } catch (e) { /* best effort */ }
+      const r = await fetch('api/workflow.php?action=save_stage', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+      return await r.json();
+    } catch (e) { return { success:false, error:'Network error saving stage' }; }
   }
 
   function addTransition() {
@@ -640,24 +669,9 @@ window.WF = (() => {
           <input type="text" class="nu-input" value="${esc(t.wft_label)}" oninput="WF._patchTrans(${i},'label',this.value)" placeholder="Button label" style="font-size:12px;padding:5px 8px;">
           <button class="nu-btn nu-btn-danger nu-btn-sm" onclick="WF._deleteTrans(${i})" style="padding:4px 7px;">×</button>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;border-top:1px dashed var(--border-color);padding-top:8px;">
-          <div style="display:flex;align-items:center;gap:4px;">
-            <span style="font-size:11px;font-weight:600;color:var(--text-tertiary);white-space:nowrap;">If Condition:</span>
-            <input type="text" class="nu-input" value="${esc(t.wft_condition||'')}" oninput="WF._patchTrans(${i},'condition',this.value)" placeholder="e.g. amount > 1000" style="font-size:11px;padding:4px 8px;font-family:monospace;flex:1;">
-          </div>
-          <div style="display:flex;align-items:center;gap:4px;">
-            <span style="font-size:11px;font-weight:600;color:var(--text-tertiary);white-space:nowrap;">Trigger Hook:</span>
-            <div style="display:flex;gap:4px;align-items:center;flex:1;">
-              <select class="nu-input" onchange="WF._patchTrans(${i},'hook',this.value); WF._renderTransitions();" style="font-size:11px;padding:4px 8px;flex:1;max-width:140px;">
-                <option value="">None</option>
-                <option value="send_email" ${t.wft_hook==='send_email'?'selected':''}>📧 Send Email</option>
-                <option value="call_webhook" ${t.wft_hook==='call_webhook'?'selected':''}>🔗 Webhook</option>
-                <option value="update_record" ${t.wft_hook==='update_record'?'selected':''}>📝 Update Record</option>
-                <option value="custom_json" ${String(t.wft_hook).startsWith('{') || String(t.wft_hook).startsWith('[') ? 'selected' : ''}>⚙️ Custom JSON</option>
-              </select>
-              <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.openHookConfig(${i})" style="padding:4px 8px;font-size:11px;" title="Configure Hook Action Details">⚙️ Config</button>
-            </div>
-          </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px dashed var(--border-color);padding-top:8px;flex-wrap:wrap;">
+          <div class="wf-badges">${_badgesHtml(t)}</div>
+          <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.openRule(${i})" style="font-size:12px;">⚙ Rules &amp; actions</button>
         </div>
       </div>`;
     }).join('');
@@ -687,7 +701,7 @@ window.WF = (() => {
   async function _saveTransRow(row, wfId) {
     const idx = parseInt(row.dataset.idx);
     const t   = _transitions[idx];
-    if (!t || !t.wft_from_id || !t.wft_to_id) return;
+    if (!t || !t.wft_from_id || !t.wft_to_id) return null;
     const payload = {
       wft_wf_id:     wfId,
       wft_id:        String(t.wft_id).startsWith('new_') ? null : t.wft_id,
@@ -697,12 +711,14 @@ window.WF = (() => {
       wft_label:     t.wft_label || 'Advance',
       wft_condition: t.wft_condition || null,
       wft_hook:      t.wft_hook || null,
+      wft_options:   t.wft_options || null,
     };
     try {
-      await fetch('api/workflow.php?action=save_transition', {
+      const r = await fetch('api/workflow.php?action=save_transition', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
-    } catch (e) { /* best effort */ }
+      return await r.json();
+    } catch (e) { return { success:false, error:'Network error saving transition' }; }
   }
 
   async function openInstances(wfId, wfName) {
@@ -846,45 +862,70 @@ window.WF = (() => {
       if (!d.success) { $('wfHistoryTimeline').innerHTML = `<p style="color:var(--color-danger);">${esc(d.error)}</p>`; return; }
       const inst = d.instance;
       $('wfHistoryTitle').textContent = `Instance #${inst.wfi_id} — ${inst.wf_name}`;
-      $('wfHistorySub').textContent   = inst.wf_code;
+      $('wfHistorySub').textContent   = inst.wf_code + (inst.wfi_record_table ? `  ·  ${inst.wfi_record_table} #${inst.wfi_record_id}` : '');
       const sc = inst.stage_color || '#6366f1';
       $('wfHistoryStage').innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);margin-right:6px;">Current stage:</span>
         <span style="background:${sc}18;color:${sc};padding:3px 12px;border-radius:99px;font-size:12px;font-weight:600;">${esc(inst.stage_name)}</span>
         <span style="margin-left:8px;font-size:12px;color:var(--text-tertiary);">${esc(inst.wfi_status)}</span>`;
-      if (inst.wfi_status === 'active' && d.transitions && d.transitions.length > 0) {
+      if (inst.wfi_status === 'active') {
+        const manual = (d.transitions || []).filter(t => !t.auto);
+        const autos  = (d.transitions || []).filter(t => t.auto);
         const ac = { advance:'nu-btn-primary', reject:'nu-btn-danger', return:'nu-btn-ghost', escalate:'nu-btn-ghost' };
         let ah = `<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;">Available actions:</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">`;
-        d.transitions.forEach(t => { ah += `<button class="nu-btn ${ac[t.wft_action]||'nu-btn-ghost'} nu-btn-sm" onclick="WF.doTransition(${instanceId},${t.wft_id},'${esc(t.wft_label)}')">${esc(t.wft_label)}</button>`; });
-        ah += `<button class="nu-btn nu-btn-danger nu-btn-sm" onclick="WF.doReject(${instanceId})">✕ Reject</button></div>`;
-        ah += `<div style="display:flex;gap:8px;"><input type="text" class="nu-input" id="wfActionComment" placeholder="Comment (optional)" style="font-size:12px;padding:5px 10px;flex:1;"></div>`;
+        manual.forEach(t => {
+          ah += `<button class="nu-btn ${ac[t.wft_action]||'nu-btn-ghost'} nu-btn-sm" ${t.can_run ? '' : 'disabled'} title="${esc(t.can_run ? '' : t.blocked_reason)}"
+                   onclick="WF.doTransition(${instanceId},${t.wft_id},'${esc(t.wft_label).replace(/'/g, '&#39;')}',${t.require_comment ? 1 : 0},'${esc(t.confirm).replace(/'/g, '&#39;')}')">${esc(t.wft_label)}${t.require_comment ? ' 💬' : ''}</button>`;
+        });
+        ah += `<button class="nu-btn nu-btn-danger nu-btn-sm" onclick="WF.doReject(${instanceId})">✕ Reject</button>`;
+        if (autos.length) ah += `<button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="WF.recheck(${instanceId})" title="Run any automatic steps whose rule is now true">🤖 Re-check automation</button>`;
+        ah += '</div>';
+        const blocked = manual.filter(t => !t.can_run);
+        if (blocked.length) ah += `<div style="font-size:11.5px;color:var(--text-tertiary);margin-bottom:8px;">${blocked.map(t => `<div>🔒 <b>${esc(t.wft_label)}</b>: ${esc(t.blocked_reason)}</div>`).join('')}</div>`;
+        if (autos.length) ah += `<div style="font-size:11.5px;color:var(--text-tertiary);margin-bottom:8px;">${autos.map(t => `<div>🤖 <b>${esc(t.wft_label)}</b> runs automatically${t.can_run ? '' : ' once its rule is true'}</div>`).join('')}</div>`;
+        const needC = manual.some(t => t.require_comment);
+        ah += `<div style="display:flex;gap:8px;"><input type="text" class="nu-input" id="wfActionComment" placeholder="Comment${needC ? ' (required for steps marked 💬)' : ' (optional)'}" style="font-size:12px;padding:5px 10px;flex:1;"></div>`;
         $('wfHistoryActions').innerHTML = ah;
         $('wfHistoryActions').style.display = 'block';
       }
       const history = d.history || [];
-      if (!history.length) { $('wfHistoryTimeline').innerHTML = '<p style="font-size:13px;color:var(--text-tertiary);">No history yet.</p>'; return; }
-      const ai = { start:'▶', advance:'→', reject:'✕', cancel:'○', return:'↩', escalate:'↑', completed:'✓' };
-      const ac2 = { start:'#6366f1', advance:'#22c55e', reject:'#ef4444', cancel:'#6b7280', return:'#f59e0b', escalate:'#06b6d4', completed:'#22c55e' };
-      $('wfHistoryTimeline').innerHTML = history.map(h => {
+      const ai = { start:'▶', advance:'→', reject:'✕', cancel:'○', return:'↩', escalate:'↑', completed:'✓', sla_breach:'⏱' };
+      const ac2 = { start:'#6366f1', advance:'#22c55e', reject:'#ef4444', cancel:'#6b7280', return:'#f59e0b', escalate:'#06b6d4', completed:'#22c55e', sla_breach:'#f59e0b' };
+      let tl = history.length ? history.map(h => {
         const col = ac2[h.wfh_action]||'#888', icon = ai[h.wfh_action]||'•';
         const from = h.from_stage ? `<span style="color:var(--text-tertiary);">${esc(h.from_stage)}</span> → ` : '';
         return `<div class="wf-timeline-item">
           <div class="wf-timeline-dot" style="background:${col}18;color:${col};">${icon}</div>
           <div style="flex:1;">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <span style="font-size:13px;font-weight:600;text-transform:capitalize;">${esc(h.wfh_action)}</span>
+              <span style="font-size:13px;font-weight:600;text-transform:capitalize;">${h.wfh_action === 'sla_breach' ? 'SLA exceeded' : esc(String(h.wfh_action).replace('_',' '))}</span>
               <span style="font-size:12px;color:var(--text-secondary);">${from}${esc(h.to_stage)}</span>
               <span style="font-size:11px;color:var(--text-tertiary);margin-left:auto;">${(h.wfh_acted_at||'').substring(0,16)}</span>
             </div>
             <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">By <b>${esc(h.actor_name||'System')}</b>${h.wfh_comment?' — <i>'+esc(h.wfh_comment)+'</i>':''}</div>
           </div>
         </div>`;
-      }).join('');
+      }).join('') : '<p style="font-size:13px;color:var(--text-tertiary);">No history yet.</p>';
+
+      const log = d.actions || [];
+      if (log.length) {
+        const typeName = { update_record:'Updated record', create_record:'Added record', send_email:'Email', notify_user:'Notification', http_request:'Web request', call_webhook:'Webhook', run_procedure:'Procedure', call_agent:'AI agent' };
+        tl += `<div style="margin-top:8px;border-top:1px solid var(--border-color);padding-top:14px;"><div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">⚡ Automation log</div><div class="wf-log">` +
+          log.map(l => {
+            const ch = (l.wal_changes || []).slice(0, 3).map(c => `<div style="font-family:ui-monospace,monospace;font-size:11px;color:var(--text-tertiary);">${esc(c.table)}${c.id != null ? ' #' + esc(c.id) : ''}: ` +
+              Object.keys(c.after || {}).map(k => `${esc(k)} ${esc(c.before && c.before[k] != null ? c.before[k] : '∅')} → <b>${esc(c.after[k] == null ? '∅' : c.after[k])}</b>`).join(', ') + '</div>').join('');
+            return `<div class="wf-log-item is-${esc(l.wal_status)}"><b>${esc(typeName[l.wal_type] || l.wal_type)}</b>${l.wal_label ? ' — ' + esc(l.wal_label) : ''}
+              <span style="color:var(--text-tertiary);">· ${esc(l.wal_status)} · ${(l.wal_at||'').substring(0,16)}</span><div>${esc(l.wal_message || '')}</div>${ch}</div>`;
+          }).join('') + '</div></div>';
+      }
+      $('wfHistoryTimeline').innerHTML = tl;
     } catch (e) { $('wfHistoryTimeline').innerHTML = `<p style="color:var(--color-danger);font-size:13px;">${esc(e.message)}</p>`; }
   }
 
-  async function doTransition(instanceId, transitionId, label) {
-    const comment = ($('wfActionComment')?.value||'').trim();
-    if (!confirm(`Perform "${label}" on instance #${instanceId}?`)) return;
+  async function doTransition(instanceId, transitionId, label, requireComment, confirmMsg) {
+    const input = $('wfActionComment');
+    const comment = (input?.value||'').trim();
+    if (requireComment && !comment) { toast(`“${label}” needs a comment.`, 'error'); input?.focus(); return; }
+    if (!confirm(confirmMsg || `Perform "${label}" on instance #${instanceId}?`)) return;
     try {
       const r = await fetch('api/workflow.php?action=advance', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ instance_id:instanceId, transition_id:transitionId, comment }) });
       const d = await r.json();
@@ -893,6 +934,17 @@ window.WF = (() => {
       await openHistory(instanceId);
       if (_instancesWfId) await _loadInstances(_instancesWfId, $('wfInstancesFilter')?.value||'');
     } catch(e) { toast('Action failed','error'); }
+  }
+
+  async function recheck(instanceId) {
+    try {
+      const r = await fetch('api/workflow.php?action=evaluate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ instance_id:instanceId }) });
+      const d = await r.json();
+      if (!d.success) { toast(d.error,'error'); return; }
+      toast(d.steps ? `${d.steps} automatic step(s) ran` : 'Nothing to run yet', d.steps ? 'success' : 'info');
+      await openHistory(instanceId);
+      if (_instancesWfId) await _loadInstances(_instancesWfId, $('wfInstancesFilter')?.value||'');
+    } catch(e) { toast('Re-check failed','error'); }
   }
 
   async function doReject(instanceId) {
@@ -929,7 +981,7 @@ window.WF = (() => {
   function _resetDrawer() {
     ['wfEditId','wfName','wfCode','wfDescription','wfFormCode'].forEach(id => { if($(id)) $(id).value=''; });
     if($('wfActive')) $('wfActive').checked = true;
-    _stages=[]; _transitions=[]; _stageCount=0; _transCount=0; _currentWfId=null;
+    _stages=[]; _transitions=[]; _stageCount=0; _transCount=0; _currentWfId=null; _wfCtx.forFor=null;
     _renderStages(); _renderTransitions();
   }
 
@@ -1128,99 +1180,189 @@ window.WF = (() => {
     _renderMermaidDiagram(walkedStages, walkedTransitions);
   }
 
-  function evaluateCondition(conditionStr, data) {
-    if (!conditionStr || conditionStr.trim() === '') return true;
+  function evaluateCondition(cond, data) {
+    if (window.NuWfBuilder) return NuWfBuilder.evalCondition(cond, data);
+    if (!cond || String(cond).trim() === '') return true;
     try {
-      const keys = Object.keys(data);
-      const vals = Object.values(data);
-      const evaluator = new Function(...keys, `return (${conditionStr});`);
-      return !!evaluator(...vals);
-    } catch (e) {
-      console.warn('Condition evaluate error:', e);
-      return false;
-    }
+      const keys = Object.keys(data), vals = Object.values(data);
+      return !!(new Function(...keys, `return (${cond});`))(...vals);
+    } catch (e) { return false; }
   }
 
-  function openHookConfig(idx) {
-    const t = _transitions[idx];
-    if (!t) return;
-    $('wfHookConfigIdx').value = idx;
-    $('wfHookConfigError').textContent = '';
+  // ── Rules & actions modal ──────────────────────────────────────────────
+  let _rule = null, _condEd = null, _actEd = null, _schemaP = null;
 
-    let hookVal = t.wft_hook || '';
-    if (hookVal && (hookVal.startsWith('{') || hookVal.startsWith('['))) {
-      try {
-        hookVal = JSON.stringify(JSON.parse(hookVal), null, 2);
-      } catch (e) {}
-    }
-    $('wfHookConfigPayload').value = hookVal;
-    $('wfHookConfigModal').style.display = 'flex';
+  function _schema() {
+    if (!_schemaP) _schemaP = fetch('api/workflow.php?action=schema').then(r => r.json()).then(d => d.success ? d.tables : []).catch(() => []);
+    return _schemaP;
+  }
+  async function _loadContext() {
+    if (_wfCtx.forFor === _currentWfId && _currentWfId) return;
+    _wfCtx = { fields: [], table: '', roles: [], forFor: _currentWfId };
+    try {
+      const r = await fetch(`api/workflow.php?action=context&wf_id=${_currentWfId || 0}`);
+      const d = await r.json();
+      if (d.success) _wfCtx = { fields: (d.fields || []).map(f => f.name), table: d.table || '', roles: d.roles || [], forFor: _currentWfId };
+    } catch (e) { /* free-text fields still work */ }
+  }
+  function _opts(t) {
+    const o = t.wft_options;
+    if (!o) return {};
+    if (typeof o === 'object') return o;
+    try { return JSON.parse(o) || {}; } catch (e) { return {}; }
+  }
+  function _stageActCount(s) { return window.NuWfBuilder ? NuWfBuilder.normalizeActions(s.wfs_on_enter).length : 0; }
+  function _badgesHtml(t) {
+    const B = window.NuWfBuilder; if (!B) return '';
+    const o = _opts(t), out = [];
+    const cond = B.describeCondition(t.wft_condition);
+    if (cond) out.push(`<span class="wf-badge is-set" title="${esc(cond)}">🔎 ${esc(cond)}</span>`);
+    const n = B.normalizeActions(t.wft_hook).length;
+    out.push(n ? `<span class="wf-badge is-set">⚡ ${n} action${n > 1 ? 's' : ''}</span>` : `<span class="wf-badge">no actions</span>`);
+    if (o.auto) out.push('<span class="wf-badge is-set">🤖 automatic</span>');
+    if (o.on_sla) out.push('<span class="wf-badge is-set">⏱ on SLA breach</span>');
+    if (o.require_comment) out.push('<span class="wf-badge">💬 comment required</span>');
+    if ((o.roles || []).length) out.push(`<span class="wf-badge">🔒 ${esc(o.roles.join(', '))}</span>`);
+    if (!cond && !o.auto && !(o.roles || []).length) out.unshift('<span class="wf-badge">always available</span>');
+    return out.join('');
   }
 
-  function closeHookConfig() {
-    $('wfHookConfigModal').style.display = 'none';
+  function ruleTab(tab) {
+    document.querySelectorAll('#wfRuleTabs button').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
+    $('wfPaneWhen').hidden = tab !== 'when';
+    $('wfPaneThen').hidden = tab !== 'then';
   }
 
-  function saveHookConfig() {
-    const idx = parseInt($('wfHookConfigIdx').value);
-    if (isNaN(idx) || !_transitions[idx]) return;
-
-    const payload = $('wfHookConfigPayload').value.trim();
-    if (payload && (payload.startsWith('{') || payload.startsWith('['))) {
-      try {
-        JSON.parse(payload); // Validate JSON
-      } catch (e) {
-        $('wfHookConfigError').textContent = 'Invalid JSON: ' + e.message;
-        return;
-      }
-    }
-
-    _transitions[idx].wft_hook = payload || null;
-    closeHookConfig();
-    _renderTransitions();
-    toast('Hook configuration applied! Click Save to persist changes.', 'success');
+  function _destroyEditors() {
+    if (_condEd) { _condEd.destroy(); _condEd = null; }
+    if (_actEd)  { _actEd.destroy();  _actEd = null; }
   }
 
-  function loadHookTemplate(type) {
-    let payload = '';
-    if (type === 'update_status') {
-      payload = {
-        action: "update_record",
-        field: "status",
-        value: "In Progress"
-      };
-    } else if (type === 'update_field') {
-      payload = {
-        action: "update_record",
-        table: "demo_customer_requests",
-        field: "assigned_user",
-        value: "Assigned to {{actor_name}}"
-      };
-    } else if (type === 'send_custom_email') {
-      payload = {
-        action: "send_email",
-        to: "manager@example.com",
-        subject: "Approval Request: {{record.customer_name}}",
-        body: "<h2>Request Approved</h2><p>Hi, request for {{record.customer_name}} was approved by {{actor_name}} with comments: {{comment}}.</p>"
-      };
-    } else if (type === 'multiple_actions') {
-      payload = [
-        {
-          action: "update_record",
-          field: "status",
-          value: "Approved"
-        },
-        {
-          action: "send_email",
-          to: "manager@example.com",
-          subject: "Approved: {{record.customer_name}}",
-          body: "<h2>Request Approved</h2><p>Hi, request for {{record.customer_name}} was approved by {{actor_name}}.</p>"
-        }
-      ];
-    }
+  async function _preview(actions, recId, toStageId) {
+    if (!_currentWfId) throw new Error('Save the workflow first so the preview can use its record.');
+    const r = await fetch('api/workflow.php?action=preview_actions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wf_id: _currentWfId, actions, record_id: recId || '', to_stage_id: toStageId || 0 }) });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Preview failed');
+    return d;
+  }
 
-    $('wfHookConfigPayload').value = JSON.stringify(payload, null, 2);
-    $('wfHookConfigError').textContent = '';
+  async function openRule(idx) {
+    const t = _transitions[idx]; if (!t) return;
+    if (!t.wft_from_id || !t.wft_to_id) { toast('Choose the From and To stages first.', 'error'); return; }
+    await _loadContext();
+    _destroyEditors();
+    _rule = { mode: 'transition', idx };
+    const from = _stages.find(s => s.wfs_id == t.wft_from_id), to = _stages.find(s => s.wfs_id == t.wft_to_id);
+    $('wfRuleTitle').textContent = `Rules & actions — ${t.wft_label || 'Step'}`;
+    $('wfRuleSub').textContent = `${from ? from.wfs_name : '?'}  →  ${to ? to.wfs_name : '?'}`;
+    $('wfRuleTabs').style.display = '';
+    $('wfThenHint').innerHTML = 'These run, in order, right after the step is taken. Use <b>Update a record</b> to change fields in this record or in <i>any other table</i> — by id, by field match, or per scenario.';
+    const o = _opts(t);
+    $('wfOptComment').checked = !!o.require_comment; $('wfOptAuto').checked = !!o.auto; $('wfOptSla').checked = !!o.on_sla;
+    $('wfOptConfirm').value = o.confirm || '';
+    $('wfRoles').innerHTML = _wfCtx.roles.length
+      ? _wfCtx.roles.map(r => `<label><input type="checkbox" data-role="${esc(r.role_code)}" ${(o.roles || []).includes(r.role_code) ? 'checked' : ''}>${esc(r.role_name || r.role_code)}</label>`).join('')
+      : '<span class="wfb-muted" style="font-size:12px;">No roles found.</span>';
+    $('wfRoles').querySelectorAll('input').forEach(i => { i.style.display = 'none'; });
+    $('wfTestRes').textContent = ''; $('wfTestRes').className = 'wfb-test-res';
+    _condEd = NuWfBuilder.mountConditions($('wfCondHost'), { value: t.wft_condition, fields: _wfCtx.fields });
+    _actEd  = NuWfBuilder.mountActions($('wfActHost'), { value: t.wft_hook, fields: _wfCtx.fields, tableName: _wfCtx.table, schema: _schema, preview: (a, rec) => _preview(a, rec, t.wft_to_id) });
+    $('wfPaneWhen').style.display = ''; ruleTab('when');
+    $('wfRuleErr').textContent = '';
+    $('wfRuleModal').classList.add('is-open');
+  }
+
+  async function openStageActions(idx) {
+    const s = _stages[idx]; if (!s) return;
+    if (!_currentWfId) { toast('Save the workflow first.', 'error'); return; }
+    await _loadContext();
+    _destroyEditors();
+    _rule = { mode: 'stage', idx };
+    $('wfRuleTitle').textContent = `When a record enters “${s.wfs_name || 'this stage'}”`;
+    $('wfRuleSub').textContent = 'Runs when the workflow starts here or any step arrives here';
+    $('wfRuleTabs').style.display = 'none';
+    $('wfThenHint').innerHTML = 'Actions that run every time an instance <b>enters this stage</b> — handy for setting a status field, notifying someone or creating a follow-up record.';
+    $('wfRuleErr').textContent = '';
+    _actEd = NuWfBuilder.mountActions($('wfActHost'), { value: s.wfs_on_enter, fields: _wfCtx.fields, tableName: _wfCtx.table, schema: _schema, preview: (a, rec) => _preview(a, rec, s.wfs_id) });
+    ruleTab('then'); $('wfPaneWhen').style.display = 'none';
+    $('wfRuleModal').classList.add('is-open');
+  }
+
+  function closeRule() {
+    $('wfRuleModal').classList.remove('is-open');
+    _destroyEditors();
+    $('wfPaneWhen').style.display = '';
+    _rule = null;
+  }
+
+  function applyRule() {
+    if (!_rule) return;
+    const actions = _actEd ? _actEd.getValue() : null;
+    if (_rule.mode === 'stage') {
+      _stages[_rule.idx].wfs_on_enter = actions;
+      closeRule(); _renderStages();
+      toast('Stage actions applied — click Save to keep them.', 'success');
+      return;
+    }
+    const t = _transitions[_rule.idx];
+    const roles = [...document.querySelectorAll('#wfRoles input:checked')].map(i => i.dataset.role);
+    const o = {};
+    if ($('wfOptComment').checked) o.require_comment = true;
+    if ($('wfOptAuto').checked) o.auto = true;
+    if ($('wfOptSla').checked) o.on_sla = true;
+    if (roles.length) o.roles = roles;
+    if ($('wfOptConfirm').value.trim()) o.confirm = $('wfOptConfirm').value.trim();
+    if (o.auto && o.require_comment) { $('wfRuleErr').textContent = 'An automatic step cannot also require a comment.'; return; }
+    t.wft_condition = _condEd ? _condEd.getValue() : null;
+    t.wft_hook = actions;
+    t.wft_options = Object.keys(o).length ? o : null;
+    closeRule(); _renderTransitions();
+    toast('Rules & actions applied — click Save to keep them.', 'success');
+  }
+
+  async function testRule() {
+    const res = $('wfTestRes');
+    if (!_currentWfId) { res.textContent = 'Save the workflow first.'; res.className = 'wfb-test-res bad'; return; }
+    res.textContent = 'Testing…'; res.className = 'wfb-test-res';
+    try {
+      const r = await fetch('api/workflow.php?action=test_condition', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wf_id: _currentWfId, condition: _condEd.getValue(), record_id: $('wfTestRec').value.trim() }) });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error);
+      const using = d.record_id ? ` (${d.table} #${d.record_id})` : ' (no sample record found)';
+      res.textContent = (d.pass ? '✓ The rule passes' : '✕ ' + (d.reason || 'The rule does not pass')) + using;
+      res.className = 'wfb-test-res ' + (d.pass ? 'ok' : 'bad');
+    } catch (e) { res.textContent = e.message; res.className = 'wfb-test-res bad'; }
+  }
+
+  // ── duplicate / export / import ─────────────────────────────────────────
+  async function duplicate(id) {
+    try {
+      const r = await fetch(`api/workflow.php?action=duplicate&id=${id}`); const d = await r.json();
+      if (!d.success) { toast(d.error, 'error'); return; }
+      toast('Workflow duplicated', 'success'); setTimeout(_reloadModule, 350);
+    } catch (e) { toast('Duplicate failed', 'error'); }
+  }
+  async function exportWf(id) {
+    try {
+      const r = await fetch(`api/workflow.php?action=export&id=${id}`); const d = await r.json();
+      if (!d.success) { toast(d.error, 'error'); return; }
+      const blob = new Blob([JSON.stringify(d.bundle, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `workflow_${d.bundle.workflow.wf_code || id}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    } catch (e) { toast('Export failed', 'error'); }
+  }
+  async function importFile(input) {
+    const f = input.files && input.files[0]; input.value = '';
+    if (!f) return;
+    try {
+      const bundle = JSON.parse(await f.text());
+      const r = await fetch('api/workflow.php?action=import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bundle }) });
+      const d = await r.json();
+      if (!d.success) { toast(d.error, 'error'); return; }
+      toast('Workflow imported', 'success'); setTimeout(_reloadModule, 350);
+    } catch (e) { toast('Import failed: ' + e.message, 'error'); }
   }
 
   function autoCode() {
@@ -1241,10 +1383,11 @@ window.WF = (() => {
     addStage, _patchStage, _deleteStage, _saveStageRow,
     addTransition, _patchTrans, _deleteTrans,
     openInstances, filterInstances,
-    openHistory, doTransition, doReject, closeHistory,
+    openHistory, doTransition, doReject, recheck, closeHistory,
     toggleSimulation, resetSimulation, runSimulation,
     _renderStages, _renderTransitions, _renderMermaidDiagram, _cleanup,
-    openHookConfig, closeHookConfig, saveHookConfig, loadHookTemplate
+    openRule, openStageActions, closeRule, applyRule, ruleTab, testRule,
+    duplicate, exportWf, importFile, _stageActCount, _badgesHtml
   };
 })();
 } // end if (!window.WF)

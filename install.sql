@@ -534,7 +534,8 @@ CREATE TABLE IF NOT EXISTS `nu_workflow_stages` (
     `wfs_is_end` TINYINT(1) NOT NULL DEFAULT 0,
     `wfs_order` SMALLINT NOT NULL DEFAULT 0,
     `wfs_sla_hours` SMALLINT DEFAULT NULL COMMENT 'SLA in hours, NULL = no limit',
-    `wfs_role` VARCHAR(64) DEFAULT NULL COMMENT 'role that acts on this stage',
+    `wfs_role` VARCHAR(64) DEFAULT NULL COMMENT 'role(s) that act on this stage (comma separated)',
+    `wfs_on_enter` TEXT DEFAULT NULL COMMENT 'JSON list of actions run when an instance enters this stage',
     `wfs_created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`wfs_id`),
     KEY `idx_wfs_wf_id` (`wfs_wf_id`),
@@ -552,7 +553,8 @@ CREATE TABLE IF NOT EXISTS `nu_workflow_transitions` (
     `wft_action` VARCHAR(64) NOT NULL DEFAULT 'advance' COMMENT 'advance|reject|escalate|return',
     `wft_label` VARCHAR(128) NOT NULL DEFAULT 'Advance',
     `wft_condition` TEXT DEFAULT NULL COMMENT 'optional JSON condition',
-    `wft_hook` TEXT DEFAULT NULL COMMENT 'JSON configuration for custom transition Action Hooks (send_email, call_webhook, update_record)',
+    `wft_hook` TEXT DEFAULT NULL COMMENT 'JSON list of actions run on this transition (update_record, create_record, send_email, ...)',
+    `wft_options` TEXT DEFAULT NULL COMMENT 'JSON: auto, on_sla, require_comment, roles, confirm',
     `wft_created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`wft_id`),
     KEY `idx_wft_wf` (`wft_wf_id`),
@@ -599,6 +601,22 @@ CREATE TABLE IF NOT EXISTS `nu_workflow_history` (
     KEY `idx_wfh_actor` (`wfh_actor_id`),
     CONSTRAINT `fk_wfh_wfi` FOREIGN KEY (`wfh_wfi_id`) REFERENCES `nu_workflow_instances` (`wfi_id`) ON DELETE CASCADE,
     FOREIGN KEY (`wfh_actor_id`) REFERENCES `nu_users` (`usr_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── 32. WORKFLOW ACTION LOG ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `nu_workflow_action_log` (
+    `wal_id` INT NOT NULL AUTO_INCREMENT,
+    `wal_wfi_id` INT NOT NULL,
+    `wal_source` VARCHAR(64) DEFAULT NULL COMMENT 'transition:ID | stage:ID',
+    `wal_type` VARCHAR(32) NOT NULL,
+    `wal_label` VARCHAR(255) DEFAULT NULL,
+    `wal_status` VARCHAR(16) NOT NULL COMMENT 'ok | skipped | error',
+    `wal_message` TEXT,
+    `wal_affected` INT DEFAULT 0,
+    `wal_changes` MEDIUMTEXT COMMENT 'JSON before/after of changed rows',
+    `wal_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`wal_id`),
+    KEY `idx_wal_wfi` (`wal_wfi_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── SEED DATA ───────────────────────────────────────────────────────────────

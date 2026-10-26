@@ -116,4 +116,12 @@ try {
     echo "Cron processing error: " . $e->getMessage() . "\n";
 }
 
+// Workflow automation: automatic transitions that became true, and SLA overruns / escalations.
+try {
+    $wfLines = (new WorkflowEngine())->processTimers();
+    echo "Workflow timers: " . (count($wfLines) ? "\n  " . implode("\n  ", $wfLines) : "nothing to do") . "\n";
+} catch (Throwable $e) {
+    echo "Workflow timers error: " . $e->getMessage() . "\n";
+}
+
 echo "[" . date('Y-m-d H:i:s') . "] Scheduled triggers cron run finished.\n";
