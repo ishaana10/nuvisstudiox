@@ -14,24 +14,15 @@ if (!defined('NU_BOOTSTRAP_DONE')) {
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
 
-$username = htmlspecialchars((string)($_SESSION['nu_username'] ?? $_SESSION['nu_name'] ?? 'there'));
-$role     = strtolower((string)($_SESSION['nu_role'] ?? ''));
-$hour     = (int)date('G');
-$greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
+require_once __DIR__ . '/_dash_helpers.php';
+
+$fullName = (string)($_SESSION['nu_name'] ?? $_SESSION['nu_username'] ?? 'there');
+$username = trim(explode(' ', $fullName)[0]) ?: 'there';
+$role     = ucfirst(strtolower((string)($_SESSION['nu_role'] ?? '')));
 ?>
 
-<div class="nu-dashboard">
-    <!-- Greeting banner -->
-    <div class="nu-card" style="margin-bottom:20px;background:linear-gradient(135deg,var(--color-primary,#01696f) 0%,var(--color-primary-hover,#0c4e54) 100%);border:none;">
-        <div style="padding:4px;">
-            <div style="font-size:var(--text-lg,1.125rem);font-weight:700;color:#fff;margin-bottom:2px;">
-                <?= $greeting ?>, <?= $username ?>! 👋
-            </div>
-            <div style="font-size:var(--text-sm,.875rem);color:rgba(255,255,255,.8);">
-                Role: <strong><?= htmlspecialchars($role) ?></strong> &mdash; Customise your dashboard using the buttons below.
-            </div>
-        </div>
-    </div>
+<div class="nu-dashboard nu-dash" data-nu-dash>
+    <?= nu_dash_hero($username, $role) ?>
 
     <!-- Widget builder -->
     <?php require __DIR__ . '/../widgets/widgets.php'; ?>
