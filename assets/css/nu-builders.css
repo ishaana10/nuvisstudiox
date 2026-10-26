@@ -1,0 +1,115 @@
+/* Nuvis StudioX — builders (Query Builder, Report Builder) + legacy-token compatibility
+   Scripts: assets/js/nu-builders.js */
+
+/* ══ Legacy token aliases ═══════════════════════════════════════════════════
+   Several modules were written against a different token set (--color-surface, --color-border,
+   --text-sm …) that the app theme never defined, so they lost their backgrounds/borders and ignored
+   dark mode. Alias them to the real tokens once, here. Defined on :root, so they resolve against the
+   active theme (the dark theme overrides the source tokens on the same element). */
+:root {
+  --color-bg: var(--bg-app);
+  --color-surface: var(--bg-card);
+  --color-surface-offset: var(--bg-subtle);
+  --color-surface-offset-2: color-mix(in srgb, var(--bg-subtle) 70%, var(--border-color));
+  --color-border: var(--border-color);
+  --color-divider: color-mix(in srgb, var(--border-color) 55%, transparent);
+  --color-text: var(--text-primary);
+  --color-text-muted: var(--text-tertiary);
+  --color-text-faint: color-mix(in srgb, var(--text-tertiary) 70%, transparent);
+  --color-text-inverse: #fff;
+  --color-danger: var(--error);
+  --color-primary-highlight: color-mix(in srgb, var(--primary) 14%, transparent);
+  --color-error-highlight: color-mix(in srgb, var(--error) 14%, transparent);
+  --color-success-highlight: color-mix(in srgb, var(--success) 14%, transparent);
+  --color-warning-highlight: color-mix(in srgb, var(--warning) 14%, transparent);
+  --color-orange: #da7101; --color-orange-highlight: color-mix(in srgb, #da7101 14%, transparent);
+  --color-gold: #b58a00;   --color-gold-highlight: color-mix(in srgb, #b58a00 14%, transparent);
+  --text-xs: var(--font-xs); --text-sm: var(--font-sm); --text-base: var(--font-base); --text-lg: var(--font-lg);
+  --radius-full: 9999px;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ══ Shared: buttons / segmented / chips ════════════════════════════════════ */
+.nu-sx-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none;
+  border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-card);
+  color: var(--text-tertiary); cursor: pointer;
+}
+.nu-sx-icon-btn:hover { color: var(--text-primary); border-color: var(--primary); }
+.nu-sx-seg { display: inline-flex; padding: 2px; gap: 2px; background: var(--bg-subtle); border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+.nu-sx-seg button {
+  border: 0; background: transparent; color: var(--text-tertiary); font: 600 12px 'Inter', sans-serif;
+  padding: 5px 12px; border-radius: 4px; cursor: pointer;
+}
+.nu-sx-seg button:hover { color: var(--text-primary); }
+.nu-sx-seg button.is-active { background: var(--bg-card); color: var(--primary); box-shadow: var(--shadow-sm); }
+.nu-sx-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; background: var(--bg-subtle); color: var(--text-secondary); border: 1px solid var(--border-color);
+}
+.nu-sx-chip.is-ok   { color: var(--color-success); background: var(--color-success-highlight); border-color: transparent; }
+.nu-sx-chip.is-warn { color: var(--color-warning); background: var(--color-warning-highlight); border-color: transparent; }
+.nu-sx-chip.is-info { color: var(--primary); background: var(--color-primary-highlight); border-color: transparent; }
+.nu-sx-kbd { font: 600 10px/1 'Inter', sans-serif; padding: 2px 5px; border-radius: 4px; background: rgba(255,255,255,.22); }
+.nu-sx-spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: nu-spin .7s linear infinite; display: inline-block; }
+
+/* ══ SQL editor ═════════════════════════════════════════════════════════════ */
+.nu-sx-editor { position: relative; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-card); }
+.nu-sx-editor:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
+.nu-sx-ace { width: 100%; min-height: 160px; }
+.nu-sx-placeholder { position: absolute; z-index: 2; left: 52px; top: 8px; color: var(--text-tertiary); opacity: .7; pointer-events: none; font: 13px ui-monospace, Menlo, monospace; }
+.nu-sx-textarea { width: 100%; border: 0 !important; border-radius: 0 !important; font: 13px/1.55 ui-monospace, Menlo, monospace !important; resize: vertical; min-height: 160px; box-shadow: none !important; }
+
+/* ══ Schema browser ═════════════════════════════════════════════════════════ */
+.nu-sx-schema { display: flex; flex-direction: column; min-height: 0; height: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-card); overflow: hidden; }
+.nu-sx-schema-head { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border-color); }
+.nu-sx-schema-search { flex: 1; min-width: 0; height: 30px; padding: 4px 9px !important; font-size: 12.5px !important; }
+.nu-sx-tree, .nu-sx-cols { list-style: none; margin: 0; padding: 0; }
+.nu-sx-tree { overflow-y: auto; flex: 1; padding: 4px; }
+.nu-sx-table-row {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12.5px; color: var(--text-primary);
+}
+.nu-sx-table-row:hover, .nu-sx-table-row:focus-visible { background: var(--bg-hover); }
+.nu-sx-caret { display: inline-block; width: 10px; color: var(--text-tertiary); transition: transform .12s ease; }
+.nu-sx-table.is-open > .nu-sx-table-row .nu-sx-caret { transform: rotate(90deg); }
+.nu-sx-table-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.nu-sx-count { font-size: 10.5px; color: var(--text-tertiary); }
+.nu-sx-mini { display: none; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--primary); border-radius: 4px; font: 700 9.5px 'Inter', sans-serif; padding: 2px 5px; cursor: pointer; }
+.nu-sx-table-row:hover .nu-sx-mini, .nu-sx-table-row:focus-within .nu-sx-mini { display: inline-block; }
+.nu-sx-table-row:hover .nu-sx-count, .nu-sx-table-row:focus-within .nu-sx-count { display: none; }
+.nu-sx-cols { margin: 1px 0 4px 14px; border-left: 1px solid var(--border-color); }
+.nu-sx-col { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; }
+.nu-sx-col:hover, .nu-sx-col:focus-visible { background: var(--color-primary-highlight); }
+.nu-sx-key { width: 14px; font-size: 10px; flex: none; }
+.nu-sx-col-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; }
+.nu-sx-col-type { font-size: 10.5px; color: var(--text-tertiary); }
+.nu-sx-empty { padding: 20px 10px; text-align: center; color: var(--text-tertiary); font-size: 12.5px; }
+
+/* ══ Result grid ════════════════════════════════════════════════════════════ */
+.nu-sx-grid { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-card); overflow: hidden; }
+.nu-sx-grid-bar { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border-color); background: var(--bg-subtle); flex-wrap: wrap; }
+.nu-sx-grid-filter { width: 200px; height: 30px; padding: 4px 9px !important; font-size: 12.5px !important; }
+.nu-sx-grid-info { flex: 1; font-size: 12px; color: var(--text-tertiary); min-width: 0; }
+.nu-sx-warn { color: var(--color-warning); font-weight: 600; }
+.nu-sx-grid-btns { display: flex; gap: 6px; }
+.nu-sx-grid-scroll { overflow: auto; flex: 1; min-height: 0; max-height: var(--nu-sx-grid-max, 520px); }
+.nu-sx-table-el { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+.nu-sx-table-el th {
+  position: sticky; top: 0; z-index: 1; text-align: left; white-space: nowrap; cursor: pointer; user-select: none;
+  padding: 8px 12px; background: var(--bg-subtle); color: var(--text-secondary); font-weight: 700; font-size: 11.5px;
+  letter-spacing: .02em; border-bottom: 1px solid var(--border-color);
+}
+.nu-sx-table-el th:hover { color: var(--primary); }
+.nu-sx-table-el th.is-num { text-align: right; }
+.nu-sx-sort { font-style: normal; font-size: 9px; margin-left: 5px; color: var(--primary); }
+.nu-sx-table-el td { padding: 7px 12px; border-bottom: 1px solid var(--color-divider); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: copy; }
+.nu-sx-table-el tbody tr:hover td { background: var(--bg-hover); }
+.nu-sx-table-el td.is-num { text-align: right; font-variant-numeric: tabular-nums; }
+.nu-sx-table-el td.is-null { color: var(--text-tertiary); font-style: italic; opacity: .7; }
+.nu-sx-table-el .nu-sx-rownum { width: 1%; text-align: right; color: var(--text-tertiary); font-size: 11px; cursor: default; background: var(--bg-subtle); position: sticky; left: 0; }
+.nu-sx-table-el th.nu-sx-rownum { z-index: 2; }
+.nu-sx-grid-more { padding: 8px; text-align: center; border-top: 1px solid var(--border-color); }
+.nu-sx-grid-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 36px 16px; color: var(--text-tertiary); font-size: 13px; text-align: center; }
+.nu-sx-grid-empty svg { opacity: .55; }
+
+@media (prefers-reduced-motion: reduce) { .nu-sx-caret { transition: none; } .nu-sx-spin { animation: none; } }

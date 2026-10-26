@@ -201,6 +201,7 @@ try {
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-shell.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-form-shell.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-dashboard.css') ?>">
+    <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-builders.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('lib/uppy/uppy.min.css') ?>">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0b1020">

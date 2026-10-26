@@ -2,7 +2,7 @@
 /**
  * api/queries.php
  * CRUD + run for nu_queries (Query Builder records).
- * Actions: list, get, save, delete, run, export, get_tables, get_columns
+ * Actions: list, get, save, delete, duplicate, run, preview, export, get_tables, get_columns, get_schema
  */
 header('Content-Type: application/json');
 require_once '../config.php';
@@ -26,7 +26,10 @@ switch ($action) {
     case 'get':         actionGet($db);            break;
     case 'save':        actionSave($db, $auth);    break;
     case 'delete':      actionDelete($db, $auth);  break;
+    case 'duplicate':   actionDuplicate($db, $auth); break;
     case 'run':         actionRun($db, $auth);     break;
+    case 'preview':     actionPreview($db, $auth); break;
+    case 'get_schema':  actionGetSchema($db);      break;
     case 'export':      actionExport($db, $auth);  break;
     case 'get_tables':  actionGetTables($db);      break;
     case 'get_columns': actionGetColumns($db);     break;
@@ -154,6 +157,88 @@ function actionDelete($db, $auth) {
         $pid = ProjectContext::getId();
         $db->query('DELETE FROM nu_queries WHERE query_id = ? AND project_id = ?', [(int)$id, $pid]);
         echo json_encode(['success' => true]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+// ── DUPLICATE ─────────────────────────────────────────────────────────────
+function actionDuplicate($db, $auth) {
+    if (!$auth->hasPermission('queries', 'build')) {
+        echo json_encode(['success' => false, 'error' => 'Permission denied']); return;
+    }
+    $id = (int)($_GET['id'] ?? 0);
+    if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); return; }
+    try {
+        $pid = ProjectContext::getId();
+        $src = $db->fetchOne('SELECT * FROM nu_queries WHERE query_id = ? AND project_id = ?', [$id, $pid]);
+        if (!$src) { echo json_encode(['success' => false, 'error' => 'Query not found or access denied']); return; }
+
+        $base = preg_replace('/_copy(_\d+)?$/', '', (string)$src['query_code']);
+        $code = $base . '_copy';
+        for ($n = 2; $db->fetchOne('SELECT query_id FROM nu_queries WHERE query_code = ? AND project_id = ?', [$code, $pid]); $n++) {
+            $code = $base . '_copy_' . $n;
+        }
+        $newId = $db->insert('nu_queries', [
+            'project_id'        => $pid,
+            'query_name'        => $src['query_name'] . ' (copy)',
+            'query_code'        => $code,
+            'query_description' => $src['query_description'],
+            'query_sql'         => $src['query_sql'],
+            'query_parameters'  => $src['query_parameters'],
+            'query_active'      => $src['query_active'],
+        ]);
+        echo json_encode(['success' => true, 'query_id' => $newId, 'query_code' => $code]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+// ── PREVIEW (run unsaved SQL from the builder) ────────────────────────────
+function actionPreview($db, $auth) {
+    if (!$auth->hasPermission('queries', 'build')) {
+        echo json_encode(['success' => false, 'error' => 'Permission denied']); return;
+    }
+    $data = json_decode((string)file_get_contents('php://input'), true);
+    if (!is_array($data)) { echo json_encode(['success' => false, 'error' => 'Invalid JSON']); return; }
+
+    $sql = trim((string)($data['sql'] ?? ''));
+    if ($sql === '') { echo json_encode(['success' => false, 'error' => 'SQL is required']); return; }
+
+    $values = is_array($data['params'] ?? null) ? $data['params'] : [];
+    $defs   = is_array($data['defs']   ?? null) ? $data['defs']   : [];
+    $limit  = max(1, min(2000, (int)($data['limit'] ?? 200)));
+
+    $executor = new NuQueryExecutor();
+    $result   = $executor->runSql($sql, $values, $defs, $limit);
+    if (isset($result['error'])) {
+        echo json_encode(['success' => false, 'error' => $result['error']]);
+    } else {
+        echo json_encode(['success' => true, 'data' => $result]);
+    }
+}
+
+// ── GET SCHEMA (tables + columns + types in one call, for the schema browser) ──
+function actionGetSchema($db) {
+    try {
+        $rows = $db->fetchAll(
+            'SELECT TABLE_NAME AS t, COLUMN_NAME AS c, COLUMN_TYPE AS ty, COLUMN_KEY AS k, IS_NULLABLE AS n
+               FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE()
+              ORDER BY TABLE_NAME, ORDINAL_POSITION'
+        );
+        $tables = [];
+        foreach ($rows as $r) {
+            $tables[$r['t']][] = [
+                'name'     => $r['c'],
+                'type'     => $r['ty'],
+                'key'      => $r['k'],            // PRI / UNI / MUL / ''
+                'nullable' => $r['n'] === 'YES',
+            ];
+        }
+        $out = [];
+        foreach ($tables as $name => $cols) { $out[] = ['name' => $name, 'columns' => $cols]; }
+        echo json_encode(['success' => true, 'tables' => $out]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }

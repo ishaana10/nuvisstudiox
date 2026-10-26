@@ -8,6 +8,13 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Builders
+- **Query Builder (`modules/queries/`):** schema browser sidebar (search tables and columns, click to insert, one-click `SELECT`), SQL editor with highlighting, schema-aware autocomplete and a formatter, a Visual builder that hands off to SQL, **Run unsaved SQL** (`Ctrl/Cmd+Enter`) with a result grid (filter, sort, copy, CSV, timing), `:placeholder` parameter detection with one-click "Add parameter", test values, unsaved-changes guard, list search and **Duplicate**.
+- **Report Builder (`modules/reports/`):** same editor and schema browser, shared result grid for preview and run, **Detect columns from SQL**, real **Chart.js** charts (bar / line / pie / doughnut with label and value pickers), list search and **Duplicate**. PDF templates, email and the pivot view are unchanged.
+- **API:** `queries.php` gains `preview`, `get_schema`, `duplicate`; `report.php` gains `duplicate`, a preview row limit and timings. `NuQueryExecutor::runSql()` binds only the placeholders present, binds blank defined parameters as `NULL` (so `(:p IS NULL OR col = :p)` works) and no longer HTML-escapes text values.
+- **Security hardening:** report `run` is now project-scoped and whitelists filter field names and operators.
+- **Theme:** legacy colour tokens (`--color-surface`, `--color-border`, …) are aliased to the app theme globally (`nu-builders.css`).
+
 ### Unreleased — Dashboard
 - **Redesigned dashboards (`modules/dashboard/`, `nu-dashboard.css`, `nu-dashboard.js`):** greeting hero with date, role and project; clickable KPI cards with a 7-day sparkline and trend vs yesterday; quick-action tiles; last-7-days activity chart; and a recent-activity feed with avatars, relative times and Created / Updated / Deleted / Logins filters. First-run callout when a project has no forms. Responsive down to phone width.
 - **Refresh controls:** Refresh button plus an opt-in 1-minute auto-refresh that pauses while the tab is hidden, the widget layout is being edited, or a dialog is open.
