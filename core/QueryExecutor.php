@@ -24,37 +24,80 @@ class NuQueryExecutor {
         );
         if (!$query) return ['error' => 'Query not found'];
 
-        $sql = trim($query['query_sql']);
+        $defs   = json_decode($query['query_parameters'] ?? '[]', true) ?? [];
+        $result = $this->runSql(trim($query['query_sql']), $parameters, $defs);
+        if (isset($result['error'])) return $result;
+        return ['query' => $query] + $result;
+    }
 
+    /**
+     * Validate and run an ad-hoc SELECT. Used by execute() for saved queries and by the
+     * builder's "Run" for unsaved SQL.
+     *
+     *  $values   runtime parameter values, keyed by name (without the colon)
+     *  $defs     parameter definitions ({label,type,default}) keyed by name
+     *  $maxRows  0 = no cap; otherwise rows beyond the cap are dropped and `truncated` is set
+     *
+     * Only placeholders that actually appear in the SQL are bound (emulated prepares reject
+     * extras). A defined placeholder with no value and no default is bound to NULL, so optional
+     * filters can be written as `(:status IS NULL OR status = :status)`.
+     */
+    public function runSql($sql, array $values = [], array $defs = [], $maxRows = 0) {
         $validation = $this->validateSql($sql);
         if (!$validation['valid']) {
             return ['error' => $validation['message']];
         }
 
-        $boundParams = [];
-        $queryParams = json_decode($query['query_parameters'] ?? '[]', true) ?? [];
-        foreach ($queryParams as $key => $config) {
-            if (isset($parameters[$key]) && $parameters[$key] !== '') {
-                $boundParams[':' . $key] = $this->sanitizeParam($parameters[$key], $config['type'] ?? 'text');
+        $used  = $this->placeholders($sql);
+        $bound = [];
+        foreach ($used as $name) {
+            $config = is_array($defs[$name] ?? null) ? $defs[$name] : [];
+            if (isset($values[$name]) && $values[$name] !== '') {
+                $bound[':' . $name] = $this->sanitizeParam($values[$name], $config['type'] ?? 'text');
+            } elseif (isset($config['default']) && $config['default'] !== '') {
+                $bound[':' . $name] = $this->sanitizeParam($config['default'], $config['type'] ?? 'text');
+            } elseif (array_key_exists($name, $defs)) {
+                $bound[':' . $name] = null;
             }
         }
 
+        $started = microtime(true);
         try {
-            $records = $this->db->fetchAll($sql, $boundParams);
+            $records = $this->db->fetchAll($sql, $bound);
         } catch (Exception $e) {
             return ['error' => 'Query execution failed: ' . $e->getMessage()];
         }
+        $elapsed = (int)round((microtime(true) - $started) * 1000);
+
+        $total     = count($records);
+        $truncated = false;
+        if ($maxRows > 0 && $total > $maxRows) {
+            $records   = array_slice($records, 0, $maxRows);
+            $truncated = true;
+        }
 
         return [
-            'query'           => $query,
             'records'         => $records,
             'columns'         => !empty($records) ? array_keys($records[0]) : [],
             'total'           => count($records),
-            'parameters_used' => $boundParams,
+            'total_available' => $total,
+            'truncated'       => $truncated,
+            'elapsed_ms'      => $elapsed,
+            'parameters_used' => $bound,
+            'placeholders'    => $used,
         ];
     }
 
-    private function validateSql($sql) {
+    /** Names of :placeholders in the SQL, ignoring quoted strings, backticked names and comments. */
+    public function placeholders($sql) {
+        $clean = preg_replace('/\/\*.*?\*\//s', ' ', (string)$sql);
+        $clean = preg_replace('/(--|#)[^\n]*/', ' ', $clean);
+        $clean = preg_replace('/\'(?:[^\'\\\\]|\\\\.|\'\')*\'|"(?:[^"\\\\]|\\\\.|"")*"|`[^`]*`/s', ' ', $clean);
+        preg_match_all('/(?<![:\w]):([A-Za-z_][A-Za-z0-9_]*)/', $clean, $m);
+        return array_values(array_unique($m[1]));
+    }
+
+    public function validateSql($sql) {
         // Remove comments
         $cleanSql = preg_replace('/\/\*.*?\*\//s', '', $sql);
         $cleanSql = preg_replace('/--.*?\n/', "\n", $cleanSql);
@@ -89,11 +132,14 @@ class NuQueryExecutor {
             case 'number':
                 return is_numeric($value) ? (float)$value : 0;
             case 'date':
-                return date('Y-m-d', strtotime($value)) ?: date('Y-m-d');
+                $t = strtotime((string)$value);
+                return $t ? date('Y-m-d', $t) : date('Y-m-d');
             case 'select':
                 return preg_replace('/[^a-zA-Z0-9_\-\s]/', '', $value);
             default:
-                return htmlspecialchars(trim($value), ENT_QUOTES, 'UTF-8');
+                // Bound via PDO, so no SQL escaping is needed — and HTML-escaping here would corrupt
+                // values like "O'Brien" or "A&B". Output is escaped where it is rendered.
+                return trim((string)$value);
         }
     }
 

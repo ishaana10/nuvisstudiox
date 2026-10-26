@@ -18,6 +18,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
       <span id="rptBadge" class="rpt-badge">0</span>
     </div>
     <div class="rpt-toolbar-right">
+      <input type="search" class="nu-input" id="rptSearch" placeholder="Search reports…" aria-label="Search reports" oninput="rptFilterList(this.value)" style="width:220px;height:32px;">
       <button class="nu-btn nu-btn-ghost nu-btn-sm" id="rptRefreshBtn" onclick="rptLoadList()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         Refresh
@@ -91,29 +92,23 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
         </div>
 
         <div class="rpt-field-group" style="flex:1;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px;flex-wrap:wrap;">
             <label>SQL Query <span style="color:var(--color-error)">*</span></label>
-            <button class="nu-btn nu-btn-ghost" style="font-size:11px;padding:2px 6px;" onclick="rptToggleSqlHelper()">Table helper &#9660;</button>
-          </div>
-          <div id="rptSqlHelper" style="display:none;background:var(--color-surface-offset);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:10px;margin-bottom:8px;">
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <select class="nu-input" id="rptHelperTable" style="flex:1;min-width:120px;" onchange="rptLoadTableCols()">
-                <option value="">— pick table —</option>
-              </select>
-              <select class="nu-input" id="rptHelperCols" style="flex:1;min-width:120px;" multiple size="4"></select>
-              <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="rptInjectSql()">Insert SELECT</button>
+            <div style="display:flex;gap:4px;">
+              <button type="button" class="nu-btn nu-btn-ghost" style="font-size:11px;padding:2px 8px;" onclick="rptToggleSqlHelper()">Schema</button>
+              <button type="button" class="nu-btn nu-btn-ghost" style="font-size:11px;padding:2px 8px;" onclick="rptFormatSql()">Format</button>
             </div>
           </div>
-          <textarea class="nu-input" id="rptSql" rows="7"
-            placeholder="SELECT status, COUNT(*) AS total FROM nu_forms GROUP BY status"
-            style="font-family:monospace;font-size:13px;resize:vertical;"></textarea>
-          <p class="rpt-hint">SELECT queries only. Use table aliases for joins.</p>
+          <div id="rptSqlHelper" style="display:none;height:240px;margin-bottom:8px;"><div id="rptSchema" style="height:100%;"></div></div>
+          <div id="rptSqlEditor"></div>
+          <textarea id="rptSql" hidden></textarea>
+          <p class="rpt-hint">SELECT queries only. <kbd>Ctrl/&#8984;+Enter</kbd> previews, <kbd>Ctrl/&#8984;+S</kbd> saves.</p>
         </div>
 
         <div class="rpt-field-group">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
             <label>Column Labels <span style="color:var(--color-text-faint);font-weight:400;">(optional)</span></label>
-            <button class="nu-btn nu-btn-ghost" style="font-size:11px;padding:2px 6px;" onclick="rptAddColRow()">+ Add column</button>
+            <span style="display:flex;gap:4px;"><button class="nu-btn nu-btn-ghost" style="font-size:11px;padding:2px 6px;" onclick="rptDetectColumns()" title="Run the SQL and fill in the columns it returns">Detect from SQL</button><button class="nu-btn nu-btn-ghost" style="font-size:11px;padding:2px 6px;" onclick="rptAddColRow()">+ Add column</button></span>
           </div>
           <div id="rptColsList" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
@@ -490,14 +485,46 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
   var _runColumns       = [];
   var _wdrPivot         = null;
   var _currentReportId  = null;
+  var _editor           = null;
+  var _chart            = null;
+  var _chartCfg         = { type: 'bar', label: '', value: '' };
+  var _reports          = [];
+  var _runElapsed       = null;
 
   var API = 'api/report.php';
 
   // ── boot (defer so DOM is injected by SPA) ──────────────────────────
   setTimeout(function () {
     rptLoadList();
-    rptLoadTables();
+    rptMountSqlEditor();
   }, 0);
+
+  // ── SQL editor (shared NuSqlEditor + NuSchema) ──────────────────────
+  function rptMountSqlEditor() {
+    var host = document.getElementById('rptSqlEditor');
+    if (!host || !window.NuSqlEditor) return;
+    if (_editor) { try { _editor.destroy(); } catch (e) {} }
+    _editor = NuSqlEditor.mount(host, {
+      value: document.getElementById('rptSql').value, minLines: 8,
+      placeholder: 'SELECT status, COUNT(*) AS total FROM nu_forms GROUP BY status',
+      onChange: function (v) { document.getElementById('rptSql').value = v; },
+      onRun: function () { window.rptPreview(); },
+      onSave: function () { window.rptSave(); }
+    });
+    if (window.NuSchema) {
+      NuSchema.mount(document.getElementById('rptSchema'), {
+        onLoaded: function (t) { if (_editor) _editor.setSchema(t); },
+        onPick: function (name) { if (_editor) _editor.insert('`' + name + '`'); },
+        onInsertSelect: function (table) { rptSetSql('SELECT *\nFROM `' + table + '`\nLIMIT 100'); }
+      });
+    }
+  }
+  function rptSetSql(v) {
+    document.getElementById('rptSql').value = v || '';
+    if (_editor) _editor.setValue(v || '');
+  }
+  function rptGetSql() { return (_editor ? _editor.getValue() : document.getElementById('rptSql').value).trim(); }
+  window.rptFormatSql = function () { if (_editor) _editor.format(); };
 
   // ── list ────────────────────────────────────────────────────────────
   window.rptLoadList = async function () {
@@ -505,10 +532,11 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
       var res  = await fetch(API + '?action=list', { credentials: 'same-origin' });
       var j    = await res.json();
       var rows = j.data || [];
+      _reports = rows;
       document.getElementById('rptBadge').textContent = rows.length;
       var tbody = rows.length
         ? rows.map(function (r) {
-            return '<tr>' +
+            return '<tr data-search="' + esc((r.report_name + ' ' + r.report_code + ' ' + r.report_type).toLowerCase()) + '">' +
               '<td><code style="background:var(--color-surface-offset);padding:2px 6px;border-radius:var(--radius-sm);font-size:12px;">' + esc(r.report_code) + '</code></td>' +
               '<td style="font-weight:500;">' + esc(r.report_name) + '</td>' +
               '<td><span class="rpt-type-badge rpt-type-' + esc(r.report_type) + '">' + esc(r.report_type) + '</span></td>' +
@@ -518,6 +546,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
                 '<button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="rptRun(' + r.report_id + ')">&#9654; Run</button>' +
                 '<button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="rptQuickPdf(' + r.report_id + ')">PDF</button>' +
                 '<button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="rptOpenBuilder(' + r.report_id + ')">Edit</button>' +
+                '<button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="rptDuplicate(' + r.report_id + ')">Copy</button>' +
                 '<button class="nu-btn nu-btn-ghost nu-btn-sm" style="color:var(--color-error);" onclick="rptDelete(' + r.report_id + ',\'' + esc(r.report_name) + '\')">Del</button>' +
               '</div></td>' +
             '</tr>';
@@ -527,10 +556,28 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
         '<table class="rpt-list-table"><thead><tr>' +
         '<th>Code</th><th>Name</th><th>Type</th><th>View</th><th>Created</th><th>Actions</th>' +
         '</tr></thead><tbody>' + tbody + '</tbody></table>';
+      var sb = document.getElementById('rptSearch'); if (sb && sb.value) rptFilterList(sb.value);
     } catch (e) {
       document.getElementById('rptTable').innerHTML =
         '<p style="padding:20px;color:var(--color-error);">Error loading reports: ' + e.message + '</p>';
     }
+  };
+
+  window.rptFilterList = function (q) {
+    q = String(q || '').trim().toLowerCase();
+    document.querySelectorAll('#rptTable tbody tr[data-search]').forEach(function (tr) {
+      tr.style.display = (!q || tr.getAttribute('data-search').indexOf(q) !== -1) ? '' : 'none';
+    });
+  };
+
+  window.rptDuplicate = async function (id) {
+    try {
+      var res = await fetch(API + '?action=duplicate&id=' + id, { credentials: 'same-origin' });
+      var j   = await res.json();
+      if (!j.success) throw new Error(j.error);
+      toast('Report duplicated', 'success');
+      rptLoadList();
+    } catch (e) { toast('Duplicate failed: ' + e.message, 'error'); }
   };
 
   // ── navigation ───────────────────────────────────────────────────
@@ -539,6 +586,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
     document.getElementById('rptBuilderView').style.display = 'none';
     document.getElementById('rptRunView').style.display     = 'none';
     if (_wdrPivot) { try { _wdrPivot.dispose(); } catch (e) {} _wdrPivot = null; }
+    if (_chart) { try { _chart.destroy(); } catch (e) {} _chart = null; }
     rptLoadList();
   };
 
@@ -555,7 +603,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
         document.getElementById('rptName').value = r.report_name;
         document.getElementById('rptCode').value = r.report_code;
         document.getElementById('rptType').value = r.report_type;
-        document.getElementById('rptSql').value  = r.report_sql || '';
+        rptSetSql(r.report_sql || '');
         rptSetViewMode(r.report_view_mode || 'table');
         (r.report_columns || []).forEach(function (c) { rptAddColRow(c.field, c.label); });
         (r.report_filters || []).forEach(function (f) { rptAddFilterRow(f.field, f.label, f.operator); });
@@ -579,6 +627,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
     document.getElementById('rptListView').style.display    = 'none';
     document.getElementById('rptRunView').style.display     = 'none';
     document.getElementById('rptBuilderView').style.display = '';
+    if (_editor && _editor.resize) setTimeout(function () { _editor.resize(); }, 30);
   };
 
   function rptResetBuilder() {
@@ -586,7 +635,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
     document.getElementById('rptName').value  = '';
     document.getElementById('rptCode').value  = '';
     document.getElementById('rptType').value  = 'table';
-    document.getElementById('rptSql').value   = '';
+    rptSetSql('');
     document.getElementById('rptColsList').innerHTML    = '';
     document.getElementById('rptFiltersList').innerHTML = '';
 
@@ -621,43 +670,19 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
     el.style.display = el.style.display === 'none' ? '' : 'none';
   };
 
-  window.rptLoadTables = async function () {
+  window.rptDetectColumns = async function () {
+    var sql = rptGetSql();
+    if (!sql) { toast('Enter a SQL query first', 'error'); return; }
     try {
-      var res = await fetch(API + '?action=tables', { credentials: 'same-origin' });
-      var j   = await res.json();
-      var sel = document.getElementById('rptHelperTable');
-      if (!sel) return;
-      (j.data || []).forEach(function (t) {
-        var o = document.createElement('option');
-        o.value = o.textContent = t;
-        sel.appendChild(o);
-      });
-    } catch (e) { console.error('[RPT] loadTables:', e); }
-  };
-
-  window.rptLoadTableCols = async function () {
-    var table = document.getElementById('rptHelperTable').value;
-    if (!table) return;
-    var sel = document.getElementById('rptHelperCols');
-    sel.innerHTML = '<option disabled>Loading…</option>';
-    try {
-      var res = await fetch(API + '?action=columns&table=' + encodeURIComponent(table), { credentials: 'same-origin' });
-      var j   = await res.json();
-      sel.innerHTML = '';
-      (j.data || []).forEach(function (c) {
-        var o = document.createElement('option');
-        o.value = o.textContent = c.Field;
-        sel.appendChild(o);
-      });
-    } catch (e) { sel.innerHTML = '<option disabled>Error</option>'; }
-  };
-
-  window.rptInjectSql = function () {
-    var table = document.getElementById('rptHelperTable').value;
-    var opts  = Array.from(document.getElementById('rptHelperCols').selectedOptions).map(function (o) { return o.value; });
-    if (!table) return;
-    var cols = opts.length ? opts.join(', ') : '*';
-    document.getElementById('rptSql').value = 'SELECT ' + cols + '\nFROM ' + table + '\nLIMIT 100';
+      var res = await fetch(API + '?action=preview', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ report_sql: sql, report_columns: [], report_filters: [], limit: 1 }) });
+      var j = await res.json();
+      if (!j.success) throw new Error(j.error);
+      var have = {};
+      document.querySelectorAll('#rptColsList [data-col-field]').forEach(function (i) { have[i.value.trim()] = 1; });
+      var added = 0;
+      (j.columns || []).forEach(function (c) { if (!have[c.field]) { rptAddColRow(c.field, c.label || c.field); added++; } });
+      toast(added ? added + ' column(s) added' : 'Columns already listed', 'success');
+    } catch (e) { toast('Could not detect columns: ' + e.message, 'error'); }
   };
 
   // ── col / filter rows ─────────────────────────────────────────────
@@ -720,7 +745,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
       report_code:      document.getElementById('rptCode').value.trim(),
       report_type:      document.getElementById('rptType').value,
       report_view_mode: document.getElementById('rptViewMode').value,
-      report_sql:       document.getElementById('rptSql').value.trim(),
+      report_sql:       rptGetSql(),
       report_columns:   columns,
       report_filters:   filters,
       report_pdf_template: document.getElementById('rptPdfTemplate').value,
@@ -765,7 +790,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
 
   // ── preview ─────────────────────────────────────────────────────
   window.rptPreview = async function () {
-    var sql = document.getElementById('rptSql').value.trim();
+    var sql = rptGetSql();
     if (!sql) { toast('Enter a SQL query first', 'error'); return; }
     document.getElementById('rptPreviewStatus').textContent = 'Running…';
     document.getElementById('rptPreviewOutput').innerHTML = '<div class="rpt-empty-state"><p>Loading…</p></div>';
@@ -776,6 +801,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          limit: 200,
           report_sql:     sql,
           report_columns: [],
           report_filters: [],
@@ -785,8 +811,8 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
       if (!j.success) throw new Error(j.error);
       _runData    = j.data    || [];
       _runColumns = j.columns || [];
-      document.getElementById('rptPreviewStatus').textContent = _runData.length + ' row(s)';
-      document.getElementById('rptPreviewOutput').innerHTML   = rptBuildTableHtml(_runData, _runColumns, 50);
+      document.getElementById('rptPreviewStatus').textContent = '';
+      NuResultGrid.render(document.getElementById('rptPreviewOutput'), { columns: _runColumns, rows: _runData, filename: (document.getElementById('rptCode').value || 'report') + '_preview.csv', meta: { elapsed_ms: j.elapsed_ms, limit: j.limit, truncated: j.limit && _runData.length >= j.limit } });
     } catch (e) {
       document.getElementById('rptPreviewStatus').textContent = 'Error';
       document.getElementById('rptPreviewOutput').innerHTML   =
@@ -870,6 +896,7 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
       if (!j.success) throw new Error(j.error);
       _runData    = j.data    || [];
       _runColumns = j.columns || [];
+      _runElapsed = j.elapsed_ms;
       rptRenderOutput();
     } catch (e) {
       document.getElementById('rptRunOutput').innerHTML =
@@ -884,24 +911,8 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
     } else if (_currentViewMode === 'chart') {
       rptRenderChart(out);
     } else {
-      out.innerHTML = '<div class="rpt-output-wrap">' + rptBuildTableHtml(_runData, _runColumns) + '</div>';
+      NuResultGrid.render(out, { columns: _runColumns, rows: _runData, filename: 'report_' + new Date().toISOString().slice(0, 10) + '.csv', meta: { elapsed_ms: _runElapsed } });
     }
-  }
-
-  // ── table render ─────────────────────────────────────────────────
-  function rptBuildTableHtml(data, columns, limit) {
-    if (!data.length) return '<div class="rpt-empty-state"><p>No rows returned.</p></div>';
-    var rows = limit ? data.slice(0, limit) : data;
-    var th   = columns.map(function (c) { return '<th>' + esc(c.label || c.field) + '</th>'; }).join('');
-    var trs  = rows.map(function (row) {
-      return '<tr>' + columns.map(function (c) {
-        return '<td>' + esc(String(row[c.field] !== null && row[c.field] !== undefined ? row[c.field] : '')) + '</td>';
-      }).join('') + '</tr>';
-    }).join('');
-    var note = (limit && data.length > limit)
-      ? '<p style="font-size:11px;color:var(--color-text-muted);padding:6px 0;">Showing first ' + limit + ' of ' + data.length + ' rows.</p>'
-      : '';
-    return note + '<table class="rpt-output-table"><thead><tr>' + th + '</tr></thead><tbody>' + trs + '</tbody></table>';
   }
 
   // ── WebDataRocks render ──────────────────────────────────────────
@@ -919,31 +930,63 @@ require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
     });
   }
 
-  // ── Chart render ─────────────────────────────────────────────────
+  // ── Chart render (Chart.js, loaded on demand) ─────────────────────
+  var CHARTJS = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js';
+  function rptLoadChartJs() {
+    if (window.Chart) return Promise.resolve();
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script'); s.src = CHARTJS; s.onload = resolve; s.onerror = function () { reject(new Error('Could not load Chart.js')); };
+      document.head.appendChild(s);
+    });
+  }
   function rptRenderChart(container) {
+    if (_chart) { try { _chart.destroy(); } catch (e) {} _chart = null; }
     if (!_runData.length || !_runColumns.length) {
       container.innerHTML = '<div class="rpt-empty-state"><p>No data for chart.</p></div>';
       return;
     }
-    var labelCol = _runColumns[0].field;
-    var valueCol = _runColumns[1] ? _runColumns[1].field : _runColumns[0].field;
-    var labels   = _runData.map(function (r) { return r[labelCol]; });
-    var values   = _runData.map(function (r) { return parseFloat(r[valueCol]) || 0; });
-    var maxVal   = Math.max.apply(null, values.concat([1]));
-    var barColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#01696f';
-    var barHtml  = labels.map(function (l, i) {
-      var pct = ((values[i] / maxVal) * 100).toFixed(1);
-      return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">' +
-        '<div style="width:140px;font-size:12px;text-align:right;color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(String(l)) + '</div>' +
-        '<div style="flex:1;background:var(--color-surface-offset);border-radius:4px;overflow:hidden;">' +
-          '<div style="width:' + pct + '%;background:' + barColor + ';height:20px;border-radius:4px;transition:width 0.4s;"></div>' +
-        '</div>' +
-        '<div style="width:70px;font-size:12px;font-variant-numeric:tabular-nums;">' + values[i].toLocaleString() + '</div>' +
-      '</div>';
-    }).join('');
-    container.innerHTML = '<div style="padding:16px;">' +
-      '<p style="font-size:12px;color:var(--color-text-muted);margin-bottom:12px;">Showing <strong>' + esc(_runColumns[0].label || labelCol) + '</strong> vs <strong>' + esc((_runColumns[1] && _runColumns[1].label) || valueCol) + '</strong></p>' +
-      barHtml + '</div>';
+    var fields = _runColumns.map(function (c) { return c.field; });
+    var numeric = fields.filter(function (f) { return _runData.some(function (r) { return r[f] !== null && r[f] !== '' && !isNaN(parseFloat(r[f])); }); });
+    if (!_chartCfg.label || fields.indexOf(_chartCfg.label) < 0) _chartCfg.label = fields[0];
+    if (!_chartCfg.value || fields.indexOf(_chartCfg.value) < 0) _chartCfg.value = numeric.filter(function (f) { return f !== _chartCfg.label; })[0] || numeric[0] || fields[fields.length > 1 ? 1 : 0];
+    var lab = function (f) { var c = _runColumns.filter(function (x) { return x.field === f; })[0]; return (c && c.label) || f; };
+    var opts = function (list, sel) { return list.map(function (f) { return '<option value="' + esc(f) + '"' + (f === sel ? ' selected' : '') + '>' + esc(lab(f)) + '</option>'; }).join(''); };
+    var types = [['bar', 'Bar'], ['line', 'Line'], ['pie', 'Pie'], ['doughnut', 'Doughnut']];
+    container.innerHTML =
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">' +
+        '<label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-tertiary);display:flex;flex-direction:column;gap:3px;">Type<select class="nu-input" id="rptChType" style="height:32px;">' + types.map(function (t) { return '<option value="' + t[0] + '"' + (t[0] === _chartCfg.type ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select></label>' +
+        '<label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-tertiary);display:flex;flex-direction:column;gap:3px;">Labels<select class="nu-input" id="rptChLabel" style="height:32px;">' + opts(fields, _chartCfg.label) + '</select></label>' +
+        '<label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-tertiary);display:flex;flex-direction:column;gap:3px;">Values<select class="nu-input" id="rptChValue" style="height:32px;">' + opts(fields, _chartCfg.value) + '</select></label>' +
+      '</div><div style="position:relative;height:380px;"><canvas id="rptChartCanvas"></canvas></div>';
+    ['rptChType', 'rptChLabel', 'rptChValue'].forEach(function (id) {
+      document.getElementById(id).addEventListener('change', function () {
+        _chartCfg.type = document.getElementById('rptChType').value;
+        _chartCfg.label = document.getElementById('rptChLabel').value;
+        _chartCfg.value = document.getElementById('rptChValue').value;
+        rptRenderChart(container);
+      });
+    });
+    rptLoadChartJs().then(function () {
+      var canvas = document.getElementById('rptChartCanvas'); if (!canvas) return;
+      var cs = getComputedStyle(document.documentElement);
+      var primary = cs.getPropertyValue('--primary').trim() || '#2563eb';
+      var text = cs.getPropertyValue('--text-secondary').trim() || '#555';
+      var grid = cs.getPropertyValue('--border-color').trim() || '#ddd';
+      var palette = [primary, '#16a34a', '#d97706', '#9333ea', '#0891b2', '#dc2626', '#65a30d', '#db2777', '#4f46e5', '#0d9488'];
+      var rows = _runData.slice(0, 200);
+      var labels = rows.map(function (r) { return r[_chartCfg.label] === null ? '(null)' : String(r[_chartCfg.label]); });
+      var values = rows.map(function (r) { return parseFloat(r[_chartCfg.value]) || 0; });
+      var round = _chartCfg.type === 'pie' || _chartCfg.type === 'doughnut';
+      _chart = new Chart(canvas, {
+        type: _chartCfg.type,
+        data: { labels: labels, datasets: [{ label: lab(_chartCfg.value), data: values,
+          backgroundColor: round ? values.map(function (v, i) { return palette[i % palette.length]; }) : primary + (_chartCfg.type === 'line' ? '33' : 'cc'),
+          borderColor: round ? 'transparent' : primary, borderWidth: round ? 0 : 2, fill: _chartCfg.type === 'line', tension: .3, borderRadius: _chartCfg.type === 'bar' ? 4 : 0 }] },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: round, labels: { color: text } } },
+          scales: round ? {} : { x: { ticks: { color: text }, grid: { color: grid } }, y: { beginAtZero: true, ticks: { color: text }, grid: { color: grid } } } }
+      });
+    }).catch(function (e) { container.innerHTML = '<div class="rpt-empty-state"><p>' + esc(e.message) + '</p></div>'; });
   }
 
   // ── CSV export ──────────────────────────────────────────────────

@@ -93,15 +93,20 @@ try {
             $firstWord = strtoupper(strtok(ltrim($sql), " \t\n\r"));
             if ($firstWord !== 'SELECT') throw new Exception('Only SELECT queries allowed');
 
-            $previewSql = "SELECT * FROM ({$sql}) AS _preview LIMIT 100";
+            $limit      = max(1, min(1000, (int)($body['limit'] ?? 200)));
+            $sql        = rtrim($sql, "; \t\n\r");
+            $previewSql = "SELECT * FROM ({$sql}) AS _preview LIMIT {$limit}";
+            $started    = microtime(true);
             $rows       = $db->fetchAll($previewSql, []);
+            $elapsed    = (int)round((microtime(true) - $started) * 1000);
 
             if (empty($columns) && !empty($rows)) {
                 foreach (array_keys($rows[0]) as $col) {
                     $columns[] = ['field' => $col, 'label' => ucwords(str_replace('_', ' ', $col))];
                 }
             }
-            echo json_encode(['success' => true, 'data' => $rows, 'columns' => $columns, 'total' => count($rows)]);
+            echo json_encode(['success' => true, 'data' => $rows, 'columns' => $columns, 'total' => count($rows),
+                              'limit' => $limit, 'elapsed_ms' => $elapsed]);
             break;
 
         // ── save ────────────────────────────────────────────────────────────────────
@@ -168,6 +173,26 @@ try {
             break;
 
         // ── delete ─────────────────────────────────────────────────────────────────
+        // ── duplicate ───────────────────────────────────────────────────────────────────
+        case 'duplicate':
+            $id = (int)($body['id'] ?? $_GET['id'] ?? 0);
+            if (!$id) throw new Exception('Missing id');
+            $pid = ProjectContext::getId();
+            $src = $db->fetchOne("SELECT * FROM nu_reports WHERE report_id = ? AND project_id = ?", [$id, $pid]);
+            if (!$src) throw new Exception('Report not found or access denied');
+
+            $base = preg_replace('/_copy(_\d+)?$/', '', (string)$src['report_code']);
+            $code = $base . '_copy';
+            for ($n = 2; $db->fetchOne("SELECT report_id FROM nu_reports WHERE report_code = ? AND project_id = ?", [$code, $pid]); $n++) {
+                $code = $base . '_copy_' . $n;
+            }
+            unset($src['report_id'], $src['report_created_at'], $src['report_updated_at']);
+            $src['report_code'] = $code;
+            $src['report_name'] = $src['report_name'] . ' (copy)';
+            $newId = $db->insert('nu_reports', $src);
+            echo json_encode(['success' => true, 'report_id' => $newId, 'report_code' => $code]);
+            break;
+
         case 'delete':
             $id = (int)($body['id'] ?? $_GET['id'] ?? 0);
             if (!$id) throw new Exception('Missing id');
@@ -188,10 +213,11 @@ try {
                 }
             }
 
+            $pid = ProjectContext::getId();
             if ($id) {
-                $report = $db->fetchOne("SELECT * FROM nu_reports WHERE report_id=?", [$id]);
+                $report = $db->fetchOne("SELECT * FROM nu_reports WHERE report_id=? AND project_id=?", [$id, $pid]);
             } elseif ($code) {
-                $report = $db->fetchOne("SELECT * FROM nu_reports WHERE report_code=?", [$code]);
+                $report = $db->fetchOne("SELECT * FROM nu_reports WHERE report_code=? AND project_id=?", [$code, $pid]);
             } else {
                 throw new Exception('id or code required');
             }
@@ -200,12 +226,16 @@ try {
             $sql     = $report['report_sql'];
             $filters = json_decode($report['report_filters'] ?? '[]', true) ?: [];
 
+            // Filter field names and operators come from the saved definition: whitelist both
+            // before they are interpolated into SQL (values are always bound).
+            $allowedOps = ['=', 'LIKE', '>=', '<=', '>', '<', '!='];
             $whereParts = [];
             $bindings   = [];
             foreach ($filters as $f) {
-                $field = $f['field'] ?? '';
-                if ($field && isset($filterParams[$field]) && $filterParams[$field] !== '') {
-                    $op = $f['operator'] ?? '=';
+                $field = (string)($f['field'] ?? '');
+                if ($field === '' || !preg_match('/^[A-Za-z0-9_]+$/', $field)) continue;
+                if (isset($filterParams[$field]) && $filterParams[$field] !== '') {
+                    $op = in_array(($f['operator'] ?? '='), $allowedOps, true) ? $f['operator'] : '=';
                     if ($op === 'LIKE') {
                         $whereParts[] = "`{$field}` LIKE ?";
                         $bindings[]   = '%' . $filterParams[$field] . '%';
@@ -217,10 +247,12 @@ try {
             }
 
             if ($whereParts) {
-                $sql = "SELECT * FROM ({$sql}) AS _rpt WHERE " . implode(' AND ', $whereParts);
+                $sql = "SELECT * FROM (" . rtrim((string)$sql, "; \t\n\r") . ") AS _rpt WHERE " . implode(' AND ', $whereParts);
             }
 
+            $started = microtime(true);
             $rows    = $db->fetchAll($sql, $bindings);
+            $elapsed = (int)round((microtime(true) - $started) * 1000);
             $columns = json_decode($report['report_columns'] ?? '[]', true) ?: [];
 
             if (empty($columns) && !empty($rows)) {
@@ -234,6 +266,7 @@ try {
                 'data'        => $rows,
                 'columns'     => $columns,
                 'total'       => count($rows),
+                'elapsed_ms'  => $elapsed,
                 'view_mode'   => $report['report_view_mode'] ?? 'table',
                 'report_name' => $report['report_name'],
             ]);
