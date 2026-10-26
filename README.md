@@ -8,6 +8,11 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Dashboard
+- **Redesigned dashboards (`modules/dashboard/`, `nu-dashboard.css`, `nu-dashboard.js`):** greeting hero with date, role and project; clickable KPI cards with a 7-day sparkline and trend vs yesterday; quick-action tiles; last-7-days activity chart; and a recent-activity feed with avatars, relative times and Created / Updated / Deleted / Logins filters. First-run callout when a project has no forms. Responsive down to phone width.
+- **Refresh controls:** Refresh button plus an opt-in 1-minute auto-refresh that pauses while the tab is hidden, the widget layout is being edited, or a dialog is open.
+- **Widget section:** legacy colour tokens used by `widgets.php` are now aliased to the app theme, fixing its light-on-dark panels in dark mode.
+
 ### Unreleased — Forms
 - **Shared form shell (`nu-form-shell.js`, `nu-form-shell.css`):** add / edit / view-only / preview forms now share one chrome in modal, inline and full-page modes (replacing three inline-styled modal builders). Mode badge, sticky action bar, unsaved-changes indicator and discard confirmation (Cancel / ✕ / Esc / backdrop / leaving the page), `Ctrl/Cmd+S` to save, first-field autofocus, bottom-sheet layout on phones.
 - **Edit form:** save button shows a busy state and re-enables on failure; required fields are marked with `*`; inline validation messages (accessible, cleared as you type) replace the browser bubble; view-only records get an **Edit** shortcut.
