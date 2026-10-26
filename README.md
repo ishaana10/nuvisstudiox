@@ -8,6 +8,11 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Forms
+- **Shared form shell (`nu-form-shell.js`, `nu-form-shell.css`):** add / edit / view-only / preview forms now share one chrome in modal, inline and full-page modes (replacing three inline-styled modal builders). Mode badge, sticky action bar, unsaved-changes indicator and discard confirmation (Cancel / ✕ / Esc / backdrop / leaving the page), `Ctrl/Cmd+S` to save, first-field autofocus, bottom-sheet layout on phones.
+- **Edit form:** save button shows a busy state and re-enables on failure; required fields are marked with `*`; inline validation messages (accessible, cleared as you type) replace the browser bubble; view-only records get an **Edit** shortcut.
+- **Preview form:** "nothing is saved until you press Save" banner, Desktop / Tablet / Mobile device switcher that emulates the responsive column fallbacks, and S / M / L dialog sizes.
+
 ### Unreleased
 - **Browse Table redesign (`nu-browse-table.js`, `nu-browse.css`):** replaces the inline-styled grid with a namespaced component — sticky header, server-side search/sort/pagination, per-column filters, column show/hide/reorder/resize (saved per form), density toggle, bulk select + delete, export, keyboard navigation, skeleton/error/empty states, and a card layout on mobile.
 - **Command palette (`nu-shell.js`):** `Ctrl/Cmd+K` (or `/`) jumps to any sidebar destination or runs quick actions (theme, sidebar). Header search button added; `[` toggles the sidebar.
