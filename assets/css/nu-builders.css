@@ -113,3 +113,9 @@
 .nu-sx-grid-empty svg { opacity: .55; }
 
 @media (prefers-reduced-motion: reduce) { .nu-sx-caret { transition: none; } .nu-sx-spin { animation: none; } }
+
+/* Mobile: the app forces 12px/14px padding on .nu-input; let compact builder fields grow instead of clipping text. */
+@media (max-width: 768px) {
+  .nu-qb .nu-input, #rpt-app .nu-input { height: auto !important; min-height: 44px; }
+  .qb-limit select { width: 96px; }
+}

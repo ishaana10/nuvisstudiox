@@ -8,6 +8,13 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Workflow
+- **Visual rules & actions:** each transition has a "Rules & actions" editor (When / Then) replacing raw JSON. Conditions are nestable all/any rule groups with a live test; legacy expression strings still work.
+- **Update any table:** `update_record` can target the workflow's record, a specific record by id (`table` + `id` + optional id field), or all rows matching field rules. Set values from a literal, the record, the target row, stage, actor, now/today, increment/decrement, append, a calculation or NULL. **Scenarios** (`when` → `set`, first-match or all, plus Otherwise) decide what gets updated. Also: create record, email, notify user, HTTP request, run procedure, call agent; per-action `when`, enable and on-error.
+- **Engine:** server-side enforcement of conditions, roles and required comments; auto transitions; SLA escalation (`on_sla`); stage on-enter actions; dry-run **Preview on a real record**; automation log per instance; workflow duplicate, export and import.
+- **Safety:** `nu_` platform tables are blocked as write targets (opt in with `NU_WORKFLOW_ALLOW_SYSTEM_TABLES`); columns validated against the schema; bound parameters only. Design API actions need admin or the `workflow` permission.
+- **Ops:** `cli/cron.php` now runs workflow timers (SLA and auto transitions). Schema additions are applied automatically and are in `install.sql`.
+
 ### Unreleased — Builders
 - **Query Builder (`modules/queries/`):** schema browser sidebar (search tables and columns, click to insert, one-click `SELECT`), SQL editor with highlighting, schema-aware autocomplete and a formatter, a Visual builder that hands off to SQL, **Run unsaved SQL** (`Ctrl/Cmd+Enter`) with a result grid (filter, sort, copy, CSV, timing), `:placeholder` parameter detection with one-click "Add parameter", test values, unsaved-changes guard, list search and **Duplicate**.
 - **Report Builder (`modules/reports/`):** same editor and schema browser, shared result grid for preview and run, **Detect columns from SQL**, real **Chart.js** charts (bar / line / pie / doughnut with label and value pickers), list search and **Duplicate**. PDF templates, email and the pivot view are unchanged.
