@@ -619,6 +619,44 @@ CREATE TABLE IF NOT EXISTS `nu_workflow_action_log` (
     KEY `idx_wal_wfi` (`wal_wfi_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ─── 33. PUBLIC FORM SHARES (no-login customer request links) ─────────────────
+CREATE TABLE IF NOT EXISTS `nu_form_shares` (
+    `fs_id` INT NOT NULL AUTO_INCREMENT,
+    `project_id` INT UNSIGNED NOT NULL DEFAULT 1,
+    `fs_form_code` VARCHAR(50) NOT NULL,
+    `fs_token` VARCHAR(64) NOT NULL,
+    `fs_secret` VARCHAR(64) NOT NULL,
+    `fs_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+    `fs_title` VARCHAR(200) DEFAULT NULL,
+    `fs_intro` TEXT NULL,
+    `fs_submit_label` VARCHAR(60) DEFAULT NULL,
+    `fs_success_message` TEXT NULL,
+    `fs_redirect_url` VARCHAR(500) DEFAULT NULL,
+    `fs_notify_email` VARCHAR(500) DEFAULT NULL,
+    `fs_confirm_email` TINYINT(1) NOT NULL DEFAULT 0,
+    `fs_fields` TEXT NULL COMMENT 'JSON list of field names; NULL = all public-capable fields',
+    `fs_expires_at` DATETIME NULL,
+    `fs_max_submissions` INT NULL,
+    `fs_submit_count` INT NOT NULL DEFAULT 0,
+    `fs_created_by` VARCHAR(32) DEFAULT NULL,
+    `fs_created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `fs_updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`fs_id`),
+    UNIQUE KEY `uq_fs_token` (`fs_token`),
+    UNIQUE KEY `uq_fs_form` (`project_id`, `fs_form_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `nu_form_share_log` (
+    `fl_id` INT NOT NULL AUTO_INCREMENT,
+    `fl_fs_id` INT NOT NULL,
+    `fl_record_id` VARCHAR(64) DEFAULT NULL,
+    `fl_ip_hash` VARCHAR(64) DEFAULT NULL,
+    `fl_ua` VARCHAR(255) DEFAULT NULL,
+    `fl_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`fl_id`),
+    KEY `idx_fl_share_time` (`fl_fs_id`, `fl_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ─── SEED DATA ───────────────────────────────────────────────────────────────
 INSERT IGNORE INTO `nu_roles` (`role_code`, `role_name`, `role_description`, `role_is_system`) VALUES
 ('globeadmin', 'Globe Admin', 'System administrator - full access, cannot be deleted', 1),

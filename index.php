@@ -61,6 +61,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_submit'])) {
     }
 }
 
+// ─── Project share link (no login) ────────────────────────────────────────────
+// Must run BEFORE the auth check so a guest session exists when the page decides
+// whether to show the login screen.
+if ($auth && (isset($_GET['project_share']) || isset($_GET['share_token']) || !empty($_SESSION['project_share_token']))) {
+    try {
+        $sharedPid = ProjectContext::bootstrapShare();
+        if ($sharedPid !== null && $_SERVER['REQUEST_METHOD'] === 'GET'
+            && (isset($_GET['project_share']) || isset($_GET['share_token']))) {
+            // Drop the token from the address bar; the session now carries it.
+            header('Location: ' . strtok($_SERVER['REQUEST_URI'] ?? 'index.php', '?'));
+            exit;
+        }
+    } catch (Throwable $e) {
+        error_log('[index.php project share] ' . $e->getMessage());
+    }
+}
+
 // ─── Auth Check ───────────────────────────────────────────────────────────────
 if ($auth) {
     try {
@@ -203,6 +220,7 @@ try {
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-dashboard.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-builders.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-workflow-builder.css') ?>">
+    <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-form-share.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('lib/uppy/uppy.min.css') ?>">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0b1020">
