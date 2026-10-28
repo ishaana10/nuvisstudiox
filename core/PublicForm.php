@@ -535,32 +535,34 @@ class NuPublicForm
             ]);
         } catch (Throwable $e) { error_log('[public form webhook] ' . $e->getMessage()); }
 
-        // Emails (HTML + plain text): staff notification and optional customer confirmation
+        // Emails (HTML + plain text) via EmailService (SMTP when configured) so every attempt is logged.
         try {
-            require_once __DIR__ . '/Emailer.php';
+            require_once __DIR__ . '/EmailService.php';
             require_once __DIR__ . '/PublicFormMail.php';
-            $mailer = new NuEmailer();
+            $mailer = new EmailService();
+            $src = 'public_form:' . $form['form_code'];
             $theme = self::theme($share);
             $customer = NuPublicFormMail::customerEmail($share, $fields, $clean);
             $staff = NuPublicFormMail::build('staff', $share, $form, $fields, $clean, (string)$rec['reference'], $theme);
+            $notify = [];
             foreach (preg_split('/[,;\s]+/', (string)($share['fs_notify_email'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $to) {
-                if (!filter_var($to, FILTER_VALIDATE_EMAIL)) continue;
-                if (!$mailer->sendHtml($to, $staff['subject'], $staff['html'], $staff['text'], $customer !== '' ? $customer : null)) {
-                    error_log('[public form email] staff mail() failed for ' . $to);
-                }
+                if (filter_var($to, FILTER_VALIDATE_EMAIL)) $notify[] = $to;
+            }
+            foreach ($notify as $to) {
+                $r = $mailer->send($to, $staff['subject'], $staff['html'], [
+                    'text_body' => $staff['text'], 'reply_to' => $customer !== '' ? $customer : null, 'source' => $src . ':staff',
+                ]);
+                if (empty($r['success'])) error_log('[public form email] staff mail failed for ' . $to . ': ' . ($r['message'] ?? ''));
             }
             if (!empty($share['fs_confirm_email'])) {
                 if ($customer === '') {
-                    error_log('[public form email] confirmation skipped: no valid customer email in submission (form ' . $form['form_code'] . ')');
+                    EmailService::logSkipped('', 'Confirmation for ' . $form['form_name'], 'No valid customer email address found in the submission (check the "customer email field" setting).', $src . ':customer');
                 } else {
                     $cust = NuPublicFormMail::build('customer', $share, $form, $fields, $clean, (string)$rec['reference'], $theme);
-                    $replyTo = null;
-                    foreach (preg_split('/[,;\s]+/', (string)($share['fs_notify_email'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $r) {
-                        if (filter_var($r, FILTER_VALIDATE_EMAIL)) { $replyTo = $r; break; }
-                    }
-                    if (!$mailer->sendHtml($customer, $cust['subject'], $cust['html'], $cust['text'], $replyTo)) {
-                        error_log('[public form email] confirmation mail() failed for ' . $customer);
-                    }
+                    $r = $mailer->send($customer, $cust['subject'], $cust['html'], [
+                        'text_body' => $cust['text'], 'reply_to' => $notify[0] ?? null, 'source' => $src . ':customer',
+                    ]);
+                    if (empty($r['success'])) error_log('[public form email] confirmation failed for ' . $customer . ': ' . ($r['message'] ?? ''));
                 }
             }
         } catch (Throwable $e) { error_log('[public form email] ' . $e->getMessage()); }

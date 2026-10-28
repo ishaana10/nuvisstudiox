@@ -777,6 +777,7 @@ switch ($action) {
 
             $executedCount = 0;
             $importedProjectId = null;
+            $hasRedisSettings = strpos($sqlContent, 'nu_system_settings') !== false && strpos($sqlContent, "'redis_config'") !== false;
 
             foreach ($statements as $stmt) {
                 $stmtTrim = trim($stmt);
@@ -796,6 +797,14 @@ switch ($action) {
                         }
                     }
                 }
+            }
+
+            // Seed Redis settings from the package when this site has none of its own (never overrides local settings).
+            if (!empty($hasRedisSettings)) {
+                try {
+                    require_once dirname(__DIR__) . '/core/RedisConfig.php';
+                    if (!is_file(NuRedisConfig::file())) NuRedisConfig::syncFromDb();
+                } catch (Throwable $e) { error_log('[import] redis settings: ' . $e->getMessage()); }
             }
 
             // If project ID wasn't explicitly captured from SQL, find the latest created/updated project

@@ -38,6 +38,19 @@ if ($method === 'POST') {
 
 $action = $input['action'] ?? $_GET['action'] ?? '';
 
+// Settings, logs, diagnostics and test sends are administrator-only.
+$adminOnly = ['test', 'logs', 'get_settings', 'save_settings', 'deliverability', 'clear_logs', 'logs_csv'];
+if (in_array($action, $adminOnly, true)) {
+    $u = $auth->getCurrentUser();
+    $role = strtolower((string)(is_array($u) ? ($u['usr_role'] ?? '') : ''));
+    if (!in_array($role, ['admin', 'globeadmin'], true)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Administrator access required.']);
+        exit;
+    }
+}
+EmailService::ensureLogSchema();
+
 // Ensure email tables exist
 try {
     $db->fetchAll("SELECT 1 FROM nu_email_settings LIMIT 1");
@@ -197,14 +210,12 @@ try {
         // ------------------------------------------------------------------
         case 'test':
             $currentUser = $auth->getCurrentUser();
-            $to  = $input['to'] ?? ($currentUser['usr_email'] ?? '');
-            if (!$to) throw new \InvalidArgumentException('Recipient email required.');
+            $to  = trim((string)($input['to'] ?? ($currentUser['usr_email'] ?? '')));
+            if (!filter_var($to, FILTER_VALIDATE_EMAIL)) throw new \InvalidArgumentException('A valid recipient email is required.');
             $svc    = new EmailService();
-            $result = $svc->send($to, 'nub5-dev Email Test', '<h2 style="font-family:sans-serif">Email system working ✓</h2><p style="font-family:sans-serif">Your nub5-dev email configuration is correct.</p>');
+            $result = $svc->send($to, 'Nuvis StudioX email test', '<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px"><h2 style="margin:0 0 8px">Email delivery is working ✓</h2><p style="color:#475569">This test message was sent from your Nuvis StudioX email settings on ' . date('Y-m-d H:i') . '.</p></div>', ['source' => 'test', 'text_body' => 'Email delivery is working. Sent from your Nuvis StudioX email settings.']);
             echo json_encode($result);
             break;
-
-        // ------------------------------------------------------------------
         case 'templates':
             $templates = $db->fetchAll("SELECT * FROM nu_email_templates ORDER BY name ASC");
             echo json_encode(['success' => true, 'data' => $templates]);
@@ -248,39 +259,108 @@ try {
 
         // ------------------------------------------------------------------
         case 'logs':
-            $limit  = min((int)($_GET['limit']  ?? 50), 200);
-            $offset = (int)($_GET['offset'] ?? 0);
-            $logs   = $db->fetchAll("SELECT * FROM nu_email_log ORDER BY sent_at DESC LIMIT " . (int)$limit . " OFFSET " . (int)$offset);
-            $countRow = $db->fetchOne("SELECT COUNT(*) AS c FROM nu_email_log");
-            $total  = (int)($countRow['c'] ?? 0);
-            echo json_encode(['success' => true, 'data' => $logs, 'total' => $total]);
+        case 'logs_csv':
+            $limit  = $action === 'logs_csv' ? 5000 : max(1, min((int)($_GET['limit'] ?? 50), 200));
+            $offset = max(0, (int)($_GET['offset'] ?? 0));
+            $where = []; $p = [];
+            $st = strtoupper(trim((string)($_GET['status'] ?? '')));
+            if (in_array($st, ['SENT', 'FAIL', 'SKIPPED'], true)) { $where[] = 'status = ?'; $p[] = $st; }
+            $q = trim((string)($_GET['q'] ?? ''));
+            if ($q !== '') {
+                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+                $where[] = '(recipient LIKE ? OR subject LIKE ? OR error_message LIKE ? OR source LIKE ?)';
+                array_push($p, $like, $like, $like, $like);
+            }
+            $w = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+            $logs = $db->fetchAll("SELECT * FROM nu_email_log{$w} ORDER BY id DESC LIMIT " . (int)$limit . " OFFSET " . (int)$offset, $p);
+            if ($action === 'logs_csv') {
+                header_remove('Content-Type');
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="email-log-' . date('Ymd-His') . '.csv"');
+                $out = fopen('php://output', 'w');
+                fputcsv($out, ['id', 'time', 'status', 'recipient', 'subject', 'source', 'driver', 'error', 'detail', 'message_id', 'ms']);
+                foreach ($logs as $r) {
+                    $cell = function ($v) { $v = (string)$v; return preg_match('/^[=+\-@\t\r]/', $v) ? "'" . $v : $v; };
+                    fputcsv($out, [$r['id'], $r['sent_at'], $r['status'], $cell($r['recipient']), $cell($r['subject']), $r['source'] ?? '', $r['driver'] ?? '', $cell($r['error_message'] ?? ''), $cell($r['detail'] ?? ''), $r['message_id'] ?? '', $r['duration_ms'] ?? '']);
+                }
+                fclose($out);
+                exit;
+            }
+            $countRow = $db->fetchOne("SELECT COUNT(*) AS c FROM nu_email_log{$w}", $p);
+            $stats = $db->fetchAll("SELECT status, COUNT(*) AS c FROM nu_email_log GROUP BY status");
+            echo json_encode(['success' => true, 'data' => $logs, 'total' => (int)($countRow['c'] ?? 0), 'stats' => $stats]);
             break;
-
-        // ------------------------------------------------------------------
+        case 'clear_logs':
+            $days = max(0, (int)($input['older_than_days'] ?? 0));
+            if ($days > 0) $db->query("DELETE FROM nu_email_log WHERE sent_at < ?", [date('Y-m-d H:i:s', time() - $days * 86400)]);
+            else $db->query("DELETE FROM nu_email_log");
+            echo json_encode(['success' => true, 'message' => 'Log cleared.']);
+            break;
         case 'get_settings':
             $rows   = $db->fetchAll("SELECT setting_key, setting_value FROM nu_email_settings");
             $config = [];
             foreach ($rows as $row) {
                 $config[$row['setting_key']] = $row['setting_value'];
             }
+            // never send the stored password back to the browser
+            $hasPw = !empty($config['smtp_password']);
+            unset($config['smtp_password']);
+            $config['smtp_password_set'] = $hasPw ? '1' : '0';
             echo json_encode(['success' => true, 'data' => $config]);
+            break;
+        case 'deliverability':
+            $svc = new EmailService();
+            $c = $svc->getPublicConfig();
+            $from = (string)$c['from_email'];
+            $domain = strtolower(substr(strrchr($from, '@') ?: '', 1));
+            $checks = [];
+            $add = function ($id, $level, $title, $msg) use (&$checks) { $checks[] = compact('id', 'level', 'title', 'msg'); };
+            if (!filter_var($from, FILTER_VALIDATE_EMAIL)) {
+                $add('from', 'error', 'From address', 'The From address is missing or invalid.');
+            } elseif (in_array($domain, ['example.com', 'localhost', 'localhost.localdomain', 'example.org'], true) || strpos($domain, '.') === false) {
+                $add('from', 'error', 'From address', "\"{$from}\" is a placeholder. Use a real mailbox on your own domain, e.g. noreply@yourdomain.com.");
+            } else {
+                $add('from', 'ok', 'From address', $from);
+            }
+            if (($c['driver'] ?? '') === 'smtp') {
+                $add('driver', 'ok', 'Sending method', 'Authenticated SMTP via ' . $c['smtp_host'] . ':' . $c['smtp_port'] . ' (' . strtoupper((string)$c['smtp_secure'] ?: 'none') . ')');
+                if (empty($c['smtp_auth'])) $add('auth', 'warn', 'SMTP login', 'SMTP authentication is off. Most providers (and A2 Hosting) require a username and password.');
+            } else {
+                $add('driver', 'warn', 'Sending method', 'Using the server\'s built-in mail() function. Gmail/Yahoo often reject or spam-folder this. Switch to SMTP with a mailbox created in cPanel.');
+            }
+            if ($domain && strpos($domain, '.') !== false && function_exists('dns_get_record')) {
+                $txt = @dns_get_record($domain, DNS_TXT) ?: [];
+                $spf = ''; foreach ($txt as $t) { $v = $t['txt'] ?? ''; if (stripos($v, 'v=spf1') === 0) $spf = $v; }
+                $add('spf', $spf ? 'ok' : 'error', 'SPF record', $spf ?: "No SPF record on {$domain}. Add a TXT record, e.g. \"v=spf1 +a +mx +include:spf.a2hosting.com ~all\" (check your host's recommended value).");
+                $dm = @dns_get_record('_dmarc.' . $domain, DNS_TXT) ?: [];
+                $dmv = ''; foreach ($dm as $t) { if (stripos($t['txt'] ?? '', 'v=DMARC1') === 0) $dmv = $t['txt']; }
+                $add('dmarc', $dmv ? 'ok' : 'warn', 'DMARC record', $dmv ?: "No DMARC record. Gmail and Yahoo require one for bulk senders. Add TXT _dmarc.{$domain}: \"v=DMARC1; p=none; rua=mailto:{$from}\".");
+                $dk = []; foreach (['default', 'selector1', 'google', 'mail', 'k1', 's1'] as $sel) { $r = @dns_get_record("{$sel}._domainkey.{$domain}", DNS_TXT); if ($r) { $dk[] = $sel; } }
+                $add('dkim', $dk ? 'ok' : 'warn', 'DKIM record', $dk ? 'Found selector: ' . implode(', ', $dk) : 'No common DKIM selector found. In cPanel > Email Deliverability, enable/repair DKIM for ' . $domain . '.');
+                $mx = @dns_get_record($domain, DNS_MX) ?: [];
+                $add('mx', $mx ? 'ok' : 'warn', 'MX record', $mx ? implode(', ', array_map(fn($m) => $m['target'], $mx)) : 'No MX record; some receivers distrust domains that cannot receive mail.');
+            } else {
+                $add('dns', 'warn', 'DNS checks', 'DNS lookups are unavailable on this server.');
+            }
+            echo json_encode(['success' => true, 'domain' => $domain, 'checks' => $checks]);
             break;
 
         // ------------------------------------------------------------------
         case 'save_settings':
             $settings = $input['settings'] ?? [];
             if (empty($settings)) throw new \InvalidArgumentException('No settings provided.');
-
+            $known = ['driver','smtp_host','smtp_port','smtp_secure','smtp_auth','smtp_username','smtp_password','from_name','from_email','reply_to','smtp_verify_peer','smtp_ehlo'];
             foreach ($settings as $setting) {
                 $key   = trim((string)($setting['key']   ?? ''));
                 $value = trim((string)($setting['value'] ?? ''));
-                if (!$key) continue;
-                // UPSERT
-                $db->query("
-                    INSERT INTO nu_email_settings (setting_key, setting_value)
-                    VALUES (?, ?)
-                    ON DUPLICATE KEY UPDATE setting_value=?, updated_at=NOW()
-                ", [$key, $value, $value]);
+                if (!in_array($key, $known, true)) continue;
+                if ($key === 'smtp_password' && ($value === '' || $value === '********')) continue; // blank = keep current
+                if (in_array($key, ['from_email', 'reply_to'], true) && $value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                    throw new \InvalidArgumentException("\"{$value}\" is not a valid email address.");
+                }
+                $exists = $db->fetchOne("SELECT 1 AS x FROM nu_email_settings WHERE setting_key = ?", [$key]);
+                if ($exists) $db->query("UPDATE nu_email_settings SET setting_value = ? WHERE setting_key = ?", [$value, $key]);
+                else $db->query("INSERT INTO nu_email_settings (setting_key, setting_value) VALUES (?, ?)", [$key, $value]);
             }
             echo json_encode(['success' => true, 'message' => 'Settings saved.']);
             break;

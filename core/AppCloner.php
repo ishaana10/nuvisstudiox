@@ -878,6 +878,33 @@ class AppCloner {
             }
         }
 
+        // Email configuration is exported BLANK: the receiving site configures its own sender/SMTP after install.
+        // INSERT IGNORE means an existing site's settings are never overwritten on import.
+        $ign = ($driver === 'sqlite') ? 'INSERT OR IGNORE INTO' : 'INSERT IGNORE INTO';
+        $parts[] = "-- ─── EMAIL SETTINGS (blank; configure after install) ───────────────";
+        $parts[] = ($driver === 'sqlite')
+            ? "CREATE TABLE IF NOT EXISTS `nu_email_settings` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `setting_key` TEXT NOT NULL UNIQUE, `setting_value` TEXT NOT NULL DEFAULT '');"
+            : "CREATE TABLE IF NOT EXISTS `nu_email_settings` (`id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, `setting_key` VARCHAR(100) NOT NULL UNIQUE, `setting_value` TEXT NOT NULL, `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+        $blank = ['driver' => 'mail', 'smtp_host' => '', 'smtp_port' => '587', 'smtp_secure' => 'tls', 'smtp_auth' => '1',
+                  'smtp_username' => '', 'smtp_password' => '', 'from_name' => '', 'from_email' => '', 'reply_to' => ''];
+        $vals = [];
+        foreach ($blank as $k => $v) $vals[] = '(' . $pdo->quote($k) . ', ' . $pdo->quote($v) . ')';
+        $parts[] = "{$ign} `nu_email_settings` (`setting_key`, `setting_value`) VALUES " . implode(', ', $vals) . ";\n";
+
+        // Integration settings (Redis connection). Secrets are never exported; on import the row only seeds
+        // a site that has no saved Redis settings of its own.
+        try {
+            require_once __DIR__ . '/RedisConfig.php';
+            $rc = NuRedisConfig::get(true);
+            unset($rc['password']);
+            $ignore = ($driver === 'sqlite') ? 'INSERT OR IGNORE INTO' : 'INSERT IGNORE INTO';
+            $parts[] = "-- ─── INTEGRATION SETTINGS (no secrets) ───────────────";
+            $parts[] = "{$ignore} `nu_system_settings` (`setting_key`, `setting_value`) VALUES (" .
+                $pdo->quote(NuRedisConfig::SETTING_KEY) . ", " . $pdo->quote(json_encode($rc)) . ");\n";
+        } catch (\Throwable $e) {
+            error_log('[AppCloner] redis settings export: ' . $e->getMessage());
+        }
+
         $parts[] = "SET FOREIGN_KEY_CHECKS=1;\n";
         $sql = implode("\n", array_filter($parts));
 

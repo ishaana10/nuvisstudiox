@@ -50,6 +50,19 @@ if (!$isAdmin) {
 
         <div id="esSmtpFieldsContainer">
           <div class="nu-field" style="margin-bottom:12px;">
+            <label>Provider preset</label>
+            <select class="nu-input" id="esPreset" onchange="esApplyPreset()">
+              <option value="">Choose a preset…</option>
+              <option value="a2">A2 Hosting (mail.yourdomain.com, SSL 465)</option>
+              <option value="a2tls">A2 Hosting (mail.yourdomain.com, STARTTLS 587)</option>
+              <option value="gmail">Gmail / Google Workspace (app password)</option>
+              <option value="o365">Microsoft 365</option>
+              <option value="sendgrid">SendGrid</option>
+              <option value="mailgun">Mailgun</option>
+            </select>
+            <span style="font-size:12px;color:var(--color-text-faint);display:block;margin-top:2px;">On A2 Hosting create a mailbox in cPanel &gt; Email Accounts, then use its full address and password here.</span>
+          </div>
+          <div class="nu-field" style="margin-bottom:12px;">
             <label>SMTP Hostname</label>
             <input type="text" class="nu-input" id="esSmtpHost" placeholder="e.g. mail.yourdomain.com">
           </div>
@@ -76,8 +89,15 @@ if (!$isAdmin) {
 
           <div class="nu-field" style="margin-bottom:16px;">
             <label>SMTP Password</label>
-            <input type="password" class="nu-input" id="esSmtpPassword" placeholder="••••••••">
+            <input type="password" class="nu-input" id="esSmtpPassword" placeholder="••••••••" autocomplete="new-password">
+            <span id="esPwHint" style="font-size:12px;color:var(--color-text-faint);display:block;margin-top:2px;"></span>
           </div>
+          <details style="margin-bottom:16px;">
+            <summary style="cursor:pointer;font-size:13px;font-weight:600;">Advanced</summary>
+            <div class="nu-field" style="margin:10px 0;"><label>Reply-To address (optional)</label><input type="email" class="nu-input" id="esReplyTo"></div>
+            <div class="nu-field" style="margin:10px 0;"><label>EHLO name (optional)</label><input type="text" class="nu-input" id="esEhlo" placeholder="defaults to your From domain"></div>
+            <label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" id="esVerifyPeer" checked> Verify the server's TLS certificate (turn off only if the host name does not match the certificate)</label>
+          </details>
         </div>
 
         <button class="nu-btn nu-btn-primary" onclick="esSaveSmtpSettings()" style="width:100%;">
@@ -113,6 +133,16 @@ if (!$isAdmin) {
           <button class="nu-btn nu-btn-ghost" id="esTestBtn" onclick="esSendTestEmail()" style="width:100%;">
             Send Test Message
           </button>
+          <pre id="esTestResult" style="display:none;margin-top:10px;font-size:12px;white-space:pre-wrap;word-break:break-word;background:var(--color-surface);padding:10px;border-radius:8px;max-height:200px;overflow:auto;"></pre>
+        </div>
+
+        <div class="nu-card" style="padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:600;margin:0;">Deliverability check</h3>
+            <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="esCheckDeliverability()">Run check</button>
+          </div>
+          <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 10px;line-height:1.5;">Gmail and Yahoo reject mail without SPF/DKIM that matches the From domain. This checks your sending domain's DNS.</p>
+          <div id="esDeliv" style="font-size:13px;"></div>
         </div>
       </div>
 
@@ -139,7 +169,7 @@ if (!$isAdmin) {
             </tr>
           </thead>
           <tbody id="esTemplatesBody">
-            <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--color-text-faint);">Loading templates…</td></tr>
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--color-text-faint);">Loading templates…</td></tr>
           </tbody>
         </table>
       </div>
@@ -150,15 +180,23 @@ if (!$isAdmin) {
   <div class="es-tab-panel" id="es-tab-logs" style="display:none;">
     <div class="nu-card" style="padding:20px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--color-divider);padding-bottom:10px;">
-        <h3 style="font-size:15px;font-weight:600;margin:0;">SMTP Delivery Logs</h3>
-        <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="esLoadLogs()">Refresh Log</button>
+        <h3 style="font-size:15px;font-weight:600;margin:0;">Email Sent &amp; Error Log</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input type="search" class="nu-input" id="esLogQ" placeholder="Search recipient, subject, error…" style="width:220px;" onkeydown="if(event.key==='Enter')esLoadLogs()">
+          <select class="nu-input" id="esLogStatusFilter" onchange="esLoadLogs()" style="width:130px;"><option value="">All</option><option value="SENT">Sent</option><option value="FAIL">Failed</option><option value="SKIPPED">Skipped</option></select>
+          <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="esLoadLogs()">Refresh</button>
+          <a class="nu-btn nu-btn-ghost nu-btn-sm" id="esLogCsv" href="#" onclick="this.href=esLogCsvUrl()">CSV</a>
+          <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="esClearLogs()">Clear</button>
+        </div>
       </div>
+      <div id="esLogStats" style="display:flex;gap:12px;margin-bottom:12px;font-size:13px;"></div>
 
       <div style="overflow-x:auto;">
         <table class="es-table">
           <thead>
             <tr>
               <th>Time</th>
+              <th>Source</th>
               <th>Recipient</th>
               <th>Subject</th>
               <th>Status</th>
@@ -166,7 +204,7 @@ if (!$isAdmin) {
             </tr>
           </thead>
           <tbody id="esLogsBody">
-            <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--color-text-faint);">Loading logs…</td></tr>
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--color-text-faint);">Loading logs…</td></tr>
           </tbody>
         </table>
       </div>
@@ -240,8 +278,17 @@ if (!$isAdmin) {
         <div style="font-weight:600;color:var(--color-text-muted);">Status:</div>
         <div id="esLogStatus"></div>
 
+        <div style="font-weight:600;color:var(--color-text-muted);">Source:</div>
+        <div id="esLogSource"></div>
+
+        <div style="font-weight:600;color:var(--color-text-muted);">Driver:</div>
+        <div id="esLogDriver"></div>
+
         <div style="font-weight:600;color:var(--color-text-muted);">Template:</div>
         <div id="esLogTemplate"></div>
+
+        <div style="font-weight:600;color:var(--color-text-muted);">Server log:</div>
+        <pre id="esLogDetail" style="margin:0;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:180px;overflow:auto;"></pre>
 
         <div style="font-weight:600;color:var(--color-text-muted);">Error Message:</div>
         <div id="esLogErrorMessage" style="color:var(--color-error);word-break:break-word;"></div>
@@ -379,7 +426,11 @@ if (!$isAdmin) {
       document.getElementById('esSmtpPort').value     = s.smtp_port     || '587';
       document.getElementById('esSmtpSecure').value   = s.smtp_secure   || 'tls';
       document.getElementById('esSmtpUsername').value = s.smtp_username || '';
-      document.getElementById('esSmtpPassword').value = s.smtp_password || '';
+      document.getElementById('esSmtpPassword').value = '';
+      document.getElementById('esPwHint').textContent = s.smtp_password_set === '1' ? 'A password is saved. Leave blank to keep it.' : '';
+      document.getElementById('esReplyTo').value      = s.reply_to || '';
+      document.getElementById('esEhlo').value         = s.smtp_ehlo || '';
+      document.getElementById('esVerifyPeer').checked = (s.smtp_verify_peer !== '0');
       document.getElementById('esFromName').value     = s.from_name     || '';
       document.getElementById('esFromEmail').value    = s.from_email    || '';
 
@@ -398,6 +449,9 @@ if (!$isAdmin) {
       { key: 'smtp_password', value: document.getElementById('esSmtpPassword').value },
       { key: 'from_name',     value: document.getElementById('esFromName').value },
       { key: 'from_email',    value: document.getElementById('esFromEmail').value },
+      { key: 'reply_to',      value: document.getElementById('esReplyTo').value },
+      { key: 'smtp_ehlo',     value: document.getElementById('esEhlo').value },
+      { key: 'smtp_verify_peer', value: document.getElementById('esVerifyPeer').checked ? '1' : '0' },
     ];
 
     try {
@@ -409,7 +463,7 @@ if (!$isAdmin) {
       });
       var data = await res.json();
       if (data.success) {
-        toast('SMTP Settings saved successfully', 'success');
+        toast('SMTP Settings saved successfully', 'success'); document.getElementById('esSmtpPassword').value = ''; esLoadSmtpSettings();
       } else {
         toast('Save failed: ' + data.message, 'error');
       }
@@ -435,10 +489,13 @@ if (!$isAdmin) {
         body: JSON.stringify({ action: 'test', to: to })
       });
       var data = await res.json();
+      var pre = document.getElementById('esTestResult');
+      pre.style.display = 'block';
+      pre.textContent = (data.success ? 'OK: ' : 'FAILED: ') + (data.message || '') + (data.detail ? '\n\n' + data.detail : '');
       if (data.success) {
-        toast('Test email sent to ' + to + ' successfully!', 'success');
+        toast('Test email accepted for ' + to + '. Check the inbox and spam folder.', 'success');
       } else {
-        toast('SMTP send failed: ' + data.message, 'error');
+        toast('Send failed: ' + data.message, 'error');
       }
     } catch(e) {
       toast('Network error: ' + e.message, 'error');
@@ -456,14 +513,14 @@ if (!$isAdmin) {
       _templates = j.success ? j.data : [];
       esRenderTemplatesTable();
     } catch(e) {
-      document.getElementById('esTemplatesBody').innerHTML = '<tr><td colspan="5" style="color:var(--color-error)">Failed to load: ' + e.message + '</td></tr>';
+      document.getElementById('esTemplatesBody').innerHTML = '<tr><td colspan="6" style="color:var(--color-error)">Failed to load: ' + e.message + '</td></tr>';
     }
   };
 
   function esRenderTemplatesTable() {
     var tbody = document.getElementById('esTemplatesBody');
     if (!_templates.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-faint);">No email templates found. Click <strong>+ Create Template</strong> to add one.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--color-text-faint);">No email templates found. Click <strong>+ Create Template</strong> to add one.</td></tr>';
       return;
     }
 
@@ -571,31 +628,48 @@ if (!$isAdmin) {
   };
 
   // ── SMTP send log ───────────────────────────────────────────────────
+  function esLogQuery() {
+    var q = encodeURIComponent((document.getElementById('esLogQ') || {}).value || '');
+    var st = encodeURIComponent((document.getElementById('esLogStatusFilter') || {}).value || '');
+    return '&q=' + q + '&status=' + st;
+  }
+  window.esLogCsvUrl = function () { return API + '?action=logs_csv' + esLogQuery(); };
+  window.esClearLogs = async function () {
+    if (!confirm('Delete all email log entries?')) return;
+    await fetch(API, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear_logs' }) });
+    esLoadLogs();
+  };
+  function esBadge(st) {
+    var m = { SENT: ['#d4dfcc', '#437a22', 'Sent'], FAIL: ['#f3d6d6', '#a12c2c', 'Failed'], SKIPPED: ['#f1e6c8', '#8a6a12', 'Skipped'] }[st] || ['#e5e7eb', '#475569', st];
+    return '<span class="badge" style="background:' + m[0] + ';color:' + m[1] + ';">' + m[2] + '</span>';
+  }
+  var esLogRows = [];
   window.esLoadLogs = async function () {
     var tbody = document.getElementById('esLogsBody');
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-faint);">Loading logs…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--color-text-faint);">Loading logs…</td></tr>';
     try {
-      var res = await fetch(API + '?action=logs&limit=50', { credentials: 'same-origin' });
+      var res = await fetch(API + '?action=logs&limit=100' + esLogQuery(), { credentials: 'same-origin' });
       var data = await res.json();
+      var stats = {}; ((data && data.stats) || []).forEach(function (x) { stats[x.status] = x.c; });
+      document.getElementById('esLogStats').innerHTML = ['SENT', 'FAIL', 'SKIPPED'].map(function (k) { return esBadge(k) + ' ' + (stats[k] || 0); }).join(' &nbsp; ');
       if (!data.success || !data.data.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--color-text-faint);">No email delivery log entries found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--color-text-faint);">' + esc(data.message || 'No email log entries found.') + '</td></tr>';
         return;
       }
-
-      tbody.innerHTML = data.data.map(function (row) {
-        var rowJson = JSON.stringify(row).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-        return '<tr onclick=\'esShowLogDetails(' + rowJson + ')\' style="cursor:pointer;">' +
+      esLogRows = data.data;
+      tbody.innerHTML = data.data.map(function (row, i) {
+        return '<tr data-i="' + i + '" style="cursor:pointer;">' +
           '<td style="color:var(--color-text-muted);font-size:11px;white-space:nowrap;">' + esc(row.sent_at) + '</td>' +
+          '<td style="font-size:11px;">' + esc(row.source || '') + '</td>' +
           '<td>' + esc(row.recipient) + '</td>' +
           '<td style="font-weight:500;">' + esc(row.subject) + '</td>' +
-          '<td>' + (row.status === 'SENT'
-            ? '<span class="badge" style="background:#d4dfcc;color:#437a22;"><span class="es-status-dot es-status-sent"></span>Sent</span>'
-            : '<span class="badge" style="background:#e0ced7;color:#a12c7b;"><span class="es-status-dot es-status-fail"></span>Failed</span>') + '</td>' +
+          '<td>' + esBadge(row.status) + '</td>' +
           '<td style="color:var(--color-error);font-size:11px;">' + esc(row.error_message || '') + '</td>' +
         '</tr>';
       }).join('');
+      tbody.querySelectorAll('tr[data-i]').forEach(function (tr) { tr.addEventListener('click', function () { esShowLogDetails(esLogRows[+tr.dataset.i]); }); });
     } catch(e) {
-      tbody.innerHTML = '<tr><td colspan="5" style="color:var(--color-error)">Failed to load logs: ' + e.message + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="color:var(--color-error)">Failed to load logs: ' + esc(e.message) + '</td></tr>';
     }
   };
 
@@ -603,16 +677,40 @@ if (!$isAdmin) {
     document.getElementById('esLogSentAt').textContent = row.sent_at || '';
     document.getElementById('esLogRecipient').textContent = row.recipient || '';
     document.getElementById('esLogSubject').textContent = row.subject || '';
-
-    var statusHtml = row.status === 'SENT'
-      ? '<span class="badge" style="background:#d4dfcc;color:#437a22;"><span class="es-status-dot es-status-sent"></span>Sent</span>'
-      : '<span class="badge" style="background:#e0ced7;color:#a12c7b;"><span class="es-status-dot es-status-fail"></span>Failed</span>';
-    document.getElementById('esLogStatus').innerHTML = statusHtml;
-
+    document.getElementById('esLogStatus').innerHTML = esBadge(row.status);
+    document.getElementById('esLogSource').textContent = row.source || '—';
+    document.getElementById('esLogDriver').textContent = (row.driver || '—') + (row.duration_ms ? ' · ' + row.duration_ms + ' ms' : '');
     document.getElementById('esLogTemplate').textContent = row.template_slug || 'None';
+    document.getElementById('esLogDetail').textContent = row.detail || '—';
     document.getElementById('esLogErrorMessage').textContent = row.error_message || 'None';
-
     document.getElementById('esLogModal').style.display = 'flex';
+  };
+
+  // ── presets, deliverability ─────────────────────────────────────────
+  window.esApplyPreset = function () {
+    var v = document.getElementById('esPreset').value;
+    var host = (document.getElementById('esFromEmail').value.split('@')[1] || 'yourdomain.com');
+    var P = {
+      a2: ['mail.' + host, 465, 'ssl'], a2tls: ['mail.' + host, 587, 'tls'], gmail: ['smtp.gmail.com', 587, 'tls'],
+      o365: ['smtp.office365.com', 587, 'tls'], sendgrid: ['smtp.sendgrid.net', 587, 'tls'], mailgun: ['smtp.mailgun.org', 587, 'tls']
+    }[v];
+    if (!P) return;
+    document.getElementById('esUseSmtp').checked = true;
+    document.getElementById('esSmtpHost').value = P[0]; document.getElementById('esSmtpPort').value = P[1]; document.getElementById('esSmtpSecure').value = P[2];
+    if (v === 'sendgrid') document.getElementById('esSmtpUsername').value = 'apikey';
+    esToggleSmtpFields();
+  };
+  window.esCheckDeliverability = async function () {
+    var box = document.getElementById('esDeliv');
+    box.textContent = 'Checking…';
+    try {
+      var d = await (await fetch(API + '?action=deliverability', { credentials: 'same-origin' })).json();
+      if (!d.success) { box.textContent = d.message || 'Check failed'; return; }
+      var col = { ok: '#437a22', warn: '#8a6a12', error: '#a12c2c' }, ico = { ok: '✓', warn: '!', error: '✕' };
+      box.innerHTML = d.checks.map(function (c) {
+        return '<div style="margin-bottom:8px;"><b style="color:' + col[c.level] + '">' + ico[c.level] + ' ' + esc(c.title) + '</b><div style="color:var(--color-text-muted);font-size:12px;word-break:break-word;">' + esc(c.msg) + '</div></div>';
+      }).join('');
+    } catch (e) { box.textContent = 'Check failed: ' + e.message; }
   };
 
   window.esCloseLogModal = function () {

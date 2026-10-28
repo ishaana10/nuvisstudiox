@@ -52,10 +52,10 @@ require_once NU_ROOT . '/core/SecurityHeaders.php';
 $nuConfig['redis'] = [
     'enabled'     => false, // Set true in config.local.php or env when active
     'scheme'      => 'unix',
-    'path'        => '/home/ictfjcom/.redis/redis.sock',
+    'path'        => '', // empty = $HOME/.redis/redis.sock; manage everything under Developer Settings > Redis
     'host'        => '127.0.0.1',
     'port'        => 6379,
-    'password'    => null,
+    'password'    => '',
     'database'    => 0,
     'prefix'      => 'nuvis:',
     'timeout'     => 2.5,
