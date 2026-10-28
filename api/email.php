@@ -213,6 +213,7 @@ try {
             $to  = trim((string)($input['to'] ?? ($currentUser['usr_email'] ?? '')));
             if (!filter_var($to, FILTER_VALIDATE_EMAIL)) throw new \InvalidArgumentException('A valid recipient email is required.');
             $svc    = new EmailService();
+            try { require_once __DIR__ . '/../core/Audit.php'; (new NuAudit())->event('email_test', 'Test email requested for ' . $to); } catch (\Throwable $t) {}
             $result = $svc->send($to, 'Nuvis StudioX email test', '<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px"><h2 style="margin:0 0 8px">Email delivery is working ✓</h2><p style="color:#475569">This test message was sent from your Nuvis StudioX email settings on ' . date('Y-m-d H:i') . '.</p></div>', ['source' => 'test', 'text_body' => 'Email delivery is working. Sent from your Nuvis StudioX email settings.']);
             echo json_encode($result);
             break;
@@ -362,6 +363,7 @@ try {
                 if ($exists) $db->query("UPDATE nu_email_settings SET setting_value = ? WHERE setting_key = ?", [$value, $key]);
                 else $db->query("INSERT INTO nu_email_settings (setting_key, setting_value) VALUES (?, ?)", [$key, $value]);
             }
+            try { require_once __DIR__ . '/../core/Audit.php'; (new NuAudit())->event('email_settings_save', 'Email settings changed', ['keys' => array_values(array_filter(array_map(fn($x) => $x['key'] ?? null, $settings)))]); } catch (\Throwable $t) {}
             echo json_encode(['success' => true, 'message' => 'Settings saved.']);
             break;
 

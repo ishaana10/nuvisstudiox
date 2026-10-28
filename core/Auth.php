@@ -32,11 +32,12 @@ class NuAuth {
             [':u' => $username]
         );
 
-        if (!$user) return ['success' => false, 'message' => 'Invalid credentials'];
+        if (!$user) { $this->logAuthFailure('Unknown or inactive user', (string)$username, null); return ['success' => false, 'message' => 'Invalid credentials']; }
 
         if ($user['usr_failed_attempts'] >= $this->config['maxLoginAttempts']) {
             $lastAttempt = strtotime((string)($user['usr_last_attempt'] ?? ''));
             if ($lastAttempt && (time() - $lastAttempt < $this->config['lockoutDuration'])) {
+                $this->logAuthFailure('Account locked after repeated failures', (string)$username, $user['usr_id']);
                 return ['success' => false, 'message' => 'Account locked. Try again later.'];
             }
             $this->resetAttempts($user['usr_id']);
@@ -44,6 +45,7 @@ class NuAuth {
 
         if (!password_verify($password, $user['usr_password'])) {
             $this->incrementAttempts($user['usr_id']);
+            $this->logAuthFailure('Wrong password', (string)$username, $user['usr_id']);
             return ['success' => false, 'message' => 'Invalid credentials'];
         }
 
@@ -73,6 +75,7 @@ class NuAuth {
 
             if (!$otp || !$this->verifyTOTP($totpSecret, $otp)) {
                 if (!$this->verifyBackupCode($user['usr_id'], (string)$otp)) {
+                    $this->logAuthFailure($otp ? 'Wrong MFA code' : 'MFA code missing', (string)$username, $user['usr_id']);
                     return [
                         'success' => false,
                         'message' => 'Invalid or missing MFA code',
@@ -483,6 +486,14 @@ class NuAuth {
             "UPDATE nu_users SET usr_failed_attempts = 0, usr_last_attempt = NULL WHERE usr_id = :id",
             [':id' => $userId]
         );
+    }
+
+    /** Failed sign-in attempts are always recorded (independent of enableAuditTrail): they are security events. */
+    private function logAuthFailure(string $reason, string $username, $userId): void {
+        try {
+            (new NuAudit())->event('login_failed', $reason . ' for "' . mb_substr($username, 0, 80) . '"', ['reason' => $reason],
+                'failure', ['username' => mb_substr($username, 0, 80), 'user_id' => $userId, 'table' => 'nu_users', 'record_id' => $userId]);
+        } catch (\Throwable $t) {}
     }
 
     private function logAudit($action, $table, $recordId) {

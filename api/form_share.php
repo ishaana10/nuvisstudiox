@@ -18,6 +18,7 @@ require_once dirname(__DIR__) . '/core/PublicForm.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+function fs_audit(string $a, string $code, ?array $share, array $d = []): void { try { require_once dirname(__DIR__) . '/core/Audit.php'; (new NuAudit())->event($a, "Public link for form {$code}", $d + ['form' => $code], 'success', ['table' => 'nu_form_shares', 'record_id' => $share['fs_id'] ?? null]); } catch (Throwable $t) {} }
 function fs_out(array $d, int $code = 200): void { http_response_code($code); echo json_encode($d); exit; }
 
 $auth = NuAuth::getInstance();
@@ -180,6 +181,7 @@ switch ($action) {
             $db->query('INSERT INTO nu_form_shares (`' . implode('`,`', $cols) . '`) VALUES (' . implode(',', array_fill(0, count($cols), '?')) . ')', array_values($vals));
         }
         $share = NuPublicForm::shareForForm($db, $pid, $code);
+        fs_audit('form_share_save', $code, $share, ['enabled' => (int)($share['fs_enabled'] ?? 0)]);
         fs_out(['success' => true] + fs_describe($db, $form, $share));
 
     case 'regenerate':
@@ -187,6 +189,7 @@ switch ($action) {
         $db->query('UPDATE nu_form_shares SET fs_token = ?, fs_secret = ?, fs_updated_at = ? WHERE fs_id = ?',
             [NuPublicForm::newToken(), bin2hex(random_bytes(24)), date('Y-m-d H:i:s'), $share['fs_id']]);
         $share = NuPublicForm::shareForForm($db, $pid, $code);
+        fs_audit('form_share_regenerate', $code, $share);
         fs_out(['success' => true] + fs_describe($db, $form, $share));
 
     case 'delete':
@@ -194,6 +197,7 @@ switch ($action) {
             $db->query('DELETE FROM nu_form_share_log WHERE fl_fs_id = ?', [$share['fs_id']]);
             $db->query('DELETE FROM nu_form_shares WHERE fs_id = ?', [$share['fs_id']]);
         }
+        fs_audit('form_share_delete', $code, null);
         fs_out(['success' => true] + fs_describe($db, $form, null));
 
     default:

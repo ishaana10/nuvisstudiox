@@ -504,6 +504,7 @@ switch ($action) {
 
         $proj = $db->fetchOne("SELECT project_code FROM nu_projects WHERE project_id = ?", [$projectId]);
         $filename = ($proj['project_code'] ?? 'project_' . $projectId) . '_export.sql';
+        try { require_once dirname(__DIR__) . '/core/Audit.php'; (new NuAudit())->event('project_export', 'Project ' . ($proj['project_code'] ?? $projectId) . ' exported (SQL)', [], 'success', ['table' => 'nu_projects', 'record_id' => $projectId]); } catch (Throwable $t) {}
 
         header('Content-Type: text/plain; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -535,6 +536,7 @@ switch ($action) {
 
         $proj = $db->fetchOne("SELECT project_code FROM nu_projects WHERE project_id = ?", [$projectId]);
         $projCode = $proj['project_code'] ?? 'project_' . $projectId;
+        try { require_once dirname(__DIR__) . '/core/Audit.php'; (new NuAudit())->event('project_export', "Project {$projCode} exported (full package)", [], 'success', ['table' => 'nu_projects', 'record_id' => $projectId]); } catch (Throwable $t) {}
 
         $tmpZip = tempnam(sys_get_temp_dir(), 'nu_export_') . '.zip';
         $zip = new ZipArchive();
@@ -798,6 +800,8 @@ switch ($action) {
                     }
                 }
             }
+
+            try { require_once dirname(__DIR__) . '/core/Audit.php'; (new NuAudit())->event('project_import', 'Project package imported (' . $executedCount . ' statements)', ['statements' => $executedCount, 'file' => (string)($_FILES['package_file']['name'] ?? '')], 'success', ['table' => 'nu_projects', 'record_id' => $importedProjectId]); } catch (Throwable $t) {}
 
             // Seed Redis settings from the package when this site has none of its own (never overrides local settings).
             if (!empty($hasRedisSettings)) {

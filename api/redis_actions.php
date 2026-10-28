@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/core/RedisConfig.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+function rd_audit(string $a, string $s, array $d = []): void { try { require_once dirname(__DIR__) . '/core/Audit.php'; (new NuAudit())->event($a, $s, $d); } catch (Throwable $t) {} }
 function rd_out(array $d, int $code = 200): void { http_response_code($code); echo json_encode($d); exit; }
 
 // Administrative role check (globeadmin or admin)
@@ -46,6 +47,7 @@ switch ($action) {
             rd_out(['success' => false, 'error' => $e->getMessage()]);
         }
         NuRedisConfig::touchStartFlag($saved);
+        rd_audit('redis_settings_save', 'Redis settings changed', ['enabled' => $saved['enabled'], 'scheme' => $saved['scheme'], 'prefix' => $saved['prefix']]);
         rd_out(['success' => true, 'message' => 'Redis settings saved.', 'config' => NuRedisConfig::publicView($saved)]);
 
     case 'test_config':
@@ -163,6 +165,7 @@ switch ($action) {
         $cache = NuCache::getInstance();
         if (!$cache->isEnabled()) rd_out(['success' => false, 'error' => 'Redis cache is not active.']);
         $cache->flush();
+        rd_audit('redis_flush', 'Application cache flushed');
         rd_out(['success' => true, 'message' => 'Application cache cleared (sessions are kept).']);
 
     default:
