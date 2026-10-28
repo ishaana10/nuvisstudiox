@@ -702,7 +702,7 @@ function nu_render_field($field, $value = '', $record = []) {
                             $html .= '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' . nu_html(basename($fName)) . '</div>';
                             $html .= '</div>';
                         } else {
-                            $html .= '<div style="margin-top:4px;font-size:11px;color:var(--text-tertiary);">Current: <a href="uploads/' . nu_html($fName) . '" target="_blank" style="color:var(--color-primary);text-decoration:underline;">' . nu_html(basename($fName)) . '</a></div>';
+                            $html .= '<div style="margin-top:4px;font-size:11px;color:var(--text-tertiary);">Current: <a href="#" data-nu-view-name="' . nu_attr($fName) . '" style="color:var(--color-primary);text-decoration:underline;">' . nu_html(basename($fName)) . '</a></div>';
                         }
                     }
                 }

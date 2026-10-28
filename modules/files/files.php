@@ -51,8 +51,7 @@ $maxSize = $nuConfig['maxUploadSize'] ?? 10 * 1024 * 1024;
                         </td>
                         <td><?php echo date('M j, Y', strtotime($f['file_uploaded_at'])); ?></td>
                         <td>
-                            <a href="api/file.php?id=<?php echo (int)$f['file_id']; ?>" target="_blank" class="nu-btn nu-btn-ghost nu-btn-sm">View</a>
-                            <a href="api/file.php?id=<?php echo (int)$f['file_id']; ?>&dl=1" class="nu-btn nu-btn-ghost nu-btn-sm">Download</a>
+                            <button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" data-nu-view-id="<?php echo (int)$f['file_id']; ?>" data-nu-view-group="files-list">View</button>
                             <button class="nu-btn nu-btn-danger nu-btn-sm" onclick="deleteFile(<?php echo $f['file_id']; ?>)">Delete</button>
                         </td>
                     </tr>

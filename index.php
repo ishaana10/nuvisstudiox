@@ -221,6 +221,7 @@ try {
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-builders.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-workflow-builder.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-form-share.css') ?>">
+    <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-doc-viewer.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('lib/uppy/uppy.min.css') ?>">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0b1020">
