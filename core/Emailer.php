@@ -28,6 +28,31 @@ class NuEmailer {
     }
 
     /**
+     * Send an HTML email with a plain-text alternative (better inbox placement than HTML alone).
+     * @param string|null $replyTo optional Reply-To address (validated; ignored if invalid)
+     * @return bool
+     */
+    public function sendHtml($to, $subject, $html, $text, $replyTo = null) {
+        if (preg_match('/[\r\n]/', (string)$to . (string)$subject)) return false;
+        $from     = $this->config['mailFrom']     ?? 'noreply@localhost';
+        $fromName = preg_replace('/[\r\n"<>]/', '', (string)($this->config['mailFromName'] ?? 'Nuvis StudioX'));
+        $boundary = 'nuvis_' . bin2hex(random_bytes(12));
+        $headers  = "From: {$fromName} <{$from}>\r\n";
+        $reply    = ($replyTo && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) ? $replyTo : $from;
+        $headers .= "Reply-To: {$reply}\r\n";
+        $headers .= "MIME-Version: 1.0\r\n";
+        $headers .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
+        $headers .= "X-Mailer: NuvisStudioX\r\n";
+        $subjectEnc = function_exists('mb_encode_mimeheader') ? mb_encode_mimeheader((string)$subject, 'UTF-8', 'B', "\r\n") : $subject;
+        $body  = "--{$boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+               . chunk_split(base64_encode((string)$text)) . "\r\n";
+        $body .= "--{$boundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+               . chunk_split(base64_encode((string)$html)) . "\r\n";
+        $body .= "--{$boundary}--";
+        return mail($to, $subjectEnc, $body, $headers);
+    }
+
+    /**
      * Send a password reset email.
      * @return bool
      */

@@ -634,6 +634,8 @@ CREATE TABLE IF NOT EXISTS `nu_form_shares` (
     `fs_redirect_url` VARCHAR(500) DEFAULT NULL,
     `fs_notify_email` VARCHAR(500) DEFAULT NULL,
     `fs_confirm_email` TINYINT(1) NOT NULL DEFAULT 0,
+    `fs_email_field` VARCHAR(64) DEFAULT NULL COMMENT 'field holding the customer email (NULL = auto-detect)',
+    `fs_confirm_message` TEXT NULL,
     `fs_fields` TEXT NULL COMMENT 'JSON list of field names; NULL = all public-capable fields',
     `fs_theme` TEXT NULL COMMENT 'JSON: look & feel (width, colours, logo, layout styles)',
     `fs_field_cfg` TEXT NULL COMMENT 'JSON: per-field overrides (label, placeholder, help, required, width, default)',

@@ -70,7 +70,7 @@ class NuPublicForm
             error_log('[public form schema] ' . $e->getMessage());
         }
         // Columns added after the first release (look & per-field settings)
-        foreach (['fs_theme', 'fs_field_cfg'] as $col) {
+        foreach (['fs_theme', 'fs_field_cfg', 'fs_email_field', 'fs_confirm_message'] as $col) {
             try {
                 $have = array_column(self::columns($db, 'nu_form_shares'), 'name');
                 if ($have && !in_array($col, $have, true)) $pdo->exec('ALTER TABLE `nu_form_shares` ADD COLUMN `' . $col . '` TEXT NULL');
@@ -535,25 +535,33 @@ class NuPublicForm
             ]);
         } catch (Throwable $e) { error_log('[public form webhook] ' . $e->getMessage()); }
 
-        // Emails
+        // Emails (HTML + plain text): staff notification and optional customer confirmation
         try {
             require_once __DIR__ . '/Emailer.php';
+            require_once __DIR__ . '/PublicFormMail.php';
             $mailer = new NuEmailer();
-            $title = trim((string)($share['fs_title'] ?? '')) ?: (string)$form['form_name'];
-            $lines = [];
-            $confirmTo = '';
-            foreach ($fields as $f) {
-                $v = $clean[$f['name']] ?? '';
-                $lines[] = $f['label'] . ': ' . (is_scalar($v) ? (string)$v : '');
-                if ($f['type'] === 'email' && $confirmTo === '' && !empty($v)) $confirmTo = (string)$v;
-            }
-            $body = "New submission for \"{$title}\"\nReference: {$rec['reference']}\n\n" . implode("\n", $lines) . "\n";
+            $theme = self::theme($share);
+            $customer = NuPublicFormMail::customerEmail($share, $fields, $clean);
+            $staff = NuPublicFormMail::build('staff', $share, $form, $fields, $clean, (string)$rec['reference'], $theme);
             foreach (preg_split('/[,;\s]+/', (string)($share['fs_notify_email'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $to) {
-                if (filter_var($to, FILTER_VALIDATE_EMAIL)) $mailer->send($to, 'New request: ' . $title, $body);
+                if (!filter_var($to, FILTER_VALIDATE_EMAIL)) continue;
+                if (!$mailer->sendHtml($to, $staff['subject'], $staff['html'], $staff['text'], $customer !== '' ? $customer : null)) {
+                    error_log('[public form email] staff mail() failed for ' . $to);
+                }
             }
-            if (!empty($share['fs_confirm_email']) && $confirmTo !== '' && !preg_match('/[\r\n]/', $confirmTo)) {
-                $mailer->send($confirmTo, 'We received your request: ' . $title,
-                    "Thank you. We have received your request.\nReference: {$rec['reference']}\n\n" . implode("\n", $lines) . "\n");
+            if (!empty($share['fs_confirm_email'])) {
+                if ($customer === '') {
+                    error_log('[public form email] confirmation skipped: no valid customer email in submission (form ' . $form['form_code'] . ')');
+                } else {
+                    $cust = NuPublicFormMail::build('customer', $share, $form, $fields, $clean, (string)$rec['reference'], $theme);
+                    $replyTo = null;
+                    foreach (preg_split('/[,;\s]+/', (string)($share['fs_notify_email'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $r) {
+                        if (filter_var($r, FILTER_VALIDATE_EMAIL)) { $replyTo = $r; break; }
+                    }
+                    if (!$mailer->sendHtml($customer, $cust['subject'], $cust['html'], $cust['text'], $replyTo)) {
+                        error_log('[public form email] confirmation mail() failed for ' . $customer);
+                    }
+                }
             }
         } catch (Throwable $e) { error_log('[public form email] ' . $e->getMessage()); }
     }
