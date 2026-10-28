@@ -1,0 +1,52 @@
+/* In-app document viewer (assets/js/nu-doc-viewer.js) */
+dialog.nuv { padding: 0; border: 0; width: min(1200px, 96vw); height: min(92vh, 940px); max-width: none; max-height: none; border-radius: 14px; overflow: hidden; background: var(--bg-card, #fff); color: var(--text-primary, #0f172a); box-shadow: 0 24px 64px rgba(0,0,0,.45); }
+dialog.nuv[open] { display: flex; flex-direction: column; }
+dialog.nuv::backdrop { background: rgba(2, 6, 23, .72); backdrop-filter: blur(2px); }
+.nuv-bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--bg-subtle, #f1f5f9); border-bottom: 1px solid var(--border-color, #cbd5e1); flex: 0 0 auto; }
+.nuv-grow { flex: 1; min-width: 0; }
+.nuv-name { display: block; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nuv-sub { font-size: 12px; color: var(--text-muted, #64748b); }
+.nuv-tools { display: flex; gap: 6px; align-items: center; flex: 0 0 auto; }
+.nuv-btn { min-width: 34px; height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-color, #cbd5e1); background: var(--bg-card, #fff); color: inherit; font: inherit; font-size: 15px; cursor: pointer; line-height: 1; }
+.nuv-btn:hover { background: var(--bg-hover, rgba(15,23,42,.06)); }
+.nuv-btn:focus-visible { outline: 2px solid var(--primary, #2563eb); outline-offset: 1px; }
+.nuv-dl { font-size: 13px; font-weight: 600; background: var(--primary, #2563eb); color: var(--primary-fg, #fff); border-color: transparent; }
+.nuv-dl:hover { background: var(--primary-hover, #1d4ed8); }
+.nuv-stage { flex: 1; min-height: 0; overflow: auto; background: var(--bg-app, #f8fafc); outline: none; position: relative; }
+.nuv-body { padding: 20px; min-height: 100%; box-sizing: border-box; }
+.nuv-body.nuv-center { display: flex; align-items: center; justify-content: center; overflow: auto; }
+.nuv-body.nuv-flush { padding: 0; height: 100%; }
+.nuv-img { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform .15s; transform-origin: center; user-select: none; -webkit-user-drag: none; background: repeating-conic-gradient(#e2e8f0 0 25%, #f8fafc 0 50%) 50% / 16px 16px; border-radius: 4px; }
+.nuv-pdf { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+.nuv-msg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 100%; padding: 40px 20px; text-align: center; color: var(--text-muted, #64748b); }
+.nuv-msg p { margin: 0; max-width: 420px; }
+.nuv-ico { font-size: 44px; opacity: .6; }
+.nuv-spin { width: 34px; height: 34px; border: 3px solid var(--border-color, #cbd5e1); border-top-color: var(--primary, #2563eb); border-radius: 50%; animation: nuvspin .8s linear infinite; }
+@keyframes nuvspin { to { transform: rotate(360deg); } }
+.nuv-muted { color: var(--text-muted, #64748b); font-size: 13px; }
+/* Word document */
+.nuv-doc { max-width: 820px; margin: 0 auto; background: #fff; color: #111827; padding: 48px 56px; box-shadow: 0 1px 6px rgba(15,23,42,.14); border-radius: 4px; font-family: Calibri, "Segoe UI", Arial, sans-serif; font-size: 15px; line-height: 1.55; overflow-wrap: anywhere; }
+.nuv-doc .nuv-p { margin: 0 0 .7em; }
+.nuv-doc h1.nuv-p { font-size: 1.9em; margin: .6em 0 .4em; } .nuv-doc h2.nuv-p { font-size: 1.5em; margin: .6em 0 .35em; } .nuv-doc h3.nuv-p { font-size: 1.25em; }
+.nuv-doc .nuv-li { position: relative; padding-left: .2em; } .nuv-doc .nuv-bullet { position: absolute; left: -1.1em; }
+.nuv-doc-img { max-width: 100%; height: auto; vertical-align: middle; }
+/* tables (Word, Excel, CSV) */
+.nuv-tbl { border-collapse: collapse; font-size: 13px; background: #fff; color: #111827; }
+.nuv-doc .nuv-tbl { width: 100%; margin: 0 0 1em; } .nuv-doc .nuv-tbl td { border: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: top; }
+.nuv-grid th { background: #f1f5f9; color: #475569; font-weight: 500; font-size: 11px; padding: 3px 8px; border: 1px solid #cbd5e1; position: sticky; top: 0; z-index: 1; text-align: center; }
+.nuv-grid tbody th { position: sticky; left: 0; z-index: 1; }
+.nuv-grid td { border: 1px solid #e2e8f0; padding: 4px 8px; white-space: pre-wrap; max-width: 360px; overflow-wrap: anywhere; vertical-align: top; }
+.nuv-grid td.nuv-head { font-weight: 600; background: #f8fafc; }
+.nuv-sheet { overflow: auto; }
+.nuv-tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.nuv-tab { padding: 6px 12px; border: 1px solid var(--border-color, #cbd5e1); background: var(--bg-card, #fff); border-radius: 8px 8px 0 0; cursor: pointer; font: inherit; font-size: 13px; color: inherit; }
+.nuv-tab.on { background: var(--primary, #2563eb); color: var(--primary-fg, #fff); border-color: transparent; }
+.nuv-pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 13px/1.55 ui-monospace, Menlo, Consolas, monospace; background: var(--bg-card, #fff); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color, #cbd5e1); }
+@media (max-width: 700px) {
+  dialog.nuv { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; }
+  .nuv-bar { padding: 8px 10px; gap: 8px; flex-wrap: wrap; }
+  .nuv-doc { padding: 24px 18px; } .nuv-body { padding: 10px; }
+  .nuv-dl { font-size: 12px; padding: 0 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .nuv-img { transition: none; } .nuv-spin { animation-duration: 2s; } }
+@media print { dialog.nuv { display: none !important; } }

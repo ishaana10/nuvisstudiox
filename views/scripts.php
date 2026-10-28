@@ -13,6 +13,7 @@ require_once NU_ROOT . '/core/AppVersion.php';
 $_commitVersion = urlencode(AppVersion::get('commit'));
 ?>
 <script src="<?= nu_asset('assets/js/nu-browse-table.js') ?>"></script>
+<script src="<?= nu_asset('assets/js/nu-doc-viewer.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nubuilder-next.js') ?>?v=<?= $_commitVersion ?>"></script>
 <script src="<?= nu_asset('assets/js/nu-form-shell.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nu-shell.js') ?>"></script>

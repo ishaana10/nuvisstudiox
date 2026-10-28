@@ -33,8 +33,7 @@ $docs = $db->fetchAll(
                         <td><?php echo date('M j, Y', strtotime($d['doc_created_at'])); ?></td>
                         <td>
                             <?php if ($d['file_name']): ?>
-                            <a href="api/file.php?id=<?php echo (int)$d['doc_file_id']; ?>" target="_blank" class="nu-btn nu-btn-ghost nu-btn-sm">View</a>
-                            <a href="api/file.php?id=<?php echo (int)$d['doc_file_id']; ?>&dl=1" download class="nu-btn nu-btn-ghost nu-btn-sm">Download</a>
+                            <button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" data-nu-view-id="<?php echo (int)$d['doc_file_id']; ?>" data-nu-view-group="docs-list">View</button>
                             <?php endif; ?>
                             <button class="nu-btn nu-btn-ghost nu-btn-sm" onclick="signDocument(<?php echo $d['doc_id']; ?>)">Sign</button>
                             <button class="nu-btn nu-btn-danger nu-btn-sm" onclick="deleteDocument(<?php echo $d['doc_id']; ?>)">Delete</button>

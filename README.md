@@ -8,6 +8,11 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — In-app document viewer
+
+- Uploaded files (Files, Documents, form file fields, table images) now open in a modal viewer instead of navigating to or opening a URL. Bytes are fetched in-page and shown from memory, so the file address is never displayed or navigated to; downloads are audited.
+- Dependency-free preview of images, PDF, Word (.docx), Excel (.xlsx), CSV and text; other types offer a download.
+
 ### Unreleased — Audit trail & cloud storage
 - **Audit trail**: entries are sealed in a hash chain (Audit page > Verify integrity detects edited or deleted rows), passwords/tokens/keys are masked before storage, and the outcome (success/failure), request, session and project are recorded. Failed sign-ins (unknown user, wrong password, locked account, wrong MFA code), settings changes (email, Redis, cloud, shared forms), project export/import, file downloads and cloud transfers are now logged. The Audit page has search, filters, a before/after view, charts, CSV export and a purge option for old entries.
 - **Cloud Storage** (Admin Tools > Cloud Storage): send uploads to Google Drive, OneDrive, Dropbox or any WebDAV server (Nextcloud, ownCloud...). Choose to keep a local copy or move files to the cloud only; a failed cloud copy never loses the upload and can be retried; existing files can be copied across. Files and Documents now open through `api/file.php`, which serves local or cloud files. Credentials live in `config.cloud.php` (git-ignored) and are never included in project exports.

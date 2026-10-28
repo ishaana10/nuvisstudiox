@@ -604,7 +604,7 @@
                 wrapHtml += '<div style="font-size:9px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(fName) + '</div>';
                 wrapHtml += '</div>';
               } else {
-                wrapHtml += '<div style="font-size:11px;"><a href="uploads/' + esc(fName) + '" target="_blank" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;">' + esc(fName) + '</a></div>';
+                wrapHtml += '<div style="font-size:11px;"><a href="#" data-nu-view-name="' + esc(fName) + '" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;">' + esc(fName) + '</a></div>';
               }
             }
           }
@@ -712,7 +712,7 @@
           if (['jpg','jpeg','png','gif','webp','svg'].indexOf(ext) !== -1) {
             cellHtml += '<img src="uploads/' + esc(fName) + '" style="max-height:30px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify('uploads/' + fName)) + ')" title="' + esc(fName) + '">';
           } else {
-            cellHtml += '<a href="uploads/' + esc(fName) + '" target="_blank" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;font-size:11px;" title="' + esc(fName) + '">' + esc(fName) + '</a>';
+            cellHtml += '<a href="#" data-nu-view-name="' + esc(fName) + '" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;font-size:11px;" title="' + esc(fName) + '">' + esc(fName) + '</a>';
           }
         }
       });
@@ -1250,7 +1250,7 @@
                 html += '<div style="font-size:9px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(fName) + '</div>';
                 html += '</div>';
               } else {
-                html += '<div style="font-size:11px;"><a href="uploads/' + esc(fName) + '" target="_blank" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;">' + esc(fName) + '</a></div>';
+                html += '<div style="font-size:11px;"><a href="#" data-nu-view-name="' + esc(fName) + '" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;">' + esc(fName) + '</a></div>';
               }
             }
             previewSection.insertAdjacentHTML('beforeend', html);
