@@ -632,7 +632,7 @@ function nu_render_field($field, $value = '', $record = []) {
         $buttonText = trim((string)($field['button_text'] ?? 'Upload'));
 
         // Developer determined upload target & settings
-        $uploadTarget = trim((string)($field['upload_target'] ?? 'local'));
+        $uploadTarget = trim((string)($field['upload_target'] ?? 'default'));
         $onedriveClientId = trim((string)($field['onedrive_client_id'] ?? ''));
 
         // Dynamic Allowed Extensions Configuration
@@ -819,7 +819,7 @@ function nu_render_field($field, $value = '', $record = []) {
               metaFields: []
             })
             .use(Uppy.XHRUpload, {
-              endpoint: "api/upload.php",
+              endpoint: "api/upload.php" + (targetMode === "local_only" ? "?target=local_only" : ""),
               fieldName: "file",
               formData: true,
               headers: { "X-CSRF-Token": window.nuCsrfToken || "" },
@@ -837,7 +837,8 @@ function nu_render_field($field, $value = '', $record = []) {
                 } else {
                   t.value = names.join(", ");
                 }
-                NuApp.toast("Upload successful!", "success");
+                const warns = result.successful.map(function(f){ return f.response.body.warning; }).filter(Boolean);
+                if (warns.length) { NuApp.toast("Saved on this server, but the cloud copy failed: " + warns[0], "error"); } else { NuApp.toast("Upload successful!", "success"); }
                 uppy.getPlugin("Dashboard").closeModal();
                 uppy.close();
                 modalContainer.remove();

@@ -8,6 +8,11 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Upload button follows default storage
+
+- The form builder's Upload Button **Upload Target** now defaults to *Default storage* and shows what that currently is (e.g. "Google Drive (+ local copy)", or a warning if the provider isn't connected). Uploads use the Cloud storage settings; existing buttons set to "Local Server" now follow the default too.
+- New *This server only (ignore default)* option keeps a specific field's files off the cloud; the OneDrive file picker remains as a separate option. A failed cloud copy is reported on upload.
+
 ### Unreleased — Protected uploads
 
 - Uploaded files can no longer be opened by guessing a direct `uploads/…` URL: the folder gets a deny-all `.htaccess` (logos stay public for the login page) and thumbnails/links go through the authenticated `api/file.php`. On nginx add `location ^~ /<app>/uploads/ { deny all; }` (keep `logo_*` reachable if you use a logo).

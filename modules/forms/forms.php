@@ -3,6 +3,23 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
 // $auth, $nuConfig available. Session open under 'nu5sess'.
 
+require_once dirname(__DIR__, 2) . '/core/FileStore.php';
+/** Describes the system-wide default upload storage so the builder can show what "Default" currently means. */
+function nu_storage_default_summary(): array
+{
+    try {
+        $cfg = NuCloudConfig::get();
+        $prov = (string)$cfg['provider'];
+        $label = NuCloud::labels()[$prov] ?? $prov;
+        $connected = $prov !== 'local' && NuCloudConfig::isConnected($prov, $cfg);
+        $summary = $prov === 'local' ? 'This server only'
+            : $label . ($connected ? ($cfg['mode'] === 'cloud_only' ? ' (cloud only)' : ' (+ local copy)') : ' (not connected)');
+        return ['provider' => $prov, 'label' => $label, 'connected' => $connected, 'mode' => $cfg['mode'], 'summary' => $summary];
+    } catch (Throwable $e) {
+        return ['provider' => 'local', 'label' => 'This server only', 'connected' => false, 'mode' => 'mirror', 'summary' => 'This server only'];
+    }
+}
+
 $db    = NuDatabase::getInstance();
 $pid   = class_exists('ProjectContext') ? ProjectContext::getId() : 1;
 $forms = $db->fetchAll("SELECT * FROM nu_forms WHERE form_active = 1 AND project_id = ? ORDER BY form_id DESC", [$pid]);
@@ -2020,6 +2037,10 @@ foreach ($forms as $f) {
 </div>
 
 <script>
+window.nuStorageDefault = <?= json_encode(nu_storage_default_summary()) ?>;
+</script>
+
+<script>
 // ── One-time setup: nbAce manager + UI helpers ───────────────────────
 if (!window._nbFormsModuleInit) {
   window._nbFormsModuleInit = true;
@@ -2935,9 +2956,11 @@ if (!nbFormBuilder._groupTabPatched) {
           <div class="nb-fp">
             <label>Upload Target</label>
             <select class="nu-input nb-adv-prop" data-prop="upload_target" onchange="this.closest('.nb-fp-grid').querySelector('#fp_onedrive_client_id').style.display = (this.value === 'onedrive' ? 'block' : 'none')">
-              <option value="local" ${field.upload_target === 'local' || !field.upload_target ? 'selected' : ''}>Local Server</option>
-              <option value="onedrive" ${field.upload_target === 'onedrive' ? 'selected' : ''}>OneDrive (Microsoft)</option>
+              <option value="default" ${(!field.upload_target || field.upload_target === 'default' || field.upload_target === 'local') ? 'selected' : ''}>Default storage — ${esc((window.nuStorageDefault || {}).summary || 'This server only')}</option>
+              <option value="local_only" ${field.upload_target === 'local_only' ? 'selected' : ''}>This server only (ignore default)</option>
+              <option value="onedrive" ${field.upload_target === 'onedrive' ? 'selected' : ''}>OneDrive file picker (link an existing file)</option>
             </select>
+            <div class="nb-fp-hint" style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">${(window.nuStorageDefault || {}).provider && window.nuStorageDefault.provider !== 'local' ? (window.nuStorageDefault.connected ? 'Uploads follow Cloud storage settings: ' + esc(window.nuStorageDefault.summary) + '.' : 'Default is ' + esc(window.nuStorageDefault.label) + ' but it is not connected yet — files stay on this server until you connect it in Cloud storage settings.') : 'No cloud storage is configured; files stay on this server. Set a default under Cloud storage settings.'}</div>
           </div>
 
           <div class="nb-fp" id="fp_onedrive_client_id" style="display: ${field.upload_target === 'onedrive' ? 'block' : 'none'};">
@@ -3371,7 +3394,7 @@ nbFormBuilder._makeDefaultField = function(type) {
         made.storage_mode = made.storage_mode || 'file';
         made.upload_path = made.upload_path || 'uploads/';
         made.allowed_extensions = made.allowed_extensions || '';
-        made.upload_target = made.upload_target || 'local';
+        made.upload_target = (!made.upload_target || made.upload_target === 'local') ? 'default' : made.upload_target;
         made.onedrive_client_id = made.onedrive_client_id || '';
         made.preview = made.preview !== false;
         made.hide_in_grid = made.hide_in_grid !== undefined ? made.hide_in_grid : true;
@@ -3449,7 +3472,7 @@ nbFormBuilder._makeDefaultField = function(type) {
     base.storage_mode = 'file';
     base.upload_path = 'uploads/';
     base.allowed_extensions = '';
-    base.upload_target = 'local';
+    base.upload_target = 'default';
     base.onedrive_client_id = '';
     base.preview = true;
     base.hide_in_grid = true;
