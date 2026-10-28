@@ -549,7 +549,7 @@
     }
     if (type === 'uploadbutton') {
       var buttonText = field.button_text || field.buttontext || 'Upload';
-      var uploadTarget = field.upload_target || field.uploadtarget || 'local';
+      var uploadTarget = field.upload_target || field.uploadtarget || 'default';
       var onedriveClientId = field.onedrive_client_id || field.onedriveclientid || '';
       var allowedExts = field.allowed_extensions || field.allowedextensions || '';
       var maxFileSize = field.max_file_size_mb || field.maxfilesizemb || '';
@@ -1281,7 +1281,7 @@
 
       var name = wrap.dataset.fieldName || '';
       var buttonText = wrap.dataset.buttonText || 'Upload';
-      var uploadTarget = wrap.dataset.uploadTarget || 'local';
+      var uploadTarget = wrap.dataset.uploadTarget || 'default';
       var onedriveClientId = wrap.dataset.onedriveClientId || '';
       var allowedExtensions = wrap.dataset.allowedExtensions || '';
       var maxFileSizeMb = parseFloat(wrap.dataset.maxFileSizeMb) || 0;
@@ -1383,7 +1383,7 @@
           metaFields: []
         })
         .use(Uppy.XHRUpload, {
-          endpoint: 'api/upload.php',
+          endpoint: 'api/upload.php' + (uploadTarget === 'local_only' ? '?target=local_only' : ''),
           fieldName: 'file',
           formData: true,
           headers: { 'X-CSRF-Token': window.nuCsrfToken || '' },
@@ -1403,7 +1403,8 @@
               newVal = names.join(', ');
             }
             updateSfUploadPreviewAndActions(wrap, newVal);
-            toast('Upload successful!', 'success');
+            var warn = result.successful.map(function (file) { return file.response.body.warning; }).filter(Boolean)[0];
+            toast(warn ? 'Saved on this server, but the cloud copy failed: ' + warn : 'Upload successful!', warn ? 'error' : 'success');
             uppy.getPlugin('Dashboard').closeModal();
             uppy.close();
             modalContainer.remove();

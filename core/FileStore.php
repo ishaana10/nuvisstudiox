@@ -90,7 +90,7 @@ final class NuFileStore
      * @param array $extra additional nu_files columns (file_table, file_record_id, ...)
      * @return array{file_id:int,name:string,path:string,storage:string,remote_status:string,warning:string}
      */
-    public static function save(array $file, array $extra = [], ?string $uploadDir = null): array
+    public static function save(array $file, array $extra = [], ?string $uploadDir = null, bool $allowCloud = true): array
     {
         global $nuConfig;
         self::ensureSchema();
@@ -113,7 +113,7 @@ final class NuFileStore
         self::audit('upload', (string)$file['name'] . ' uploaded', ['size' => (int)$row['file_size'], 'sha256' => $row['file_sha256']], 'success', $id);
         $out = ['file_id' => $id, 'name' => $name, 'path' => $dest, 'storage' => 'local', 'remote_status' => 'none', 'warning' => ''];
 
-        if (self::cloudActive()) {
+        if ($allowCloud && self::cloudActive()) {
             $r = self::push($id);
             $out['storage'] = $r['storage']; $out['remote_status'] = $r['status']; $out['warning'] = $r['error'];
         }

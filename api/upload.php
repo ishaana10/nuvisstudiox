@@ -84,7 +84,9 @@ if ($file['size'] > $nuConfig['maxUploadSize']) {
 }
 
 try {
-    $saved = NuFileStore::save($file);
+    // target=local_only (upload button set to "This server only") skips the default cloud copy; anything else follows the system default
+    $allowCloud = (($_GET['target'] ?? '') !== 'local_only');
+    $saved = NuFileStore::save($file, [], null, $allowCloud);
     echo json_encode(['success' => true, 'file_id' => $saved['file_id'], 'name' => $saved['name'], 'storage' => $saved['storage'],
                       'cloud_status' => $saved['remote_status'], 'warning' => $saved['warning']]);
 } catch (Throwable $e) {
