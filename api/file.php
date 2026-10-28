@@ -16,6 +16,7 @@ if (($_SESSION['nu_user_id'] ?? '') === 'guest_tester') { http_response_code(403
 if (!$byName && !$auth->hasPermission('files.view') && !$auth->hasPermission('documents.view')) { http_response_code(403); exit('Access denied'); }
 
 NuFileStore::ensureSchema();
+if (!empty($nuConfig['uploadPath']) && is_dir($nuConfig['uploadPath'])) NuFileStore::protectDir($nuConfig['uploadPath']); // keep direct URLs blocked on existing installs
 $db = NuDatabase::getInstance();
 if (!$byName) { $f = $db->fetchOne('SELECT * FROM nu_files WHERE file_id = :i', [':i' => (int)$_GET['id']]); }
 else { $n = basename((string)$_GET['name']); $f = $n !== '' ? $db->fetchOne('SELECT * FROM nu_files WHERE file_name = :n', [':n' => $n]) : null; }

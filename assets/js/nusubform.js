@@ -600,7 +600,7 @@
               var ext = fName.split('.').pop().toLowerCase();
               if (['jpg','jpeg','png','gif','webp','svg'].indexOf(ext) !== -1) {
                 wrapHtml += '<div style="display:inline-block;text-align:center;">';
-                wrapHtml += '<img src="uploads/' + esc(fName) + '" style="max-height:50px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify('uploads/' + fName)) + ')">';
+                wrapHtml += '<img src="api/file.php?name=' + encodeURIComponent(fName) + '" style="max-height:50px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify('uploads/' + fName)) + ')">';
                 wrapHtml += '<div style="font-size:9px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(fName) + '</div>';
                 wrapHtml += '</div>';
               } else {
@@ -710,7 +710,7 @@
         } else {
           var ext = fName.split('.').pop().toLowerCase();
           if (['jpg','jpeg','png','gif','webp','svg'].indexOf(ext) !== -1) {
-            cellHtml += '<img src="uploads/' + esc(fName) + '" style="max-height:30px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify('uploads/' + fName)) + ')" title="' + esc(fName) + '">';
+            cellHtml += '<img src="api/file.php?name=' + encodeURIComponent(fName) + '" style="max-height:30px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify('uploads/' + fName)) + ')" title="' + esc(fName) + '">';
           } else {
             cellHtml += '<a href="#" data-nu-view-name="' + esc(fName) + '" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;font-size:11px;" title="' + esc(fName) + '">' + esc(fName) + '</a>';
           }
@@ -1246,7 +1246,7 @@
               var ext = fName.split('.').pop().toLowerCase();
               if (['jpg','jpeg','png','gif','webp','svg'].indexOf(ext) !== -1) {
                 html += '<div style="display:inline-block;text-align:center;">';
-                html += '<img src="uploads/' + esc(fName) + '" style="max-height:50px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify('uploads/' + fName)) + ')">';
+                html += '<img src="api/file.php?name=' + encodeURIComponent(fName) + '" style="max-height:50px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify('uploads/' + fName)) + ')">';
                 html += '<div style="font-size:9px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(fName) + '</div>';
                 html += '</div>';
               } else {

@@ -74,6 +74,16 @@ final class NuFileStore
         return $cfg['provider'] !== 'local' && NuCloudConfig::isConnected($cfg['provider'], $cfg);
     }
 
+    /** Deny direct web access to the upload folder (files are served via api/file.php); logos stay public for the login page. */
+    public static function protectDir(string $dir): void
+    {
+        $f = rtrim($dir, '/') . '/.htaccess';
+        if (is_file($f)) return;
+        @file_put_contents($f, self::HTACCESS);
+    }
+
+    const HTACCESS = "# Uploaded files are served through api/file.php (authenticated). Block direct access.\n<IfModule mod_authz_core.c>\n  Require all denied\n  <FilesMatch \"^logo_[A-Za-z0-9._-]+\\.(png|jpe?g|gif|webp|svg)$\">\n    Require all granted\n  </FilesMatch>\n</IfModule>\n<IfModule !mod_authz_core.c>\n  Order allow,deny\n  Deny from all\n  <FilesMatch \"^logo_[A-Za-z0-9._-]+\\.(png|jpe?g|gif|webp|svg)$\">\n    Allow from all\n  </FilesMatch>\n</IfModule>\nOptions -Indexes\n";
+
     /**
      * Store an uploaded file. $src is moved to the upload folder (move_uploaded_file for real uploads).
      * @param array{name:string,type?:string,size?:int,tmp_name:string} $file
@@ -86,6 +96,7 @@ final class NuFileStore
         self::ensureSchema();
         $dir = rtrim($uploadDir ?? (string)$nuConfig['uploadPath'], '/') . '/';
         if (!is_dir($dir) && !@mkdir($dir, 0755, true)) throw new RuntimeException('Upload folder is not writable.');
+        self::protectDir($dir);
         $name = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', (string)$file['name']);
         $dest = $dir . $name;
         $moved = is_uploaded_file($file['tmp_name']) ? move_uploaded_file($file['tmp_name'], $dest) : @rename($file['tmp_name'], $dest);

@@ -8,6 +8,11 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Protected uploads
+
+- Uploaded files can no longer be opened by guessing a direct `uploads/…` URL: the folder gets a deny-all `.htaccess` (logos stay public for the login page) and thumbnails/links go through the authenticated `api/file.php`. On nginx add `location ^~ /<app>/uploads/ { deny all; }` (keep `logo_*` reachable if you use a logo).
+- Fixed Uppy uploads failing with a generic error: the CSRF token is now sent and server errors are shown.
+
 ### Unreleased — In-app document viewer
 
 - Uploaded files (Files, Documents, form file fields, table images) now open in a modal viewer instead of navigating to or opening a URL. Bytes are fetched in-page and shown from memory, so the file address is never displayed or navigated to; downloads are audited.

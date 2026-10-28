@@ -871,7 +871,7 @@
       }
       case 'image': {
         if (!value) break;
-        var src = 'uploads/' + str;
+        var src = 'api/file.php?name=' + encodeURIComponent(String(str).split('/').pop());
         var img = el('img', { src: src, alt: '', loading: 'lazy' });
         var btn = el('button', { type: 'button', class: 'nu-bt-thumb', 'aria-label': 'Preview image' }, img);
         btn.addEventListener('click', function (e) { e.stopPropagation(); if (window.NuViewer) window.NuViewer.open({ name: String(str).split('/').pop() }); else showLightbox(src); });
