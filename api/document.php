@@ -3,6 +3,7 @@ require_once '../config.php';
 require_once '../core/Database.php';
 require_once '../core/Auth.php';
 require_once '../core/Audit.php';
+require_once '../core/FileStore.php';
 
 header('Content-Type: application/json');
 
@@ -30,19 +31,14 @@ switch ($action) {
             exit;
         }
 
-        $filename = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file['name']);
-        $dest = $nuConfig['uploadPath'] . $filename;
-        if (!is_dir($nuConfig['uploadPath'])) mkdir($nuConfig['uploadPath'], 0755, true);
-
-        if (move_uploaded_file($file['tmp_name'], $dest)) {
-            $fileId = $db->insert('nu_files', [
-                'file_name' => $filename,
-                'file_original_name' => $file['name'],
-                'file_mime_type' => $file['type'],
-                'file_size' => $file['size'],
-                'file_path' => $dest,
-                'file_uploaded_by' => $_SESSION['nu_user_id']
-            ]);
+        try {
+            $saved = NuFileStore::save($file);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'error' => 'Upload failed']);
+            exit;
+        }
+        {
+            $fileId = $saved['file_id'];
 
             $docId = $db->insert('nu_documents', [
                 'doc_title' => $_POST['title'] ?? 'Untitled',
@@ -56,9 +52,7 @@ switch ($action) {
             $audit = new NuAudit();
             $audit->log('document_upload', 'nu_documents', $docId);
 
-            echo json_encode(['success' => true, 'document_id' => $docId, 'file_id' => $fileId]);
-        } else {
-            echo json_encode(['success' => false, 'error' => 'Upload failed']);
+            echo json_encode(['success' => true, 'document_id' => $docId, 'file_id' => $fileId, 'warning' => $saved['warning']]);
         }
         break;
 

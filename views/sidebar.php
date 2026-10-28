@@ -168,6 +168,13 @@ declare(strict_types=1);
             </svg>
             <span>Files</span>
         </a>
+        <a href="#cloud_storage" class="nu-nav-item" data-module="cloud_storage"
+           onclick="NuApp.loadModule('cloud_storage'); return false;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+            </svg>
+            <span>Cloud Storage</span>
+        </a>
         <a href="#workflow" class="nu-nav-item" data-module="workflow"
            onclick="NuApp.loadModule('workflow'); return false;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

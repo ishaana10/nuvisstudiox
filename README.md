@@ -8,6 +8,10 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Audit trail & cloud storage
+- **Audit trail**: entries are sealed in a hash chain (Audit page > Verify integrity detects edited or deleted rows), passwords/tokens/keys are masked before storage, and the outcome (success/failure), request, session and project are recorded. Failed sign-ins (unknown user, wrong password, locked account, wrong MFA code), settings changes (email, Redis, cloud, shared forms), project export/import, file downloads and cloud transfers are now logged. The Audit page has search, filters, a before/after view, charts, CSV export and a purge option for old entries.
+- **Cloud Storage** (Admin Tools > Cloud Storage): send uploads to Google Drive, OneDrive, Dropbox or any WebDAV server (Nextcloud, ownCloud...). Choose to keep a local copy or move files to the cloud only; a failed cloud copy never loses the upload and can be retried; existing files can be copied across. Files and Documents now open through `api/file.php`, which serves local or cloud files. Credentials live in `config.cloud.php` (git-ignored) and are never included in project exports.
+
 ### Unreleased — Email delivery log & configurable Redis
 - Public-form emails now go through the Email Settings SMTP account (not PHP `mail()`), with a proper envelope sender, Message-ID and Reply-To. Use your A2 Hosting mailbox (cPanel > Email Accounts) so Gmail/Yahoo accept the mail.
 - New **Email Sent & Error Log**: every send, failure (with the SMTP server's reply) and skipped confirmation, with search, status filter, CSV export and a detail view.
