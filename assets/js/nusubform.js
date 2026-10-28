@@ -557,7 +557,7 @@
       var maxFiles = field.max_files || field.maxfiles || '';
       var preview = !!(field.preview === true || field.preview === 'true' || field.preview === 1 || field.preview === '1');
 
-      var wrapHtml = '<div class="nu-sf-upload-wrap" style="display:flex;flex-direction:column;gap:6px;width:100%;"';
+      var wrapHtml = '<div class="nu-sf-upload-wrap nuu-wrap"';
       wrapHtml += ' data-field-name="' + esc(name) + '"';
       wrapHtml += ' data-button-text="' + esc(buttonText) + '"';
       wrapHtml += ' data-upload-target="' + esc(uploadTarget) + '"';
@@ -569,49 +569,14 @@
       wrapHtml += ' data-preview="' + (preview ? '1' : '0') + '"';
       wrapHtml += '>';
 
-      wrapHtml += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%;">';
+      wrapHtml += '<input type="hidden" class="nu-sf-upload-input" name="' + esc(name) + '" value="' + esc(value) + '">';
       if (!disabled) {
-        wrapHtml += '<button type="button" class="nu-btn nu-btn-ghost nu-btn-sm nu-sf-upload-btn" style="margin:0;">' + esc(buttonText) + '</button>';
+        wrapHtml += '<div class="nuu-top"><button type="button" class="nu-btn nu-btn-ghost nu-btn-sm nu-sf-upload-btn" style="margin:0;">' + esc(buttonText) + '</button>';
+        var rl = window.NuUploadField ? window.NuUploadField.rules({ allowed: allowedExts, maxMb: maxFileSize, multiple: isMultiple, maxFiles: maxFiles }) : '';
+        if (rl) wrapHtml += '<span class="nuu-rules">' + esc(rl) + '</span>';
+        wrapHtml += '</div>';
       }
-      wrapHtml += '<input type="text" class="nu-input nu-sf-upload-input" name="' + esc(name) + '" value="' + esc(value) + '" readonly style="flex:1;' + (disabled ? 'background:var(--bg-offset,#f5f5f5);color:#888;cursor:default;' : '') + '">';
-      if (!disabled) {
-        wrapHtml += '<button type="button" class="nu-btn nu-btn-danger nu-btn-sm nu-sf-upload-clear" style="padding:4px 8px;' + (value ? '' : 'display:none;') + '">Clear</button>';
-      }
-      wrapHtml += '</div>';
-
-      // Preview section
-      wrapHtml += '<div class="nu-sf-upload-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">';
-      if (value) {
-        var filesArray = String(value).split(',').map(function(f) { return f.trim(); });
-        filesArray.forEach(function(fName) {
-          if (fName !== '') {
-            if (fName.indexOf('http://') === 0 || fName.indexOf('https://') === 0) {
-              // Cloud preview
-              var ext = fName.split('.').pop().toLowerCase();
-              if (['jpg','jpeg','png','gif','webp','svg'].indexOf(ext) !== -1) {
-                wrapHtml += '<div style="display:inline-block;text-align:center;">';
-                wrapHtml += '<img src="' + esc(fName) + '" style="max-height:50px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify(fName)) + ')">';
-                wrapHtml += '</div>';
-              } else {
-                wrapHtml += '<div style="font-size:11px;"><a href="' + esc(fName) + '" target="_blank" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;">Cloud Link</a></div>';
-              }
-            } else {
-              // Local preview
-              var ext = fName.split('.').pop().toLowerCase();
-              if (['jpg','jpeg','png','gif','webp','svg'].indexOf(ext) !== -1) {
-                wrapHtml += '<div style="display:inline-block;text-align:center;">';
-                wrapHtml += '<img src="api/file.php?name=' + encodeURIComponent(fName) + '" style="max-height:50px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify('uploads/' + fName)) + ')">';
-                wrapHtml += '<div style="font-size:9px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(fName) + '</div>';
-                wrapHtml += '</div>';
-              } else {
-                wrapHtml += '<div style="font-size:11px;"><a href="#" data-nu-view-name="' + esc(fName) + '" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;">' + esc(fName) + '</a></div>';
-              }
-            }
-          }
-        });
-      }
-      wrapHtml += '</div>';
-
+      wrapHtml += '<div class="nu-sf-upload-preview nuu-list nuu-empty"></div>';
       wrapHtml += '</div>';
       return wrapHtml;
     }
@@ -1209,55 +1174,25 @@
     };
   }
 
+  function paintSfUpload(wrap) {
+    var input = wrap.querySelector('.nu-sf-upload-input');
+    var box = wrap.querySelector('.nu-sf-upload-preview');
+    if (!input || !box || !window.NuUploadField) return;
+    var readonly = !wrap.querySelector('.nu-sf-upload-btn');
+    window.NuUploadField.render(box, input.value, {
+      readonly: readonly,
+      thumbs: wrap.dataset.preview !== '0',
+      onRemove: function (v) { updateSfUploadPreviewAndActions(wrap, v); }
+    });
+  }
+
   function updateSfUploadPreviewAndActions(wrap, newValue) {
     var input = wrap.querySelector('.nu-sf-upload-input');
     if (input) {
       input.value = newValue;
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }
-
-    var clearBtn = wrap.querySelector('.nu-sf-upload-clear');
-    if (clearBtn) {
-      if (newValue) {
-        clearBtn.style.display = '';
-      } else {
-        clearBtn.style.display = 'none';
-      }
-    }
-
-    var previewSection = wrap.querySelector('.nu-sf-upload-preview');
-    if (previewSection) {
-      previewSection.innerHTML = '';
-      if (newValue) {
-        var filesArray = String(newValue).split(',').map(function(f) { return f.trim(); });
-        filesArray.forEach(function(fName) {
-          if (fName !== '') {
-            var html = '';
-            if (fName.indexOf('http://') === 0 || fName.indexOf('https://') === 0) {
-              var ext = fName.split('.').pop().toLowerCase();
-              if (['jpg','jpeg','png','gif','webp','svg'].indexOf(ext) !== -1) {
-                html += '<div style="display:inline-block;text-align:center;">';
-                html += '<img src="' + esc(fName) + '" style="max-height:50px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify(fName)) + ')">';
-                html += '</div>';
-              } else {
-                html += '<div style="font-size:11px;"><a href="' + esc(fName) + '" target="_blank" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;">Cloud Link</a></div>';
-              }
-            } else {
-              var ext = fName.split('.').pop().toLowerCase();
-              if (['jpg','jpeg','png','gif','webp','svg'].indexOf(ext) !== -1) {
-                html += '<div style="display:inline-block;text-align:center;">';
-                html += '<img src="api/file.php?name=' + encodeURIComponent(fName) + '" style="max-height:50px;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="if(window._showImageLightbox)window._showImageLightbox(' + esc(JSON.stringify('uploads/' + fName)) + ')">';
-                html += '<div style="font-size:9px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(fName) + '</div>';
-                html += '</div>';
-              } else {
-                html += '<div style="font-size:11px;"><a href="#" data-nu-view-name="' + esc(fName) + '" style="color:var(--color-primary,#1d4ed8);text-decoration:underline;">' + esc(fName) + '</a></div>';
-              }
-            }
-            previewSection.insertAdjacentHTML('beforeend', html);
-          }
-        });
-      }
-    }
+    paintSfUpload(wrap);
   }
 
   window.nuInitUploadButtons = function (scope) {
@@ -1266,6 +1201,7 @@
     wraps.forEach(function (wrap) {
       if (wrap._uppyBound) return;
       wrap._uppyBound = true;
+      paintSfUpload(wrap);
 
       var btn = wrap.querySelector('.nu-sf-upload-btn');
       var input = wrap.querySelector('.nu-sf-upload-input');

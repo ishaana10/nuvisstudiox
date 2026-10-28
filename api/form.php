@@ -667,48 +667,17 @@ function nu_render_field($field, $value = '', $record = []) {
         $preview = !empty($field['preview']);
         $currentValue = is_string($value) ? $value : '';
 
-        $html = '<div class="nu-field-wrap nu-field-uploadbutton" id="wrap_' . nu_attr($name) . '">';
-        $html .= '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
-        $html .= '<button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" id="btn_' . nu_attr($name) . '" style="margin:0;">' . nu_html($buttonText) . '</button>';
-        $html .= '<input type="text" class="' . nu_attr($cssClass) . '" name="' . nu_attr($name) . '" id="' . nu_attr($name) . '" value="' . nu_attr($currentValue) . '"' . $placeholder . ' readonly>';
-        if ($currentValue !== '') {
-            $html .= '<button type="button" class="nu-btn nu-btn-danger nu-btn-sm" id="clear_' . nu_attr($name) . '" style="padding:4px 8px;">Clear</button>';
-        }
-        $html .= '</div>';
+        $rulesParts = [];
+        $extList = array_values(array_filter(array_map(fn($x) => strtoupper(ltrim($x, '.')), $allowedExts)));
+        if ($extList) $rulesParts[] = implode(', ', array_slice($extList, 0, 6)) . (count($extList) > 6 ? '…' : '');
+        $rulesParts[] = 'max ' . round($maxSize / 1048576, 1) . ' MB';
+        $rulesParts[] = ($multiple && $maxFiles) ? 'up to ' . $maxFiles . ' files' : ($multiple ? 'multiple files' : '1 file');
 
-        if ($preview && $currentValue !== '') {
-            $html .= '<div class="nu-upload-preview" style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">';
-            $filesArray = array_map('trim', explode(',', $currentValue));
-            foreach ($filesArray as $fName) {
-                if ($fName !== '') {
-                    if (str_starts_with($fName, 'http://') || str_starts_with($fName, 'https://')) {
-                        // OneDrive/external cloud url preview
-                        $parsedUrl = parse_url($fName, PHP_URL_PATH) ?? '';
-                        $ext = strtolower(pathinfo($parsedUrl, PATHINFO_EXTENSION));
-                        if (in_array($ext, ['jpg','jpeg','png','gif','webp','svg'], true)) {
-                            $html .= '<div style="display:inline-block;text-align:center;">';
-                            $html .= '<img src="' . nu_attr($fName) . '" style="max-height:80px;border-radius:4px;border:1px solid var(--border-color);cursor:pointer;" onclick="window._showImageLightbox(' . nu_attr(json_encode($fName)) . ')">';
-                            $html .= '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Cloud Image</div>';
-                            $html .= '</div>';
-                        } else {
-                            $html .= '<div style="margin-top:4px;font-size:11px;color:var(--text-tertiary);">OneDrive: <a href="' . nu_attr($fName) . '" target="_blank" style="color:var(--color-primary);text-decoration:underline;">View Link</a></div>';
-                        }
-                    } else {
-                        // Local upload preview
-                        $ext = strtolower(pathinfo($fName, PATHINFO_EXTENSION));
-                        if (in_array($ext, ['jpg','jpeg','png','gif','webp','svg'], true)) {
-                            $html .= '<div style="display:inline-block;text-align:center;">';
-                            $html .= '<img src="api/file.php?name=' . rawurlencode($fName) . '" style="max-height:80px;border-radius:4px;border:1px solid var(--border-color);cursor:pointer;" onclick="window._showImageLightbox(' . nu_attr(json_encode('uploads/' . $fName)) . ')">';
-                            $html .= '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' . nu_html(basename($fName)) . '</div>';
-                            $html .= '</div>';
-                        } else {
-                            $html .= '<div style="margin-top:4px;font-size:11px;color:var(--text-tertiary);">Current: <a href="#" data-nu-view-name="' . nu_attr($fName) . '" style="color:var(--color-primary);text-decoration:underline;">' . nu_html(basename($fName)) . '</a></div>';
-                        }
-                    }
-                }
-            }
-            $html .= '</div>';
-        }
+        $html = '<div class="nu-field-wrap nu-field-uploadbutton nuu-wrap" id="wrap_' . nu_attr($name) . '">';
+        $html .= '<div class="nuu-top"><button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" id="btn_' . nu_attr($name) . '" style="margin:0;">' . nu_html($buttonText) . '</button>';
+        $html .= '<span class="nuu-rules">' . nu_html(implode(' · ', $rulesParts)) . '</span></div>';
+        $html .= '<input type="hidden" name="' . nu_attr($name) . '" id="' . nu_attr($name) . '" value="' . nu_attr($currentValue) . '">';
+        $html .= '<div class="nuu-list nuu-empty" id="chips_' . nu_attr($name) . '"></div>';
 
         $html .= $helpHtml;
         $html .= '</div>';
@@ -717,18 +686,15 @@ function nu_render_field($field, $value = '', $record = []) {
         (function(){
           var btn = document.getElementById("btn_' . $name . '");
           var t = document.getElementById("' . $name . '");
-          var clearBtn = document.getElementById("clear_' . $name . '");
+          var list = document.getElementById("chips_' . $name . '");
           if (!btn || !t || btn.dataset.uppyBound) return;
           btn.dataset.uppyBound = "1";
 
-          if (clearBtn) {
-            clearBtn.addEventListener("click", function() {
-              t.value = "";
-              var prv = document.querySelector("#wrap_' . $name . ' .nu-upload-preview");
-              if (prv) prv.remove();
-              clearBtn.remove();
-            });
+          function paint() {
+            if (!list || !window.NuUploadField) return;
+            NuUploadField.render(list, t.value, { thumbs: ' . ($preview ? 'true' : 'false') . ', onRemove: function (v) { t.value = v; t.dispatchEvent(new Event("change", { bubbles: true })); paint(); } });
           }
+          paint();
 
           function launchOneDrivePicker() {
             const clientId = ' . json_encode($onedriveClientId) . ';
@@ -750,6 +716,7 @@ function nu_render_field($field, $value = '', $record = []) {
                   } else {
                     t.value = links.join(", ");
                   }
+                  paint();
                   NuApp.toast("OneDrive link acquired!", "success");
 
                   let notice = document.getElementById("notice_' . $name . '");
@@ -757,7 +724,7 @@ function nu_render_field($field, $value = '', $record = []) {
                     notice = document.createElement("div");
                     notice.id = "notice_' . $name . '";
                     notice.style.cssText = "margin-top:6px;font-size:11px;color:var(--warning,#f59e0b);font-weight:600;";
-                    notice.textContent = "⚠️ Save form to apply changes and view new file previews.";
+                    notice.textContent = "Remember to save the form to keep this change.";
                     document.getElementById("wrap_' . $name . '").appendChild(notice);
                   }
                 }
@@ -839,6 +806,7 @@ function nu_render_field($field, $value = '', $record = []) {
                 }
                 const warns = result.successful.map(function(f){ return f.response.body.warning; }).filter(Boolean);
                 if (warns.length) { NuApp.toast("Saved on this server, but the cloud copy failed: " + warns[0], "error"); } else { NuApp.toast("Upload successful!", "success"); }
+                paint();
                 uppy.getPlugin("Dashboard").closeModal();
                 uppy.close();
                 modalContainer.remove();
@@ -848,7 +816,7 @@ function nu_render_field($field, $value = '', $record = []) {
                   notice = document.createElement("div");
                   notice.id = "notice_' . $name . '";
                   notice.style.cssText = "margin-top:6px;font-size:11px;color:var(--warning,#f59e0b);font-weight:600;";
-                  notice.textContent = "⚠️ Save form to apply changes and view new file previews.";
+                  notice.textContent = "Remember to save the form to keep this change.";
                   document.getElementById("wrap_' . $name . '").appendChild(notice);
                 }
               }

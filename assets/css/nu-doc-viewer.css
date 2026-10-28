@@ -50,3 +50,18 @@ dialog.nuv::backdrop { background: rgba(2, 6, 23, .72); backdrop-filter: blur(2p
 }
 @media (prefers-reduced-motion: reduce) { .nuv-img { transition: none; } .nuv-spin { animation-duration: 2s; } }
 @media print { dialog.nuv { display: none !important; } }
+
+/* ── Upload button field (file chips) ── */
+.nuu-wrap { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.nuu-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nuu-rules { font-size: 11px; color: var(--text-tertiary, #888); }
+.nuu-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.nuu-list.nuu-empty { display: none; }
+.nuu-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 5px 6px 5px 6px; border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; background: var(--bg-offset, #f8fafc); }
+.nuu-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 5px; border: 1px solid var(--border-color, #e2e8f0); flex: none; background: #fff; }
+.nuu-badge { flex: none; min-width: 32px; height: 32px; padding: 0 4px; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; font-size: 10px; font-weight: 700; letter-spacing: .02em; color: var(--color-primary, #1d4ed8); background: color-mix(in srgb, var(--color-primary, #1d4ed8) 12%, transparent); }
+.nuu-name { font-size: 13px; color: var(--text-primary, #0f172a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+.nuu-act { border: 0; background: transparent; color: var(--color-primary, #1d4ed8); font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 6px; border-radius: 5px; }
+.nuu-act:hover { background: color-mix(in srgb, var(--color-primary, #1d4ed8) 10%, transparent); }
+.nuu-rm { border: 0; background: transparent; color: var(--text-tertiary, #888); font-size: 18px; line-height: 1; cursor: pointer; width: 26px; height: 26px; border-radius: 50%; }
+.nuu-rm:hover { background: #fee2e2; color: #b91c1c; }
