@@ -8,6 +8,11 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Modern builder properties panel
+
+- The form builder's field properties side panel has a cleaner look: neutral header, segmented tabs with a sticky filter, card-style collapsible sections (titled after their content, e.g. "Upload options"), larger inputs with focus rings, toggle switches for on/off options, and dark-theme support.
+- Fixed the panel being hidden behind the builder in **Fullscreen** mode; it now stays on top and the canvas makes room for it.
+
 ### Unreleased — Upload button polish
 
 - Upload Button fields (forms and subforms) no longer show the raw stored value/ID. Files appear as chips with a thumbnail or type badge, the original file name (random prefix hidden), a **View** button that opens the in-app viewer, and a per-file remove (×), plus a one-line rules hint (types · max size · file count).
