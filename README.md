@@ -8,6 +8,12 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Public sharing
+- **Share a form without sign-in:** new 🔗 **Share** button on each form (Forms module). It creates a public link (`public_form.php?t=…`) where customers fill in the form and submit a new request. Per link: on/off, page title, intro, button text, thank-you message or redirect, which fields to show, expiry date, submission cap, email notification to staff and an optional confirmation email to the customer. Regenerate the link to revoke the old one.
+- **Safe by design:** submissions are INSERT-only (no reading, editing or deleting records); only simple fields are public (text, number, email, phone, URL, date/time, manual select/radio/checkbox); hidden, read-only, lookup, table/SQL-backed and file fields are never exposed; server-side validation; spam trap, timing check and a per-visitor rate limit; an auto-number field is filled in and shown as the reference; a workflow bound to the form starts automatically and form webhooks fire.
+- **Project share links fixed:** `?project_share=` links in guest mode now open the project without a login screen (the guest session is created before the login check), the token is removed from the address bar, and revoking or switching off a link ends guest sessions created from it.
+- **Schema:** `nu_form_shares` and `nu_form_share_log` (created automatically; also in `install.sql`).
+
 ### Unreleased — Workflow
 - **Visual rules & actions:** each transition has a "Rules & actions" editor (When / Then) replacing raw JSON. Conditions are nestable all/any rule groups with a live test; legacy expression strings still work.
 - **Update any table:** `update_record` can target the workflow's record, a specific record by id (`table` + `id` + optional id field), or all rows matching field rules. Set values from a literal, the record, the target row, stage, actor, now/today, increment/decrement, append, a calculation or NULL. **Scenarios** (`when` → `set`, first-match or all, plus Otherwise) decide what gets updated. Also: create record, email, notify user, HTTP request, run procedure, call agent; per-action `when`, enable and on-error.

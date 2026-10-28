@@ -689,6 +689,7 @@ foreach ($forms as $f) {
           <?php if ($isMain): ?>
           <button class="nu-btn nu-btn-primary nu-btn-sm" onclick="window.previewForm && previewForm('<?= $formCode ?>','<?= $formLabel ?>')">⊞ Preview</button>
           <button class="nu-btn nu-btn-ghost nu-btn-sm"   onclick="window.browseForm  && browseForm('<?= $formCode ?>',1,'','<?= $formLabel ?>','<?= htmlspecialchars($browseMode,ENT_QUOTES) ?>')">⊟ Browse</button>
+          <button class="nu-btn nu-btn-ghost nu-btn-sm"   onclick="window.FormShare && FormShare.open('<?= $formCode ?>','<?= $formLabel ?>')" title="Public link so customers can submit this form without signing in">🔗 Share</button>
           <?php endif; ?>
           <button class="nu-btn nu-btn-ghost nu-btn-sm"   onclick="nbFormBuilder.edit(<?= (int)$f['form_id'] ?>)">✎ Edit</button>
           <button class="nu-btn nu-btn-danger nu-btn-sm"  onclick="window.deleteForm && deleteForm(<?= (int)$f['form_id'] ?>,'<?= $formLabel ?>')">Delete</button>
@@ -752,6 +753,7 @@ foreach ($forms as $f) {
                   <?php if ($isMain): ?>
                   <button class="nu-btn nu-btn-primary nu-btn-sm" style="padding:2px 6px;font-size:10px;" onclick="window.previewForm && previewForm('<?= $formCode ?>','<?= $formLabel ?>')">Preview</button>
                   <button class="nu-btn nu-btn-ghost nu-btn-sm" style="padding:2px 6px;font-size:10px;" onclick="window.browseForm  && browseForm('<?= $formCode ?>',1,'','<?= $formLabel ?>','<?= htmlspecialchars($browseMode,ENT_QUOTES) ?>')">Browse</button>
+                  <button class="nu-btn nu-btn-ghost nu-btn-sm" style="padding:2px 6px;font-size:10px;" onclick="window.FormShare && FormShare.open('<?= $formCode ?>','<?= $formLabel ?>')" title="Public link so customers can submit this form without signing in">Share</button>
                   <?php endif; ?>
                   <button class="nu-btn nu-btn-ghost nu-btn-sm" style="padding:2px 6px;font-size:10px;" onclick="nbFormBuilder.edit(<?= (int)$f['form_id'] ?>)">Edit</button>
                   <button class="nu-btn nu-btn-danger nu-btn-sm" style="padding:2px 6px;font-size:10px;" onclick="window.deleteForm && deleteForm(<?= (int)$f['form_id'] ?>,'<?= $formLabel ?>')">Delete</button>

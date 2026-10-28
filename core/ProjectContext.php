@@ -16,6 +16,69 @@ class ProjectContext {
     }
 
     /**
+     * Validates a project share token (from ?project_share= / ?share_token= or the session) and, when valid,
+     * pins the session to that project. In "guest" mode a visitor with no account gets a limited
+     * guest session so the link works without signing in.
+     *
+     * A revoked / disabled link also ends any guest session that was created from it.
+     *
+     * @return int|null Shared project id, or null when no valid share token applies.
+     */
+    public static function bootstrapShare(): ?int {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        $urlToken  = $_GET['project_share'] ?? ($_GET['share_token'] ?? '');
+        $shareToken = (is_string($urlToken) && $urlToken !== '') ? $urlToken : ($_SESSION['project_share_token'] ?? '');
+        if (!is_string($shareToken) || $shareToken === '' || !preg_match('/^[A-Za-z0-9]{16,64}$/', $shareToken)) {
+            return null;
+        }
+        try {
+            $db   = NuDatabase::getInstance();
+            $proj = $db->fetchOne(
+                "SELECT * FROM nu_projects WHERE project_share_token = ? AND project_is_public_test = 1 AND project_active = 1",
+                [$shareToken]
+            );
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (!$proj) {
+            // Link revoked, regenerated or switched off: drop a guest session that came from it.
+            if (!empty($_SESSION['nu_project_share_active'])) {
+                if (($_SESSION['nu_user_id'] ?? '') === 'guest_tester') {
+                    $_SESSION = [];
+                } else {
+                    unset($_SESSION['nu_project_share_active'], $_SESSION['nu_project_share_mode']);
+                }
+                unset($_SESSION['project_share_token']);
+            }
+            return null;
+        }
+
+        $mode = $proj['project_share_mode'] ?? 'guest';
+        $pid  = (int)$proj['project_id'];
+        $_SESSION['nu_project_id']          = $pid;
+        $_SESSION['nu_project_code']        = $proj['project_code'];
+        $_SESSION['project_share_token']    = $shareToken;
+        $_SESSION['nu_project_share_active'] = true;
+        $_SESSION['nu_project_share_mode']   = $mode;
+
+        if (empty($_SESSION['nu_user_id']) && $mode === 'guest') {
+            session_regenerate_id(true);
+            $_SESSION['nu_user_id']       = 'guest_tester';
+            $_SESSION['nu_username']      = 'Guest Tester';
+            $_SESSION['nu_role']          = 'user';
+            $_SESSION['nu_last_activity'] = time();
+            if (empty($_SESSION['nu_csrf'])) {
+                $_SESSION['nu_csrf'] = bin2hex(random_bytes(32));
+            }
+        }
+        self::$cachedProjectId = $pid;
+        return $pid;
+    }
+
+    /**
      * Gets the current active project ID from session or resolves default/assigned project for the user.
      *
      * @return int
@@ -49,35 +112,9 @@ class ProjectContext {
         }
 
         // 0. Check URL or session for project_share token
-        $shareToken = $_GET['project_share'] ?? ($_GET['share_token'] ?? ($_SESSION['project_share_token'] ?? ''));
-        if (!empty($shareToken) && is_string($shareToken)) {
-            try {
-                $proj = $db->fetchOne(
-                    "SELECT * FROM nu_projects WHERE project_share_token = ? AND project_is_public_test = 1 AND project_active = 1",
-                    [$shareToken]
-                );
-                if ($proj) {
-                    $pid = (int)$proj['project_id'];
-                    $_SESSION['nu_project_id']           = $pid;
-                    $_SESSION['nu_project_code']         = $proj['project_code'];
-                    $_SESSION['project_share_token']     = $shareToken;
-                    $_SESSION['nu_project_share_active']  = true;
-                    $_SESSION['nu_project_share_mode']    = $proj['project_share_mode'] ?? 'guest';
-
-                    // Auto-bootstrap guest test session if user is not logged in and mode is 'guest'
-                    if (empty($_SESSION['nu_user_id']) && ($proj['project_share_mode'] ?? 'guest') === 'guest') {
-                        $_SESSION['nu_user_id']       = 'guest_tester';
-                        $_SESSION['nu_username']      = 'Guest Tester';
-                        $_SESSION['nu_role']          = 'user';
-                        $_SESSION['nu_last_activity'] = time();
-                        if (empty($_SESSION['nu_csrf'])) {
-                            $_SESSION['nu_csrf'] = bin2hex(random_bytes(32));
-                        }
-                    }
-
-                    return self::$cachedProjectId = $pid;
-                }
-            } catch (\Throwable $e) {}
+        $sharedPid = self::bootstrapShare();
+        if ($sharedPid !== null) {
+            return self::$cachedProjectId = $sharedPid;
         }
 
         // Check if session project ID exists

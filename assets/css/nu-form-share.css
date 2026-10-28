@@ -1,0 +1,52 @@
+/* Share-form dialog */
+.fs-overlay{position:fixed;inset:0;background:rgba(10,15,30,.55);display:none;align-items:center;justify-content:center;z-index:10050;padding:16px}
+.fs-overlay.open{display:flex}
+.fs-dialog{background:var(--bg-surface,#fff);color:var(--text-primary,#14213d);border:1px solid var(--border-color,#d5dbea);border-radius:14px;width:min(720px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.fs-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 22px 12px;border-bottom:1px solid var(--border-color,#e5e9f4)}
+.fs-head h3{margin:0;font-size:17px}
+.fs-sub{font-size:12.5px;color:var(--text-secondary,#5b6785);margin-top:2px}
+.fs-x{background:none;border:0;font-size:18px;cursor:pointer;color:inherit;min-width:44px;min-height:44px;margin:-8px -10px 0 0}
+.fs-body{padding:16px 22px;overflow:auto;flex:1}
+.fs-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 22px;border-top:1px solid var(--border-color,#e5e9f4)}
+.fs-actions{display:flex;gap:8px}
+.fs-del{color:#dc2626}
+.fs-loading,.fs-note{padding:14px;border-radius:10px;background:var(--bg-subtle,rgba(100,116,160,.08));font-size:13.5px}
+.fs-bad{color:#dc2626}
+.fs-row.fs-toggle{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}
+.fs-hint{font-size:12px;color:var(--text-secondary,#5b6785);font-weight:400}
+.fs-dim{opacity:.55}
+.fs-switch{position:relative;width:46px;height:26px;flex:none;margin-top:2px}
+.fs-switch input{opacity:0;width:100%;height:100%;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1}
+.fs-switch span{position:absolute;inset:0;background:#b9c1d6;border-radius:26px;transition:.2s}
+.fs-switch span:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.fs-switch input:checked+span{background:#2563eb}
+.fs-switch input:checked+span:before{transform:translateX(20px)}
+.fs-linkbox{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.fs-linkbox input{flex:1;min-width:180px;font:12.5px ui-monospace,Menlo,monospace;padding:9px 10px;border:1px solid var(--border-color,#d5dbea);border-radius:8px;background:var(--bg-subtle,rgba(100,116,160,.06));color:inherit}
+.fs-pill{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px}
+.fs-live{background:rgba(22,163,74,.15);color:#16a34a}.fs-off{background:rgba(100,116,160,.18);color:#5b6785}.fs-warn{background:rgba(217,119,6,.16);color:#d97706}
+.fs-meta{font-size:12.5px;color:var(--text-secondary,#5b6785);margin-bottom:6px}
+.fs-link{background:none;border:0;padding:0;color:#2563eb;cursor:pointer;font:inherit;text-decoration:underline}
+.fs-sec{font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-secondary,#5b6785);margin:20px 0 8px}
+.fs-sec .fs-hint{text-transform:none;letter-spacing:0;margin-left:6px}
+.fs-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fs-f label{display:block;font-size:12.5px;font-weight:600;margin-bottom:4px}
+.fs-f input,.fs-f textarea{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--border-color,#d5dbea);border-radius:8px;background:transparent;color:inherit;min-height:40px}
+.fs-span{grid-column:1/-1}
+.fs-check{display:flex;gap:10px;align-items:center;font-size:13.5px}
+.fs-check input{width:18px;height:18px}
+.fs-fields{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.fs-field{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--border-color,#e5e9f4);border-radius:8px;font-size:13.5px;margin:0}
+.fs-field input{margin-top:3px;width:16px;height:16px}
+.fs-field small{display:block;font-size:11.5px;color:var(--text-secondary,#5b6785)}
+.fs-skip{opacity:.6;background:var(--bg-subtle,rgba(100,116,160,.05))}
+.fs-x2{width:16px;text-align:center;color:#8a94b0}
+.fs-req{font-style:normal;font-size:10.5px;color:#dc2626;font-weight:700}
+.fs-safe{margin-top:16px}
+@media (max-width:640px){
+  .fs-overlay{align-items:flex-end;padding:0}
+  .fs-dialog{border-radius:14px 14px 0 0;max-height:94vh}
+  .fs-grid,.fs-fields{grid-template-columns:1fr}
+  .fs-f input,.fs-f textarea{padding:11px 12px!important;font-size:16px!important;min-height:44px}
+  .fs-foot{flex-wrap:wrap}.fs-actions{width:100%}.fs-actions .nu-btn{flex:1;min-height:44px}
+}
