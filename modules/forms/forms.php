@@ -2919,72 +2919,62 @@ if (!nbFormBuilder._groupTabPatched) {
     var blockHtml = '';
 
     if (field.type === 'uploadbutton') {
+      var _sd = window.nuStorageDefault || {};
+      var _tgt = (!field.upload_target || field.upload_target === 'local') ? 'default' : field.upload_target;
+      var _hdr = 'font-size:10px;font-weight:700;color:var(--text-tertiary);letter-spacing:.05em;text-transform:uppercase;';
+      var _hint = 'font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.4;';
+      var _fire = "i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}));";
+      var _preset = function (label, exts) {
+        return '<button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" style="padding:2px 8px;font-size:11px;" onclick="var i=this.closest(\'.nb-fp\').querySelector(\'input\');i.value=\'' + exts + '\';' + _fire + '">' + label + '</button>';
+      };
+      var _storeNote = (_sd.provider && _sd.provider !== 'local')
+        ? (_sd.connected ? 'Files follow your Cloud storage settings: ' + esc(_sd.summary) + '.' : esc(_sd.label) + ' is the default but is not connected yet, so files stay on this server until you connect it.')
+        : 'No cloud storage is set up, so files stay on this server. Choose a default in Cloud storage settings.';
       blockHtml += `
         <div class="nb-adv-field-ext nb-fp-grid" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border-color);grid-column:1/-1;">
-          <div class="nb-fp nb-fp-full" style="font-size:10px;font-weight:700;color:var(--text-tertiary);letter-spacing:.05em;text-transform:uppercase;">Upload Options</div>
-
-          <div class="nb-fp">
-            <label>Button Text</label>
+          <div class="nb-fp nb-fp-full" style="${_hdr}">Button</div>
+          <div class="nb-fp nb-fp-full">
+            <label>Button text</label>
             <input type="text" class="nu-input nb-adv-prop" data-prop="button_text" value="${esc(field.button_text || 'Upload')}">
           </div>
 
-          <div class="nb-fp">
-            <label>Accept</label>
-            <input type="text" class="nu-input nb-adv-prop" data-prop="accept" value="${esc(field.accept || '')}" placeholder=".jpg,.png,.pdf">
+          <div class="nb-fp nb-fp-full" style="${_hdr}margin-top:6px;">Files</div>
+          <div class="nb-fp nb-fp-full">
+            <label>Allowed file types</label>
+            <input type="text" class="nu-input nb-adv-prop" data-prop="allowed_extensions" value="${esc(field.allowed_extensions || '')}" placeholder="jpg, png, pdf, docx  (empty = system default)">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+              ${_preset('Images', 'jpg,jpeg,png,gif,webp')}${_preset('Documents', 'pdf,doc,docx,txt')}${_preset('Spreadsheets', 'xls,xlsx,csv')}${_preset('Any allowed', '')}
+            </div>
           </div>
-
           <div class="nb-fp">
-            <label>Max Files</label>
-            <input type="number" class="nu-input nb-adv-prop" data-prop="max_files" value="${esc(field.max_files != null ? field.max_files : 1)}" min="1">
-          </div>
-
-          <div class="nb-fp">
-            <label>Max Size MB</label>
+            <label>Max size (MB)</label>
             <input type="number" class="nu-input nb-adv-prop" data-prop="max_file_size_mb" value="${esc(field.max_file_size_mb != null ? field.max_file_size_mb : 5)}" min="1">
           </div>
-
-          <div class="nb-fp">
-            <label>Storage Mode</label>
-            <select class="nu-input nb-adv-prop" data-prop="storage_mode">
-              <option value="file" ${field.storage_mode === 'file' ? 'selected' : ''}>File path</option>
-              <option value="filename" ${field.storage_mode === 'filename' ? 'selected' : ''}>Filename only</option>
-              <option value="json" ${field.storage_mode === 'json' ? 'selected' : ''}>JSON metadata</option>
-              <option value="base64" ${field.storage_mode === 'base64' ? 'selected' : ''}>Base64</option>
-            </select>
+          <div class="nb-fp" id="fp_up_maxfiles" style="display:${field.multiple ? 'block' : 'none'};">
+            <label>Max files</label>
+            <input type="number" class="nu-input nb-adv-prop" data-prop="max_files" value="${esc(field.max_files != null ? field.max_files : 1)}" min="1">
           </div>
+          <label class="nb-fp-check nb-fp-full">
+            <input type="checkbox" class="nb-adv-prop" data-prop="multiple" ${field.multiple ? 'checked' : ''} onchange="var m=this.closest('.nb-fp-grid').querySelector('#fp_up_maxfiles');if(m)m.style.display=this.checked?'block':'none'"> Allow multiple files
+          </label>
+          <label class="nb-fp-check nb-fp-full">
+            <input type="checkbox" class="nb-adv-prop" data-prop="preview" ${field.preview !== false ? 'checked' : ''}> Show image thumbnails
+          </label>
 
-          <div class="nb-fp">
-            <label>Upload Target</label>
-            <select class="nu-input nb-adv-prop" data-prop="upload_target" onchange="this.closest('.nb-fp-grid').querySelector('#fp_onedrive_client_id').style.display = (this.value === 'onedrive' ? 'block' : 'none')">
-              <option value="default" ${(!field.upload_target || field.upload_target === 'default' || field.upload_target === 'local') ? 'selected' : ''}>Default storage — ${esc((window.nuStorageDefault || {}).summary || 'This server only')}</option>
-              <option value="local_only" ${field.upload_target === 'local_only' ? 'selected' : ''}>This server only (ignore default)</option>
-              <option value="onedrive" ${field.upload_target === 'onedrive' ? 'selected' : ''}>OneDrive file picker (link an existing file)</option>
-            </select>
-            <div class="nb-fp-hint" style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">${(window.nuStorageDefault || {}).provider && window.nuStorageDefault.provider !== 'local' ? (window.nuStorageDefault.connected ? 'Uploads follow Cloud storage settings: ' + esc(window.nuStorageDefault.summary) + '.' : 'Default is ' + esc(window.nuStorageDefault.label) + ' but it is not connected yet — files stay on this server until you connect it in Cloud storage settings.') : 'No cloud storage is configured; files stay on this server. Set a default under Cloud storage settings.'}</div>
-          </div>
-
-          <div class="nb-fp" id="fp_onedrive_client_id" style="display: ${field.upload_target === 'onedrive' ? 'block' : 'none'};">
-            <label>OneDrive Client ID</label>
-            <input type="text" class="nu-input nb-adv-prop" data-prop="onedrive_client_id" value="${esc(field.onedrive_client_id || '')}" placeholder="Client / App ID">
-          </div>
-
-          <div class="nb-fp">
-            <label>Upload Path</label>
-            <input type="text" class="nu-input nb-adv-prop" data-prop="upload_path" value="${esc(field.upload_path || 'uploads/')}">
-          </div>
-
+          <div class="nb-fp nb-fp-full" style="${_hdr}margin-top:6px;">Storage</div>
           <div class="nb-fp nb-fp-full">
-            <label>Allowed Extensions</label>
-            <input type="text" class="nu-input nb-adv-prop" data-prop="allowed_extensions" value="${esc(field.allowed_extensions || '')}" placeholder="jpg,png,pdf,docx">
+            <label>Save files to</label>
+            <select class="nu-input nb-adv-prop" data-prop="upload_target" onchange="this.closest('.nb-fp-grid').querySelector('#fp_onedrive_client_id').style.display = (this.value === 'onedrive' ? 'block' : 'none')">
+              <option value="default" ${_tgt === 'default' ? 'selected' : ''}>Default storage — ${esc(_sd.summary || 'This server only')}</option>
+              <option value="local_only" ${_tgt === 'local_only' ? 'selected' : ''}>This server only (ignore default)</option>
+              <option value="onedrive" ${_tgt === 'onedrive' ? 'selected' : ''}>OneDrive file picker (link an existing file)</option>
+            </select>
+            <div style="${_hint}">${_storeNote}</div>
           </div>
-
-          <label class="nb-fp-check nb-fp-full">
-            <input type="checkbox" class="nb-adv-prop" data-prop="multiple" ${field.multiple ? 'checked' : ''}> Multiple files
-          </label>
-
-          <label class="nb-fp-check nb-fp-full">
-            <input type="checkbox" class="nb-adv-prop" data-prop="preview" ${field.preview !== false ? 'checked' : ''}> Preview enabled
-          </label>
+          <div class="nb-fp nb-fp-full" id="fp_onedrive_client_id" style="display:${_tgt === 'onedrive' ? 'block' : 'none'};">
+            <label>OneDrive app (client) ID</label>
+            <input type="text" class="nu-input nb-adv-prop" data-prop="onedrive_client_id" value="${esc(field.onedrive_client_id || '')}" placeholder="Application (client) ID">
+          </div>
         </div>
       `;
     }

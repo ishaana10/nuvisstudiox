@@ -8,6 +8,11 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Upload button polish
+
+- Upload Button fields (forms and subforms) no longer show the raw stored value/ID. Files appear as chips with a thumbnail or type badge, the original file name (random prefix hidden), a **View** button that opens the in-app viewer, and a per-file remove (×), plus a one-line rules hint (types · max size · file count).
+- The builder's side panel is reorganised into **Button / Files / Storage**: file-type presets, *Allow multiple files* reveals *Max files*, and unused legacy settings (Accept, Storage Mode, Upload Path) are hidden.
+
 ### Unreleased — Upload button follows default storage
 
 - The form builder's Upload Button **Upload Target** now defaults to *Default storage* and shows what that currently is (e.g. "Google Drive (+ local copy)", or a warning if the provider isn't connected). Uploads use the Cloud storage settings; existing buttons set to "Local Server" now follow the default too.
