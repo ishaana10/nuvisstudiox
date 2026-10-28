@@ -139,6 +139,8 @@ switch ($action) {
             if (!is_dir($uploadDir)) {
                 mkdir($uploadDir, 0755, true);
             }
+            require_once dirname(__DIR__) . '/core/FileStore.php';
+            NuFileStore::protectDir($uploadDir);
 
             $filename = 'logo_' . uniqid() . '.' . $ext;
             $dest = $uploadDir . $filename;

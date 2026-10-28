@@ -388,7 +388,7 @@ class NuFormRenderer {
                     $html .= '<input type="file" name="' . $name . '" class="nu-input" ' . $required . '>';
                 }
                 if ($value) {
-                    $html .= '<div class="nu-file-current"><a href="uploads/' . htmlspecialchars($value) . '" target="_blank">View current file</a></div>';
+                    $html .= '<div class="nu-file-current"><a href="#" data-nu-view-name="' . htmlspecialchars(basename((string)$value)) . '">View current file</a></div>';
                 }
                 break;
 

@@ -698,7 +698,7 @@ function nu_render_field($field, $value = '', $record = []) {
                         $ext = strtolower(pathinfo($fName, PATHINFO_EXTENSION));
                         if (in_array($ext, ['jpg','jpeg','png','gif','webp','svg'], true)) {
                             $html .= '<div style="display:inline-block;text-align:center;">';
-                            $html .= '<img src="uploads/' . nu_html($fName) . '" style="max-height:80px;border-radius:4px;border:1px solid var(--border-color);cursor:pointer;" onclick="window._showImageLightbox(' . nu_attr(json_encode('uploads/' . $fName)) . ')">';
+                            $html .= '<img src="api/file.php?name=' . rawurlencode($fName) . '" style="max-height:80px;border-radius:4px;border:1px solid var(--border-color);cursor:pointer;" onclick="window._showImageLightbox(' . nu_attr(json_encode('uploads/' . $fName)) . ')">';
                             $html .= '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' . nu_html(basename($fName)) . '</div>';
                             $html .= '</div>';
                         } else {
