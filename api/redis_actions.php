@@ -3,208 +3,168 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/core/module_bootstrap.php';
 require_once dirname(__DIR__) . '/core/Cache.php';
+require_once dirname(__DIR__) . '/core/RedisConfig.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-// Strict administrative role check (globeadmin or admin)
+function rd_out(array $d, int $code = 200): void { http_response_code($code); echo json_encode($d); exit; }
+
+// Administrative role check (globeadmin or admin)
 $currentUser = $auth->getCurrentUser();
 $role = strtolower((string)($currentUser['usr_role'] ?? $_SESSION['nu_role'] ?? $_SESSION['usr_role'] ?? $_SESSION['user_role'] ?? ''));
+if (!$currentUser && empty($_SESSION['nu_user_id']) && empty($_SESSION['user_id'])) rd_out(['success' => false, 'error' => 'Authentication required'], 401);
+if ($role !== 'globeadmin' && $role !== 'admin' && strtolower((string)($_SESSION['nu_username'] ?? '')) !== 'globeadmin') rd_out(['success' => false, 'error' => 'Unauthorized'], 403);
 
-if (!$currentUser && empty($_SESSION['nu_user_id']) && empty($_SESSION['user_id'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'error' => 'Authentication required']);
-    exit;
+$input = [];
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $decoded = json_decode((string)file_get_contents('php://input'), true);
+    $input = is_array($decoded) ? $decoded : $_POST;
+}
+$action = (string)($_GET['action'] ?? $input['action'] ?? '');
+
+// State-changing calls must be POST + JSON (blocks cross-site form posts).
+$readOnly = ['get_redis_status', 'get_config', 'persistence_info'];
+if ($action !== '' && !in_array($action, $readOnly, true)) {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') rd_out(['success' => false, 'error' => 'POST required'], 405);
+    if (stripos((string)($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json') === false) rd_out(['success' => false, 'error' => 'JSON body required'], 415);
 }
 
-if ($role !== 'globeadmin' && $role !== 'admin' && strtolower((string)($_SESSION['nu_username'] ?? '')) !== 'globeadmin') {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit;
-}
+$cfg = NuRedisConfig::get();
 
-$action = $_GET['action'] ?? $_POST['action'] ?? '';
-if (empty($action) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true);
-    if (is_array($input) && isset($input['action'])) {
-        $action = $input['action'];
-    }
-}
+/** Live client from the saved config (even when "enabled" is off) for diagnostics. */
+function rd_client(array $cfg): array { return NuRedisConfig::connect($cfg); }
 
-$homeDir = getenv('HOME') ?: '/home/' . get_current_user();
-$socketPath = $nuConfig['redis']['path'] ?? '/home/ictfjcom/.redis/redis.sock';
+switch ($action) {
+    case 'get_config':
+        rd_out(['success' => true, 'config' => NuRedisConfig::publicView($cfg), 'presets' => NuRedisConfig::presets(),
+                'extension' => extension_loaded('redis'), 'home' => NuRedisConfig::home(), 'file_writable' => is_writable(dirname(NuRedisConfig::file()))]);
 
-if ($action === 'get_redis_status') {
-    // Touch ~/.redis.on flag on status check to trigger daemon if offline
-    @touch($homeDir . '/.redis.on');
-    if (file_exists('/home/ictfjcom')) {
-        @touch('/home/ictfjcom/.redis.on');
-    }
+    case 'save_config':
+        try {
+            $saved = NuRedisConfig::save(is_array($input['config'] ?? null) ? $input['config'] : [], !empty($input['clear_password']));
+        } catch (Throwable $e) {
+            rd_out(['success' => false, 'error' => $e->getMessage()]);
+        }
+        NuRedisConfig::touchStartFlag($saved);
+        rd_out(['success' => true, 'message' => 'Redis settings saved.', 'config' => NuRedisConfig::publicView($saved)]);
 
-    $socketExists = file_exists($socketPath);
-    $redisCache = \NuCache::getInstance();
-    $isConnected = $redisCache->isEnabled();
+    case 'test_config':
+        // Try the values in the form without saving them (password: blank = use the saved one)
+        $try = is_array($input['config'] ?? null) ? $input['config'] : [];
+        $merged = $cfg;
+        foreach (array_keys(NuRedisConfig::defaults()) as $k) {
+            if (!array_key_exists($k, $try) || $k === 'password') continue;
+            $merged[$k] = $try[$k];
+        }
+        if (isset($try['password']) && $try['password'] !== '' && $try['password'] !== '********') $merged['password'] = (string)$try['password'];
+        $merged = NuRedisConfig::normalize($merged);
+        $t0 = microtime(true);
+        [$cl, $err] = rd_client($merged);
+        if (!$cl) rd_out(['success' => false, 'error' => $err]);
+        try {
+            $info = $cl->info();
+            $k = $merged['prefix'] . 'selftest:' . bin2hex(random_bytes(4));
+            $cl->setex($k, 10, 'ok');
+            $ok = $cl->get($k) === 'ok';
+            $cl->del($k);
+            $ms = round((microtime(true) - $t0) * 1000, 1);
+            rd_out(['success' => $ok, 'latency_ms' => $ms, 'version' => $info['redis_version'] ?? '?',
+                    'message' => $ok ? "Connected to Redis {$info['redis_version']} and read/write succeeded ({$ms} ms)." : 'Connected, but a write could not be read back.']);
+        } catch (Throwable $e) {
+            rd_out(['success' => false, 'error' => $e->getMessage()]);
+        }
 
-    $usedMemoryHuman = 'N/A';
-    $redisVersion = 'N/A';
-    $cachedKeysCount = 0;
-    $activeSessionsCount = 0;
-    $keysSample = [];
-
-    if ($isConnected) {
-        $nativeRedis = $redisCache->client();
-        if ($nativeRedis) {
+    case 'get_redis_status':
+        NuRedisConfig::touchStartFlag($cfg);   // lets host-managed daemons (A2 Hosting) start on demand
+        $isSock = $cfg['scheme'] === 'unix';
+        $sock = NuRedisConfig::socketPath($cfg);
+        $cache = NuCache::getInstance();
+        $connected = $cache->isEnabled();
+        $res = [
+            'success' => true, 'enabled' => $cfg['enabled'], 'redis_extension' => extension_loaded('redis'),
+            'scheme' => $cfg['scheme'], 'preset' => $cfg['preset'],
+            'socket_path' => $isSock ? $sock : ($cfg['host'] . ':' . $cfg['port']),
+            'socket_exists' => $isSock ? file_exists($sock) : null,
+            'is_connected' => $connected, 'persistent' => $cfg['persistent'], 'use_for_sessions' => $cfg['use_for_sessions'],
+            'prefix' => $cfg['prefix'], 'last_error' => $connected ? '' : ($cache->lastError() ?: ($cfg['enabled'] ? '' : 'Redis is switched off in the settings.')),
+            'used_memory' => 'N/A', 'redis_version' => 'N/A', 'cached_keys_count' => 0, 'active_sessions_count' => 0, 'keys_sample' => [],
+        ];
+        if ($connected && ($nr = $cache->client())) {
             try {
-                $info = $nativeRedis->info();
-                $usedMemoryHuman = $info['used_memory_human'] ?? '0B';
-                $redisVersion = $info['redis_version'] ?? 'Unknown';
-
-                $cachedKeys = $nativeRedis->keys('nuvis:*');
-                $cachedKeysCount = count($cachedKeys);
-
-                $sessionKeys = $nativeRedis->keys('nuvis:sess:*');
-                $activeSessionsCount = count($sessionKeys);
-
-                $sampleList = array_slice($cachedKeys, 0, 15);
-                foreach ($sampleList as $fullKey) {
-                    $ttl = $nativeRedis->ttl($fullKey);
-                    $shortKey = preg_replace('/^nuvis:/', '', $fullKey);
-                    $keysSample[] = [
-                        'key' => $shortKey,
-                        'full_key' => $fullKey,
-                        'ttl' => ($ttl === -1 ? '∞' : ($ttl >= 0 ? $ttl . 's' : 'Expired'))
-                    ];
+                $info = $nr->info();
+                $res['used_memory'] = $info['used_memory_human'] ?? '0B';
+                $res['redis_version'] = $info['redis_version'] ?? 'Unknown';
+                $px = $cfg['prefix'];
+                $keys = [];
+                $it = null;
+                while (($batch = $nr->scan($it, $px . '*', 500)) !== false && count($keys) < 5000) {
+                    foreach ($batch as $kk) $keys[] = $kk;
+                    if ($it === 0 || $it === null) break;
                 }
-            } catch (\Throwable $e) {
-                // Ignore query errors
-            }
-        }
-    }
-
-    echo json_encode([
-        'success' => true,
-        'redis_extension' => extension_loaded('redis'),
-        'socket_path' => $socketPath,
-        'socket_exists' => $socketExists,
-        'is_connected' => $isConnected,
-        'scheme' => ($nuConfig['redis']['scheme'] ?? 'unix'),
-        'used_memory' => $usedMemoryHuman,
-        'redis_version' => $redisVersion,
-        'cached_keys_count' => $cachedKeysCount,
-        'active_sessions_count' => $activeSessionsCount,
-        'keys_sample' => $keysSample
-    ]);
-    exit;
-}
-
-if ($action === 'test_redis_ping') {
-    $start = microtime(true);
-    $redisCache = \NuCache::getInstance();
-
-    if (!$redisCache->isEnabled()) {
-        echo json_encode([
-            'success' => false,
-            'error' => 'Redis is not connected. Enable Redis or ensure socket daemon is running.'
-        ]);
-        exit;
-    }
-
-    $testKey = 'ping_test_' . time();
-    $redisCache->set($testKey, 'ok', 10);
-    $val = $redisCache->get($testKey);
-    $redisCache->delete($testKey);
-
-    $durationMs = round((microtime(true) - $start) * 1000, 2);
-
-    if ($val === 'ok') {
-        echo json_encode([
-            'success' => true,
-            'latency_ms' => $durationMs,
-            'message' => "SET/GET/DEL Benchmark Successful! Response latency: {$durationMs} ms"
-        ]);
-    } else {
-        echo json_encode([
-            'success' => false,
-            'error' => 'Redis write verification failed.'
-        ]);
-    }
-    exit;
-}
-
-if ($action === 'start_redis_daemon') {
-    @touch($homeDir . '/.redis.on');
-    if (file_exists('/home/ictfjcom')) {
-        @touch('/home/ictfjcom/.redis.on');
-    }
-
-    // Persist enable flag to config files if present
-    $configFiles = [
-        dirname(__DIR__) . '/config.php',
-        dirname(__DIR__) . '/config.local.php'
-    ];
-    foreach ($configFiles as $configFilePath) {
-        if (file_exists($configFilePath)) {
-            $configContent = file_get_contents($configFilePath);
-            if ($configContent !== false) {
-                $updatedContent = preg_replace(
-                    "/('enabled'\s*=>\s*)(false|true)/i",
-                    '$1true',
-                    $configContent
-                );
-                if ($updatedContent !== null && $updatedContent !== $configContent) {
-                    file_put_contents($configFilePath, $updatedContent);
+                $res['cached_keys_count'] = count($keys);
+                $res['active_sessions_count'] = count(array_filter($keys, fn($k) => strpos($k, $px . 'sess:') === 0));
+                foreach (array_slice($keys, 0, 15) as $full) {
+                    $ttl = $nr->ttl($full);
+                    $res['keys_sample'][] = ['key' => substr($full, strlen($px)), 'full_key' => $full, 'ttl' => ($ttl === -1 ? '∞' : ($ttl >= 0 ? $ttl . 's' : 'Expired'))];
                 }
-            }
+            } catch (Throwable $e) { $res['last_error'] = $e->getMessage(); }
         }
-    }
+        rd_out($res);
 
-    echo json_encode([
-        'success' => true,
-        'message' => 'Created ~/.redis.on flag and enabled Redis in configuration. Redis daemon will initialize at ' . $socketPath . '.'
-    ]);
-    exit;
+    case 'test_redis_ping':
+        $t0 = microtime(true);
+        $cache = NuCache::getInstance();
+        if (!$cache->isEnabled()) rd_out(['success' => false, 'error' => $cache->lastError() ?: 'Redis is not connected. Enable it and save the settings first.']);
+        $k = 'ping_test_' . time();
+        $cache->set($k, 'ok', 10); $v = $cache->get($k); $cache->delete($k);
+        $ms = round((microtime(true) - $t0) * 1000, 2);
+        rd_out($v === 'ok' ? ['success' => true, 'latency_ms' => $ms, 'message' => "SET/GET/DEL successful. Latency: {$ms} ms"] : ['success' => false, 'error' => 'Redis write verification failed.']);
+
+    case 'persistence_info':
+        [$cl, $err] = rd_client($cfg);
+        if (!$cl) rd_out(['success' => false, 'error' => $err]);
+        try {
+            $p = $cl->info('persistence'); $s = $cl->info('server');
+            $aof = ($p['aof_enabled'] ?? 0) == 1;
+            $save = ''; try { $sv = $cl->config('GET', 'save'); $save = is_array($sv) ? (string)(reset($sv) ?: '') : ''; } catch (Throwable $e) { $save = 'n/a (CONFIG disabled by host)'; }
+            rd_out(['success' => true, 'aof_enabled' => $aof, 'rdb_last_save' => isset($p['rdb_last_save_time']) ? date('Y-m-d H:i:s', (int)$p['rdb_last_save_time']) : null,
+                    'rdb_last_status' => $p['rdb_last_bgsave_status'] ?? null, 'changes_since_save' => $p['rdb_changes_since_last_save'] ?? null,
+                    'save_policy' => $save, 'dir' => $s['config_file'] ?? '', 'uptime_days' => $s['uptime_in_days'] ?? null]);
+        } catch (Throwable $e) { rd_out(['success' => false, 'error' => $e->getMessage()]); }
+
+    case 'bgsave':
+        [$cl, $err] = rd_client($cfg);
+        if (!$cl) rd_out(['success' => false, 'error' => $err]);
+        try { $cl->bgsave(); rd_out(['success' => true, 'message' => 'Background save started (data written to disk).']); }
+        catch (Throwable $e) { rd_out(['success' => false, 'error' => 'Host does not allow BGSAVE: ' . $e->getMessage()]); }
+
+    case 'set_persistence':
+        [$cl, $err] = rd_client($cfg);
+        if (!$cl) rd_out(['success' => false, 'error' => $err]);
+        try {
+            $aof = !empty($input['aof']);
+            $cl->config('SET', 'appendonly', $aof ? 'yes' : 'no');
+            $cl->config('SET', 'save', '900 1 300 10 60 10000');
+            rd_out(['success' => true, 'message' => 'Persistence updated for the running server' . ($aof ? ' (append-only file on)' : '') . '. If the host restarts Redis from its own config, set the same options there.']);
+        } catch (Throwable $e) { rd_out(['success' => false, 'error' => 'The Redis server refused the change (often disabled on shared hosting): ' . $e->getMessage()]); }
+
+    case 'start_redis_daemon':
+        $f = NuRedisConfig::touchStartFlag($cfg);
+        rd_out($f ? ['success' => true, 'message' => "Start flag created at {$f}. The host will start Redis shortly."]
+                  : ['success' => false, 'error' => 'No start-flag file is configured (Developer Settings > Redis > Start flag file), or it is not writable.']);
+
+    case 'toggle_redis_config':
+        try { $saved = NuRedisConfig::save(['enabled' => !empty($input['enable'])]); }
+        catch (Throwable $e) { rd_out(['success' => false, 'error' => $e->getMessage()]); }
+        NuRedisConfig::touchStartFlag($saved);
+        rd_out(['success' => true, 'message' => 'Redis ' . ($saved['enabled'] ? 'enabled' : 'disabled') . '.']);
+
+    case 'flush_cache':
+        $cache = NuCache::getInstance();
+        if (!$cache->isEnabled()) rd_out(['success' => false, 'error' => 'Redis cache is not active.']);
+        $cache->flush();
+        rd_out(['success' => true, 'message' => 'Application cache cleared (sessions are kept).']);
+
+    default:
+        rd_out(['success' => false, 'error' => 'Invalid action'], 400);
 }
-
-if ($action === 'flush_cache') {
-    $redisCache = \NuCache::getInstance();
-    if ($redisCache->isEnabled()) {
-        $redisCache->flush();
-        echo json_encode(['success' => true, 'message' => 'Nuvis application cache cleared successfully.']);
-    } else {
-        echo json_encode(['success' => false, 'error' => 'Redis cache is not active.']);
-    }
-    exit;
-}
-
-if ($action === 'toggle_redis_config') {
-    $input = json_decode(file_get_contents('php://input'), true);
-    $enable = !empty($input['enable']);
-
-    $configFiles = [
-        dirname(__DIR__) . '/config.php',
-        dirname(__DIR__) . '/config.local.php'
-    ];
-    $targetVal = $enable ? 'true' : 'false';
-    foreach ($configFiles as $configFilePath) {
-        if (file_exists($configFilePath)) {
-            $configContent = file_get_contents($configFilePath);
-            if ($configContent !== false) {
-                $updatedContent = preg_replace(
-                    "/('enabled'\s*=>\s*)(false|true)/i",
-                    '$1' . $targetVal,
-                    $configContent
-                );
-                if ($updatedContent !== null && $updatedContent !== $configContent) {
-                    file_put_contents($configFilePath, $updatedContent);
-                }
-            }
-        }
-    }
-
-    echo json_encode([
-        'success' => true,
-        'message' => 'Redis configuration updated: ' . ($enable ? 'Enabled' : 'Disabled')
-    ]);
-    exit;
-}
-
-echo json_encode(['success' => false, 'error' => 'Invalid action']);

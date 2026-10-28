@@ -478,7 +478,7 @@ if (!$currentUser || strtolower((string)$currentUser['usr_role']) !== 'globeadmi
                     <div class="nu-redis-kpi-label">Cached App Objects</div>
                     <div class="nu-redis-kpi-val" id="redisCardKeys" style="color:#1d4ed8;">0</div>
                 </div>
-                <div class="nu-redis-kpi-sub">Prefix: nuvis:*</div>
+                <div class="nu-redis-kpi-sub">Prefix: <span class="rdPrefixLbl">nuvis:</span>*</div>
             </div>
 
             <!-- Card 4 -->
@@ -487,7 +487,7 @@ if (!$currentUser || strtolower((string)$currentUser['usr_role']) !== 'globeadmi
                     <div class="nu-redis-kpi-label">Redis Active Sessions</div>
                     <div class="nu-redis-kpi-val" id="redisCardSessions" style="color:#15803d;">0</div>
                 </div>
-                <div class="nu-redis-kpi-sub">Prefix: nuvis:sess:*</div>
+                <div class="nu-redis-kpi-sub">Prefix: <span class="rdPrefixLbl">nuvis:</span>sess:*</div>
             </div>
         </div>
 
@@ -496,21 +496,56 @@ if (!$currentUser || strtolower((string)$currentUser['usr_role']) !== 'globeadmi
             <div class="nu-redis-daemon-info">
                 <span style="font-size:20px;">🏠</span>
                 <div>
-                    <div class="nu-redis-daemon-title">A2 Hosting Turbo Max Redis Daemon Initialization</div>
+                    <div class="nu-redis-daemon-title">Redis connection</div>
                     <div class="nu-redis-daemon-path">
-                        Socket Path: <code id="redisSocketPathDisplay">/home/ictfjcom/.redis/redis.sock</code>
+                        Endpoint: <code id="redisSocketPathDisplay">--</code>
+                        <div id="redisLastError" style="color:#c2410c;margin-top:4px;"></div>
                     </div>
                 </div>
             </div>
             <div style="display:flex; gap:10px;">
                 <button type="button" class="nu-btn-daemon" onclick="DevSettings.triggerStartRedisDaemon()">
-                    ⏻ Start A2 Hosting Redis Daemon (~/.redis.on)
+                    ⏻ Start daemon (start flag)
                 </button>
                 <button type="button" class="nu-btn-flush" onclick="DevSettings.flushRedisCache()">
                     🧹 Flush Nuvis Cache
                 </button>
             </div>
         </div>
+
+        <!-- Redis settings (persistent, exported with projects) -->
+        <div class="nu-redis-daemon-card" style="display:block;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                <div class="nu-redis-daemon-title">Redis settings <span style="font-weight:400;font-size:12px;color:var(--text-muted);">— saved permanently and included in project export (password is never exported)</span></div>
+                <label style="display:flex;gap:6px;align-items:center;font-weight:600;"><input type="checkbox" id="rdEnabled"> Enable Redis</label>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;">
+                <div><label class="rdl">Preset</label><select class="nu-input" id="rdPreset" onchange="DevSettings.rdApplyPreset()"><option value="a2hosting">A2 Hosting (unix socket in your home)</option><option value="unix">Unix socket</option><option value="tcp">TCP host/port</option><option value="tls">TLS (rediss)</option></select></div>
+                <div><label class="rdl">Connection type</label><select class="nu-input" id="rdScheme" onchange="DevSettings.rdToggle()"><option value="unix">Unix socket</option><option value="tcp">TCP</option><option value="tls">TCP + TLS</option></select></div>
+                <div class="rdUnix"><label class="rdl">Socket path</label><input class="nu-input" id="rdPath" placeholder="~/.redis/redis.sock"></div>
+                <div class="rdTcp"><label class="rdl">Host</label><input class="nu-input" id="rdHost" placeholder="127.0.0.1"></div>
+                <div class="rdTcp"><label class="rdl">Port</label><input type="number" class="nu-input" id="rdPort" placeholder="6379"></div>
+                <div class="rdTcp"><label class="rdl">Username (Redis 6+ ACL)</label><input class="nu-input" id="rdUser" autocomplete="off"></div>
+                <div><label class="rdl">Password</label><input type="password" class="nu-input" id="rdPass" autocomplete="new-password"><div id="rdPassHint" style="font-size:11px;color:var(--text-muted);"></div></div>
+                <div><label class="rdl">Database #</label><input type="number" class="nu-input" id="rdDb" min="0" max="255"></div>
+                <div><label class="rdl">Key prefix</label><input class="nu-input" id="rdPrefix" placeholder="nuvis:"></div>
+                <div><label class="rdl">Default cache TTL (sec)</label><input type="number" class="nu-input" id="rdTtl" min="1"></div>
+                <div><label class="rdl">Connect timeout (sec)</label><input type="number" step="0.5" class="nu-input" id="rdTimeout" min="0.5"></div>
+                <div class="rdUnix"><label class="rdl">Start flag file (optional)</label><input class="nu-input" id="rdFlag" placeholder="~/.redis.on (A2 Hosting)"></div>
+            </div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;margin:12px 0;font-size:13px;">
+                <label><input type="checkbox" id="rdPersistent"> Persistent connections (faster, reused between requests)</label>
+                <label><input type="checkbox" id="rdSessions"> Store login sessions in Redis</label>
+                <label class="rdTcp"><input type="checkbox" id="rdTlsVerify"> Verify TLS certificate</label>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button type="button" class="nu-btn nu-btn-primary" onclick="DevSettings.rdSave()">Save settings</button>
+                <button type="button" class="nu-btn nu-btn-ghost" onclick="DevSettings.rdTest()">Test these settings</button>
+                <button type="button" class="nu-btn nu-btn-ghost" onclick="DevSettings.rdPersistence()">Data persistence…</button>
+            </div>
+            <pre id="rdResult" style="display:none;margin-top:10px;font-size:12px;white-space:pre-wrap;word-break:break-word;"></pre>
+        </div>
+        <style>.rdl{display:block;font-size:12px;font-weight:600;margin-bottom:3px;color:var(--text-muted);}</style>
 
         <!-- Sample Cached Keys Table -->
         <div>
@@ -576,6 +611,7 @@ var DevSettings = (function() {
             btnRedis.classList.add('active');
             panelRedis.classList.add('active');
             fetchRedisDiagnostics();
+            rdLoad();
         } else if (tab === 'fnref') {
             if (btnFnRef) btnFnRef.classList.add('active');
             if (panelFnRef) panelFnRef.classList.add('active');
@@ -681,7 +717,8 @@ var DevSettings = (function() {
         .then(function(d) {
             if (d.success) {
                 var socketDisplay = document.getElementById('redisSocketPathDisplay');
-                if (socketDisplay) socketDisplay.textContent = d.socket_path || '/home/ictfjcom/.redis/redis.sock';
+                if (socketDisplay) socketDisplay.textContent = d.socket_path || '--';
+                var le = document.getElementById('redisLastError'); if (le) le.textContent = d.last_error || '';
 
                 var schemeEl = document.getElementById('redisCardScheme');
                 if (schemeEl) schemeEl.textContent = 'Scheme: ' + (d.scheme || 'unix');
@@ -694,7 +731,7 @@ var DevSettings = (function() {
                     statusCard.innerHTML = '<span>Socket Present (Config Disabled)</span> <button type="button" onclick="DevSettings.toggleRedisConfig(true)" style="padding:2px 8px; font-size:11px; background:#16a34a; color:#fff; border:none; border-radius:4px; cursor:pointer;">Enable Redis</button>';
                 } else {
                     statusCard.style.color = '#c2410c';
-                    statusCard.innerHTML = '<span>Socket Offline (~/.redis.on required)</span>';
+                    statusCard.innerHTML = '<span>' + (d.enabled ? 'Not reachable' : 'Switched off') + '</span>';
                 }
 
                 document.getElementById('redisCardMemory').textContent = d.used_memory || '--';
@@ -747,8 +784,12 @@ var DevSettings = (function() {
         });
     }
 
+    function rdPost(action, body) {
+        return fetch(REDIS_API + '?action=' + action, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then(function(r) { return r.json(); });
+    }
+
     function triggerStartRedisDaemon() {
-        fetch(REDIS_API + '?action=start_redis_daemon', { credentials: 'same-origin' })
+        rdPost('start_redis_daemon')
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (window.NuApp) NuApp.toast(d.message || 'Daemon startup signaled (~/.redis.on)');
@@ -760,8 +801,7 @@ var DevSettings = (function() {
     function flushRedisCache() {
         if (!confirm('Are you sure you want to flush all Nuvis cached objects in Redis?')) return;
 
-        fetch(REDIS_API + '?action=flush_cache', { credentials: 'same-origin' })
-        .then(function(r) { return r.json(); })
+        rdPost('flush_cache')
         .then(function(d) {
             if (window.NuApp) NuApp.toast(d.message || 'Cache flushed');
             else alert(d.message || 'Cache flushed');
@@ -780,6 +820,67 @@ var DevSettings = (function() {
         .then(function(d) {
             if (window.NuApp) NuApp.toast(d.message || 'Config updated');
             fetchRedisDiagnostics();
+        });
+    }
+
+    var rdPresets = {};
+    function $rd(id) { return document.getElementById(id); }
+    function rdToggle() {
+        var sch = $rd('rdScheme').value;
+        document.querySelectorAll('.rdUnix').forEach(function(e) { e.style.display = sch === 'unix' ? '' : 'none'; });
+        document.querySelectorAll('.rdTcp').forEach(function(e) { e.style.display = sch === 'unix' ? 'none' : ''; });
+    }
+    function rdFill(c) {
+        $rd('rdEnabled').checked = !!c.enabled; $rd('rdPreset').value = c.preset || 'unix'; $rd('rdScheme').value = c.scheme || 'unix';
+        $rd('rdPath').value = c.path || ''; $rd('rdHost').value = c.host || ''; $rd('rdPort').value = c.port || 6379; $rd('rdUser').value = c.username || '';
+        $rd('rdPass').value = ''; $rd('rdPassHint').textContent = c.password_set ? 'A password is saved. Leave blank to keep it.' : '';
+        $rd('rdDb').value = c.database || 0; $rd('rdPrefix').value = c.prefix || 'nuvis:'; $rd('rdTtl').value = c.default_ttl || 300; $rd('rdTimeout').value = c.timeout || 2.5;
+        $rd('rdFlag').value = c.start_flag_file || ''; $rd('rdPersistent').checked = !!c.persistent; $rd('rdSessions').checked = !!c.use_for_sessions; $rd('rdTlsVerify').checked = !!c.tls_verify;
+        document.querySelectorAll('.rdPrefixLbl').forEach(function(e) { e.textContent = c.prefix || 'nuvis:'; });
+        rdToggle();
+    }
+    function rdRead() {
+        return { enabled: $rd('rdEnabled').checked, preset: $rd('rdPreset').value, scheme: $rd('rdScheme').value, path: $rd('rdPath').value, host: $rd('rdHost').value,
+            port: +$rd('rdPort').value || 6379, username: $rd('rdUser').value, password: $rd('rdPass').value, database: +$rd('rdDb').value || 0, prefix: $rd('rdPrefix').value,
+            default_ttl: +$rd('rdTtl').value || 300, timeout: +$rd('rdTimeout').value || 2.5, start_flag_file: $rd('rdFlag').value, persistent: $rd('rdPersistent').checked,
+            use_for_sessions: $rd('rdSessions').checked, tls_verify: $rd('rdTlsVerify').checked };
+    }
+    function rdShow(ok, msg) { var p = $rd('rdResult'); p.style.display = 'block'; p.style.color = ok ? '#15803d' : '#dc2626'; p.textContent = (ok ? '✔ ' : '✖ ') + msg; }
+    function rdLoad() {
+        if (!$rd('rdEnabled')) return;
+        fetch(REDIS_API + '?action=get_config', { credentials: 'same-origin' }).then(function(r) { return r.json(); }).then(function(d) {
+            if (!d.success) return; rdPresets = d.presets || {}; rdFill(d.config);
+            if (!d.extension) rdShow(false, 'The PHP "redis" extension is not enabled for this site, so Redis cannot be used until your host enables it.');
+            else if (!d.file_writable) rdShow(false, 'The application folder is not writable, so settings cannot be saved.');
+        });
+    }
+    function rdApplyPreset() {
+        var p = rdPresets[$rd('rdPreset').value]; if (!p) return;
+        if (p.scheme) $rd('rdScheme').value = p.scheme;
+        if ('path' in p) $rd('rdPath').value = p.path; if ('start_flag_file' in p) $rd('rdFlag').value = p.start_flag_file;
+        if (p.host) $rd('rdHost').value = p.host; if (p.port) $rd('rdPort').value = p.port;
+        if ('persistent' in p) $rd('rdPersistent').checked = p.persistent;
+        rdToggle();
+    }
+    function rdSave() {
+        rdPost('save_config', { config: rdRead() }).then(function(d) {
+            if (d.success) { rdFill(d.config); rdShow(true, d.message + ' Reload the page for session changes to take effect.'); fetchRedisDiagnostics(); }
+            else rdShow(false, d.error || 'Save failed');
+        });
+    }
+    function rdTest() {
+        rdShow(true, 'Testing…');
+        rdPost('test_config', { config: rdRead() }).then(function(d) { rdShow(!!d.success, d.message || d.error || 'Failed'); });
+    }
+    function rdPersistence() {
+        fetch(REDIS_API + '?action=persistence_info', { credentials: 'same-origin' }).then(function(r) { return r.json(); }).then(function(d) {
+            if (!d.success) { rdShow(false, d.error); return; }
+            var t = 'Append-only file: ' + (d.aof_enabled ? 'ON' : 'off') + '\nLast snapshot: ' + (d.rdb_last_save || 'never') + ' (' + (d.rdb_last_status || '?') + ')\nChanges since snapshot: ' + d.changes_since_save + '\nSnapshot policy: ' + (d.save_policy || '—');
+            rdShow(true, t + '\n\nUse the buttons below to save now or turn on the append-only file.');
+            var p = $rd('rdResult');
+            [['Save to disk now', function() { rdPost('bgsave').then(function(x) { rdShow(!!x.success, x.message || x.error); }); }],
+             [d.aof_enabled ? 'Turn append-only off' : 'Turn append-only on', function() { rdPost('set_persistence', { aof: !d.aof_enabled }).then(function(x) { rdShow(!!x.success, x.message || x.error); }); }]
+            ].forEach(function(b) { var el = document.createElement('button'); el.type = 'button'; el.className = 'nu-btn nu-btn-ghost'; el.style.marginRight = '8px'; el.style.marginTop = '8px'; el.textContent = b[0]; el.onclick = b[1]; p.appendChild(document.createElement('br')); p.appendChild(el); });
         });
     }
 
@@ -1020,6 +1121,7 @@ var DevSettings = (function() {
         triggerStartRedisDaemon: triggerStartRedisDaemon,
         flushRedisCache: flushRedisCache,
         toggleRedisConfig: toggleRedisConfig,
+        rdApplyPreset: rdApplyPreset, rdToggle: rdToggle, rdSave: rdSave, rdTest: rdTest, rdPersistence: rdPersistence,
         filterFnRef: filterFnRef
     };
 })();

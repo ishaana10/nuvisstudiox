@@ -13,58 +13,37 @@ class NuCache
     private string $prefix = 'nuvis:';
     private int $defaultTtl = 300;
 
+    private string $lastError = '';
+
     private function __construct()
     {
-        global $nuConfig;
-        $cfg = $nuConfig['redis'] ?? [];
+        require_once __DIR__ . '/RedisConfig.php';
+        $cfg = NuRedisConfig::get();
 
         if (empty($cfg['enabled'])) {
             return;
         }
 
-        if (!extension_loaded('redis') || !class_exists('Redis')) {
-            error_log('[NuCache] phpredis extension not loaded');
+        [$client, $err] = NuRedisConfig::connect($cfg);
+        if ($client === null) {
+            $this->lastError = $err;
+            error_log('[NuCache] ' . $err);
             return;
         }
+        $this->redis      = $client;
+        $this->prefix     = (string)$cfg['prefix'];
+        $this->defaultTtl = (int)$cfg['default_ttl'];
+        $this->enabled    = true;
+    }
 
-        try {
-            $this->redis = new \Redis();
+    public function lastError(): string
+    {
+        return $this->lastError;
+    }
 
-            if (($cfg['scheme'] ?? 'unix') === 'unix') {
-                $connected = $this->redis->connect(
-                    $cfg['path'] ?? '/tmp/redis.sock',
-                    0,
-                    (float)($cfg['timeout'] ?? 2.5)
-                );
-            } else {
-                $connected = $this->redis->connect(
-                    $cfg['host'] ?? '127.0.0.1',
-                    (int)($cfg['port'] ?? 6379),
-                    (float)($cfg['timeout'] ?? 2.5)
-                );
-            }
-
-            if (!$connected) {
-                throw new \RuntimeException('Redis connect failed');
-            }
-
-            if (!empty($cfg['password'])) {
-                $this->redis->auth($cfg['password']);
-            }
-
-            if (isset($cfg['database'])) {
-                $this->redis->select((int)$cfg['database']);
-            }
-
-            $this->prefix     = (string)($cfg['prefix'] ?? 'nuvis:');
-            $this->defaultTtl = (int)($cfg['default_ttl'] ?? 300);
-            $this->enabled    = true;
-
-        } catch (\Throwable $e) {
-            error_log('[NuCache] ' . $e->getMessage());
-            $this->redis   = null;
-            $this->enabled = false;
-        }
+    public function prefix(): string
+    {
+        return $this->prefix;
     }
 
     public static function getInstance(): self
@@ -170,9 +149,12 @@ class NuCache
             return false;
         }
         try {
-            $keys = $this->redis->keys($this->prefix . '*');
-            if (!empty($keys)) {
-                $this->redis->del(...$keys);
+            $sess = $this->prefix . 'sess:';
+            $it = null;
+            while (($batch = $this->redis->scan($it, $this->prefix . '*', 500)) !== false) {
+                $del = array_filter($batch, fn($k) => strpos($k, $sess) !== 0);   // keep login sessions
+                if ($del) $this->redis->del(...array_values($del));
+                if ($it === 0 || $it === null) break;
             }
             return true;
         } catch (\Throwable $e) {

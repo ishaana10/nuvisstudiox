@@ -39,3 +39,4 @@ api/test.php
 # Composer Dependencies
 vendor/
 composer.lock
+config.redis.php

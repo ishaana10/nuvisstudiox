@@ -26,7 +26,9 @@ session_name('nuvisstudioxssid');               // avoid default PHPSESSID
 
 if (session_status() === PHP_SESSION_NONE) {
     // Register Redis session handler if Redis is enabled and extension exists
-    if (!empty($nuConfig['redis']['enabled']) && extension_loaded('redis')) {
+    require_once NU_ROOT . '/core/RedisConfig.php';
+    $_redisCfg = NuRedisConfig::get();
+    if (!empty($_redisCfg['enabled']) && !empty($_redisCfg['use_for_sessions']) && extension_loaded('redis')) {
         try {
             require_once NU_ROOT . '/core/Cache.php';
             require_once NU_ROOT . '/core/RedisSessionHandler.php';
@@ -34,7 +36,7 @@ if (session_status() === PHP_SESSION_NONE) {
             if ($cache->isEnabled() && $cache->client()) {
                 $handler = new NuRedisSessionHandler(
                     $cache->client(),
-                    ($nuConfig['redis']['prefix'] ?? 'nuvis:') . 'sess:',
+                    $_redisCfg['prefix'] . 'sess:',
                     (int)($nuConfig['sessionTimeout'] ?? 1800)
                 );
                 session_set_save_handler($handler, true);

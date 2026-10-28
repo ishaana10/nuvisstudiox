@@ -7,6 +7,7 @@
 class EmailService {
 
     private $config;
+    private $ctx = [];
 
     public function __construct(array $config = []) {
         // Merge with global config if available
@@ -21,6 +22,8 @@ class EmailService {
             'from_email'    => 'noreply@example.com',
             'from_name'     => 'nub5-dev',
             'reply_to'      => '',
+            'smtp_verify_peer' => '1',   // set 0 only if the mail host's certificate name does not match
+            'smtp_ehlo'     => '',       // optional EHLO name; defaults to the From domain
         ];
 
         // First attempt to load dynamic SMTP settings from the database
@@ -32,6 +35,8 @@ class EmailService {
                 $v = $row['setting_value'];
                 if ($k === 'smtp_auth') {
                     $defaults[$k] = ($v == '1');
+                } else if ($k === 'smtp_verify_peer') {
+                    $defaults[$k] = ($v === '' ? '1' : $v);
                 } else if ($v !== '') {
                     $defaults[$k] = $v;
                 }
@@ -63,7 +68,13 @@ class EmailService {
      * @return array ['success' => bool, 'message' => string]
      */
     public function send($to, string $subject, string $body, array $options = []): array {
+        $this->ctx = ['source' => (string)($options['source'] ?? ''), 'started' => microtime(true), 'detail' => '', 'message_id' => ''];
+        self::ensureLogSchema();
         try {
+            if (!$this->normalizeRecipients($to)) throw new \InvalidArgumentException('No valid recipient address.');
+            if (!filter_var($this->config['from_email'], FILTER_VALIDATE_EMAIL)) {
+                throw new \RuntimeException('The From address "' . $this->config['from_email'] . '" is not a valid email address. Set it under Email Settings.');
+            }
             switch ($this->config['driver']) {
                 case 'smtp':
                     return $this->sendSmtp($to, $subject, $body, $options);
@@ -74,8 +85,20 @@ class EmailService {
             }
         } catch (\Throwable $e) {
             $this->logEmail('FAIL', $to, $subject, $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['success' => false, 'message' => $e->getMessage(), 'detail' => $this->ctx['detail'] ?? ''];
         }
+    }
+
+    /** Settings in effect (no secrets) — used by diagnostics. */
+    public function getPublicConfig(): array {
+        $c = $this->config;
+        unset($c['smtp_password']);
+        return $c;
+    }
+
+    private function messageId(): string {
+        $domain = substr(strrchr((string)$this->config['from_email'], '@') ?: '@localhost', 1);
+        return '<' . bin2hex(random_bytes(12)) . '@' . $domain . '>';
     }
 
     // -------------------------------------------------------------------------
@@ -83,120 +106,223 @@ class EmailService {
     // -------------------------------------------------------------------------
     private function sendMail($to, string $subject, string $body, array $options, bool $useSendmail): array {
         $toStr    = $this->formatRecipients($to);
+        $mid      = $this->messageId();
+        $this->ctx['message_id'] = $mid;
         $headers  = $this->buildHeaders($options);
+        $headers .= "Message-ID: {$mid}\r\nDate: " . date('r') . "\r\n";
         $textBody = $options['text_body'] ?? strip_tags($body);
 
-        // MIME construction
         $mimeParts = $this->buildMultipartBody($body, $textBody, $options);
         $headers .= "Content-Type: " . $mimeParts['contentType'] . "\r\n";
         $fullBody = $mimeParts['body'];
 
-        $extraParams = $useSendmail ? '-f' . $this->config['from_email'] : '';
-        $result = @mail($toStr, $subject, $fullBody, $headers, $extraParams);
+        // -f sets the envelope sender (Return-Path). Without it many hosts (A2 included) send as the
+        // account's default address, which breaks SPF alignment and gets mail rejected by Gmail/Yahoo.
+        $extraParams = '-f' . escapeshellarg((string)$this->config['from_email']);
+        $subjectEnc  = function_exists('mb_encode_mimeheader') ? mb_encode_mimeheader($subject, 'UTF-8', 'B', "\r\n") : $subject;
+        $result = @mail($toStr, $subjectEnc, $fullBody, $headers, $extraParams);
 
-        $this->logEmail($result ? 'SENT' : 'FAIL', $to, $subject, $result ? '' : error_get_last()['message'] ?? 'mail() returned false');
-        return ['success' => (bool)$result, 'message' => $result ? 'Email sent successfully.' : 'mail() failed.'];
+        $err = $result ? '' : (error_get_last()['message'] ?? 'mail() returned false');
+        $this->ctx['detail'] = 'driver=' . ($useSendmail ? 'sendmail' : 'mail()') . '; envelope-from=' . $this->config['from_email']
+            . ($result ? '; accepted by the local mail system (this does not guarantee delivery to the recipient)' : '');
+        $this->logEmail($result ? 'SENT' : 'FAIL', $to, $subject, $err);
+        return ['success' => (bool)$result, 'message' => $result ? 'Handed to the mail system.' : ('mail() failed: ' . $err), 'detail' => $this->ctx['detail'], 'message_id' => $mid];
     }
 
     // -------------------------------------------------------------------------
     // Native SMTP driver (socket-based, no PHPMailer required)
     // -------------------------------------------------------------------------
     private function sendSmtp($to, string $subject, string $body, array $options): array {
-        $host    = $this->config['smtp_host'];
+        $host    = trim((string)$this->config['smtp_host']);
         $port    = (int)$this->config['smtp_port'];
         $secure  = strtolower((string)$this->config['smtp_secure']);
-        $timeout = 15;
+        $timeout = 20;
+        if ($host === '') throw new \RuntimeException('SMTP is selected but no SMTP host is configured.');
+        $this->transcript = [];
 
-        $address = ($secure === 'ssl') ? "ssl://{$host}" : $host;
-        $sock = @fsockopen($address, $port, $errno, $errstr, $timeout);
-        if (!$sock) throw new \RuntimeException("SMTP connect failed ({$errno}): {$errstr}");
+        $verify = ((string)($this->config['smtp_verify_peer'] ?? '1')) !== '0';
+        $ctx = stream_context_create(['ssl' => [
+            'verify_peer' => $verify, 'verify_peer_name' => $verify, 'allow_self_signed' => !$verify,
+            'peer_name' => $host, 'SNI_enabled' => true,
+        ]]);
+        $address = ($secure === 'ssl' ? 'ssl://' : 'tcp://') . $host . ':' . $port;
+        $sock = @stream_socket_client($address, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $ctx);
+        if (!$sock) {
+            $hint = ($secure === 'ssl' && $verify) ? ' If the certificate name does not match the host, turn off "Verify certificate" or use the host name shown on the certificate.' : '';
+            throw new \RuntimeException("SMTP connect to {$host}:{$port} failed ({$errno}): {$errstr}." . $hint);
+        }
+        stream_set_timeout($sock, $timeout);
+        $this->ctx['detail'] = '';
 
-        $recv = '';
-        while ($line = fgets($sock, 512)) {
-            $recv .= $line;
-            if (strlen($line) >= 4 && $line[3] === '-') {
-                continue;
+        try {
+            $recv = $this->smtpRead($sock);
+            if (substr($recv, 0, 3) !== '220') throw new \RuntimeException("SMTP greeting failed: {$recv}");
+
+            $fromEmail = (string)$this->config['from_email'];
+            $ehlo = trim((string)($this->config['smtp_ehlo'] ?? '')) ?: (substr(strrchr($fromEmail, '@') ?: '', 1) ?: (gethostname() ?: 'localhost'));
+            $this->smtpSend($sock, "EHLO {$ehlo}");
+
+            if ($secure === 'tls') {
+                $this->smtpSend($sock, 'STARTTLS', '220');
+                if (!@stream_socket_enable_crypto($sock, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                    throw new \RuntimeException('STARTTLS negotiation failed (certificate problem or the server does not support TLS on this port).');
+                }
+                $this->smtpSend($sock, "EHLO {$ehlo}");
             }
-            break;
+
+            if ($this->config['smtp_auth']) {
+                $this->smtpSend($sock, 'AUTH LOGIN', '334');
+                $this->smtpSend($sock, base64_encode((string)$this->config['smtp_username']), '334', true);
+                $this->smtpSend($sock, base64_encode((string)$this->config['smtp_password']), '235', true);
+            }
+
+            $this->smtpSend($sock, "MAIL FROM:<{$fromEmail}>");
+            $recipients = $this->normalizeRecipients($to);
+            foreach ($recipients as $email => $name) $this->smtpSend($sock, "RCPT TO:<{$email}>");
+            foreach ((array)($options['cc'] ?? []) as $cc)   if ($cc)  $this->smtpSend($sock, "RCPT TO:<{$cc}>");
+            foreach ((array)($options['bcc'] ?? []) as $bcc) if ($bcc) $this->smtpSend($sock, "RCPT TO:<{$bcc}>");
+            $this->smtpSend($sock, 'DATA', '354');
+
+            $textBody = $options['text_body'] ?? strip_tags($body);
+            $toStr    = $this->formatRecipients($to);
+            $fromName = preg_replace('/[\r\n"<>]/', '', (string)$this->config['from_name']);
+            $fromStr  = $fromName ? "{$fromName} <{$fromEmail}>" : $fromEmail;
+            $replyTo  = $options['reply_to'] ?? $this->config['reply_to'];
+            $mid      = $this->messageId();
+            $this->ctx['message_id'] = $mid;
+            $mimeParts = $this->buildMultipartBody($body, $textBody, $options);
+
+            $msg  = "From: {$fromStr}\r\n";
+            $msg .= "To: {$toStr}\r\n";
+            if (!empty($options['cc']))  $msg .= "Cc: " . implode(', ', (array)$options['cc']) . "\r\n";
+            if ($replyTo && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) $msg .= "Reply-To: {$replyTo}\r\n";
+            $msg .= "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n";
+            $msg .= "Message-ID: {$mid}\r\n";
+            $msg .= "MIME-Version: 1.0\r\n";
+            $msg .= "Content-Type: " . $mimeParts['contentType'] . "\r\n";
+            $msg .= "Date: " . date('r') . "\r\n\r\n";
+            $msg .= $mimeParts['body'];
+            // dot-stuffing (RFC 5321 §4.5.2)
+            $msg = preg_replace('/^\./m', '..', $msg);
+
+            $resp = $this->smtpSend($sock, $msg . "\r\n.");
+            $this->smtpSend($sock, 'QUIT', '221');
+            fclose($sock);
+            $this->ctx['detail'] = trim($resp) . ' | ' . implode(' | ', array_slice($this->transcript, -6));
+            $this->logEmail('SENT', $to, $subject, '');
+            return ['success' => true, 'message' => 'Accepted by the SMTP server: ' . trim($resp), 'detail' => $this->ctx['detail'], 'message_id' => $mid];
+        } catch (\Throwable $e) {
+            @fclose($sock);
+            $this->ctx['detail'] = implode("\n", array_slice($this->transcript, -12));
+            throw $e;
         }
-        if (substr($recv, 0, 3) !== '220') throw new \RuntimeException("SMTP greeting failed: {$recv}");
-
-        $this->smtpSend($sock, "EHLO " . gethostname());
-
-        if ($secure === 'tls') {
-            $this->smtpSend($sock, 'STARTTLS');
-            stream_socket_enable_crypto($sock, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
-            $this->smtpSend($sock, "EHLO " . gethostname());
-        }
-
-        if ($this->config['smtp_auth']) {
-            $this->smtpSend($sock, 'AUTH LOGIN', '334');
-            $this->smtpSend($sock, base64_encode((string)$this->config['smtp_username']), '334');
-            $this->smtpSend($sock, base64_encode((string)$this->config['smtp_password']), '235');
-        }
-
-        $fromEmail = $this->config['from_email'];
-        $this->smtpSend($sock, "MAIL FROM:<{$fromEmail}>");
-
-        $recipients = $this->normalizeRecipients($to);
-        foreach ($recipients as $email => $name) {
-            $this->smtpSend($sock, "RCPT TO:<{$email}>");
-        }
-        foreach (($options['cc'] ?? []) as $cc)  { $this->smtpSend($sock, "RCPT TO:<{$cc}>"); }
-        foreach (($options['bcc'] ?? []) as $bcc) { $this->smtpSend($sock, "RCPT TO:<{$bcc}>"); }
-
-        $this->smtpSend($sock, 'DATA', '354');
-
-        $textBody = $options['text_body'] ?? strip_tags($body);
-        $toStr    = $this->formatRecipients($to);
-        $fromStr  = $this->config['from_name'] ? "{$this->config['from_name']} <{$fromEmail}>" : $fromEmail;
-        $replyTo  = $options['reply_to'] ?? $this->config['reply_to'];
-
-        $mimeParts = $this->buildMultipartBody($body, $textBody, $options);
-
-        $msg  = "From: {$fromStr}\r\n";
-        $msg .= "To: {$toStr}\r\n";
-        if (!empty($options['cc']))  $msg .= "Cc: " . implode(', ', $options['cc']) . "\r\n";
-        if ($replyTo)                $msg .= "Reply-To: {$replyTo}\r\n";
-        $msg .= "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n";
-        $msg .= "MIME-Version: 1.0\r\n";
-        $msg .= "Content-Type: " . $mimeParts['contentType'] . "\r\n";
-        $msg .= "Date: " . date('r') . "\r\n\r\n";
-        $msg .= $mimeParts['body'] . "\r\n";
-        $msg .= ".";
-
-        $this->smtpSend($sock, $msg);
-        $this->smtpSend($sock, 'QUIT', '221');
-        fclose($sock);
-
-        $this->logEmail('SENT', $to, $subject, '');
-        return ['success' => true, 'message' => 'Email sent via SMTP.'];
     }
 
-    private function smtpSend($sock, string $cmd, string $expectCode = null): string {
-        fwrite($sock, $cmd . "\r\n");
+    private $transcript = [];
+
+    private function smtpRead($sock): string {
         $response = '';
-        while ($line = fgets($sock, 512)) {
+        while (($line = fgets($sock, 1024)) !== false) {
             $response .= $line;
-            if (strlen($line) >= 4 && $line[3] === '-') {
-                continue;
-            }
-            break;
+            if (strlen($line) < 4 || $line[3] !== '-') break;
         }
+        if ($response === '') {
+            $meta = stream_get_meta_data($sock);
+            throw new \RuntimeException(!empty($meta['timed_out']) ? 'SMTP server timed out.' : 'SMTP server closed the connection.');
+        }
+        $this->transcript[] = 'S: ' . trim(preg_replace('/\s+/', ' ', $response));
+        return $response;
+    }
+
+    private function smtpSend($sock, string $cmd, string $expectCode = null, bool $secret = false): string {
+        fwrite($sock, $cmd . "\r\n");
+        $isData = strpos($cmd, "\r\n") !== false;
+        $this->transcript[] = 'C: ' . ($secret ? '[hidden]' : ($isData ? '[message body]' : $cmd));
+        $response = $this->smtpRead($sock);
         $code = substr($response, 0, 3);
         $expected = $expectCode ?? ($cmd === 'DATA' ? '354' : '2');
-        if (strlen($expected) === 1 && $code[0] !== $expected) {
-            $parts = explode(' ', trim($cmd));
-            $firstWord = strtoupper($parts[0] ?? '');
-            $displayCmd = in_array($firstWord, ['EHLO', 'HELO', 'MAIL', 'RCPT', 'DATA', 'QUIT', 'STARTTLS', 'AUTH']) ? $cmd : '***';
-            throw new \RuntimeException("SMTP error for [{$displayCmd}]: {$response}");
-        } elseif (strlen($expected) === 3 && $code !== $expected) {
-            $parts = explode(' ', trim($cmd));
-            $firstWord = strtoupper($parts[0] ?? '');
-            $displayCmd = in_array($firstWord, ['EHLO', 'HELO', 'MAIL', 'RCPT', 'DATA', 'QUIT', 'STARTTLS', 'AUTH']) ? $cmd : '***';
-            throw new \RuntimeException("SMTP error for [{$displayCmd}]: {$response}");
+        $bad = strlen($expected) === 1 ? ($code[0] !== $expected) : ($code !== $expected);
+        if ($bad) {
+            $first = strtoupper(explode(' ', trim($cmd))[0] ?? '');
+            $shown = $secret ? 'AUTH' : (in_array($first, ['EHLO', 'HELO', 'MAIL', 'RCPT', 'DATA', 'QUIT', 'STARTTLS', 'AUTH'], true) ? $cmd : 'message');
+            throw new \RuntimeException("SMTP error for [{$shown}]: " . trim($response));
         }
         return $response;
+    }
+
+    // -------------------------------------------------------------------------
+    // Logging
+    // -------------------------------------------------------------------------
+    private static $logReady = false;
+
+    /** Create / upgrade nu_email_log (adds source, driver, detail, message id, timing, SKIPPED status). */
+    public static function ensureLogSchema(): void {
+        if (self::$logReady) return;
+        self::$logReady = true;
+        try {
+            $db = NuDatabase::getInstance();
+            $pdo = $db->getPdo();
+            $sqlite = $db->getDriverName() === 'sqlite';
+            if ($sqlite) {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS nu_email_log (id INTEGER PRIMARY KEY AUTOINCREMENT, recipient TEXT NOT NULL, subject TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'SENT', error_message TEXT, template_slug TEXT, sent_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
+                $have = array_column($pdo->query('PRAGMA table_info(nu_email_log)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+            } else {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `nu_email_log` (
+                    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, `recipient` VARCHAR(500) NOT NULL, `subject` VARCHAR(255) NOT NULL,
+                    `status` VARCHAR(12) NOT NULL DEFAULT 'SENT', `error_message` VARCHAR(1000) DEFAULT NULL, `template_slug` VARCHAR(100) DEFAULT NULL,
+                    `sent_at` DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX `idx_status` (`status`), INDEX `idx_sent_at` (`sent_at`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $have = array_column($pdo->query('SHOW COLUMNS FROM nu_email_log')->fetchAll(PDO::FETCH_ASSOC), 'Field');
+                // old installs used ENUM('SENT','FAIL'); allow SKIPPED too
+                $st = $pdo->query("SHOW COLUMNS FROM nu_email_log LIKE 'status'")->fetch(PDO::FETCH_ASSOC);
+                if ($st && stripos((string)$st['Type'], 'enum') === 0) $pdo->exec("ALTER TABLE nu_email_log MODIFY `status` VARCHAR(12) NOT NULL DEFAULT 'SENT'");
+            }
+            $add = ['source' => $sqlite ? 'TEXT' : 'VARCHAR(100) NULL', 'driver' => $sqlite ? 'TEXT' : 'VARCHAR(20) NULL',
+                    'detail' => $sqlite ? 'TEXT' : 'TEXT NULL', 'message_id' => $sqlite ? 'TEXT' : 'VARCHAR(255) NULL',
+                    'duration_ms' => $sqlite ? 'INTEGER' : 'INT NULL', 'project_id' => $sqlite ? 'INTEGER' : 'INT NULL'];
+            foreach ($add as $col => $ddl) {
+                if (!in_array($col, $have, true)) $pdo->exec("ALTER TABLE nu_email_log ADD COLUMN `{$col}` {$ddl}");
+            }
+        } catch (\Throwable $t) {
+            error_log('[EmailService log schema] ' . $t->getMessage());
+        }
+    }
+
+    /** Record a message that was deliberately not sent (e.g. no customer address). */
+    public static function logSkipped($to, string $subject, string $reason, string $source = ''): void {
+        self::ensureLogSchema();
+        try {
+            NuDatabase::getInstance()->insert('nu_email_log', [
+                'recipient' => $to === '' ? '(none)' : (is_array($to) ? implode(',', array_keys($to)) : (string)$to),
+                'subject' => mb_substr($subject, 0, 255), 'status' => 'SKIPPED', 'error_message' => mb_substr($reason, 0, 1000),
+                'source' => mb_substr($source, 0, 100), 'sent_at' => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable $t) {}
+    }
+
+    private function logEmail(string $status, $to, string $subject, string $error = ''): void {
+        try {
+            $db = NuDatabase::getInstance();
+            $toStr = is_array($to) ? implode(',', array_keys($to)) : (string)$to;
+            $dur = isset($this->ctx['started']) ? (int)round((microtime(true) - $this->ctx['started']) * 1000) : null;
+            $pid = null;
+            try { if (class_exists('ProjectContext')) $pid = ProjectContext::getId(); } catch (\Throwable $t) {}
+            $db->insert('nu_email_log', [
+                'recipient'     => mb_substr($toStr, 0, 500),
+                'subject'       => mb_substr($subject, 0, 255),
+                'status'        => $status,
+                'error_message' => mb_substr($error, 0, 1000),
+                'sent_at'       => date('Y-m-d H:i:s'),
+                'source'        => mb_substr((string)($this->ctx['source'] ?? ''), 0, 100),
+                'driver'        => (string)$this->config['driver'],
+                'detail'        => mb_substr((string)($this->ctx['detail'] ?? ''), 0, 4000),
+                'message_id'    => (string)($this->ctx['message_id'] ?? ''),
+                'duration_ms'   => $dur,
+                'project_id'    => $pid,
+            ]);
+        } catch (\Throwable $t) {
+            error_log('[EmailService log] ' . $t->getMessage());
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -223,24 +349,6 @@ class EmailService {
         } catch (\Throwable $t) {
             return null;
         }
-    }
-
-    // -------------------------------------------------------------------------
-    // Logging
-    // -------------------------------------------------------------------------
-    private function logEmail(string $status, $to, string $subject, string $error = ''): void {
-        try {
-            $db = NuDatabase::getInstance();
-            $toStr   = is_array($to) ? implode(',', array_keys($to)) : $to;
-
-            $db->insert('nu_email_log', [
-                'recipient'     => $toStr,
-                'subject'       => $subject,
-                'status'        => $status,
-                'error_message' => substr($error, 0, 1000),
-                'sent_at'       => date('Y-m-d H:i:s')
-            ]);
-        } catch (\Throwable $t) {}
     }
 
     private function normalizeRecipients($to): array {

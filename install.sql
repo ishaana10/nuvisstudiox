@@ -446,10 +446,16 @@ CREATE TABLE IF NOT EXISTS `nu_email_log` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `recipient` VARCHAR(500) NOT NULL,
     `subject` VARCHAR(255) NOT NULL,
-    `status` ENUM('SENT','FAIL') NOT NULL DEFAULT 'SENT',
+    `status` VARCHAR(12) NOT NULL DEFAULT 'SENT',   -- SENT | FAIL | SKIPPED
     `error_message` VARCHAR(1000) DEFAULT NULL,
     `template_slug` VARCHAR(100) DEFAULT NULL,
     `sent_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `source` VARCHAR(100) DEFAULT NULL,
+    `driver` VARCHAR(20) DEFAULT NULL,
+    `detail` TEXT DEFAULT NULL,
+    `message_id` VARCHAR(255) DEFAULT NULL,
+    `duration_ms` INT DEFAULT NULL,
+    `project_id` INT DEFAULT NULL,
     INDEX `idx_status` (`status`),
     INDEX `idx_sent_at` (`sent_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

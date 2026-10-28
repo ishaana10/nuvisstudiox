@@ -878,6 +878,20 @@ class AppCloner {
             }
         }
 
+        // Integration settings (Redis connection). Secrets are never exported; on import the row only seeds
+        // a site that has no saved Redis settings of its own.
+        try {
+            require_once __DIR__ . '/RedisConfig.php';
+            $rc = NuRedisConfig::get(true);
+            unset($rc['password']);
+            $ignore = ($driver === 'sqlite') ? 'INSERT OR IGNORE INTO' : 'INSERT IGNORE INTO';
+            $parts[] = "-- ─── INTEGRATION SETTINGS (no secrets) ───────────────";
+            $parts[] = "{$ignore} `nu_system_settings` (`setting_key`, `setting_value`) VALUES (" .
+                $pdo->quote(NuRedisConfig::SETTING_KEY) . ", " . $pdo->quote(json_encode($rc)) . ");\n";
+        } catch (\Throwable $e) {
+            error_log('[AppCloner] redis settings export: ' . $e->getMessage());
+        }
+
         $parts[] = "SET FOREIGN_KEY_CHECKS=1;\n";
         $sql = implode("\n", array_filter($parts));
 

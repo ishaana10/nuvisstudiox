@@ -8,6 +8,12 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Email delivery log & configurable Redis
+- Public-form emails now go through the Email Settings SMTP account (not PHP `mail()`), with a proper envelope sender, Message-ID and Reply-To. Use your A2 Hosting mailbox (cPanel > Email Accounts) so Gmail/Yahoo accept the mail.
+- New **Email Sent & Error Log**: every send, failure (with the SMTP server's reply) and skipped confirmation, with search, status filter, CSV export and a detail view.
+- New **Deliverability check** (SPF, DKIM, DMARC, MX, placeholder From address) and provider presets (A2 Hosting, Gmail, Microsoft 365, SendGrid, Mailgun) in Email Settings. The SMTP password is no longer sent back to the browser.
+- Redis is configured under Developer Settings > Redis: socket/TCP/TLS, ACL user, password, database, prefix, TTL, persistent connections, sessions on/off, start-flag file, plus data-persistence tools (BGSAVE / append-only). Nothing is hard-coded to one host any more; settings survive updates (`config.redis.php`, git-ignored) and the non-secret part is included in project export/import.
+
 ### Unreleased — Public form emails
 - **Professional HTML emails** (with a plain-text version) for public form submissions: staff get a clean summary with reference, option labels, Yes/No and formatted dates, and Reply-To set to the customer when known.
 - **Customer confirmation:** turn on "Email the customer a confirmation" and choose which field holds their email (or let it auto-detect an email-type field). Optional custom message. The dialog warns when the form has no email field. Skipped confirmations are logged.
