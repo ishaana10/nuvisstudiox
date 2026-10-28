@@ -8,6 +8,11 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Public form emails
+- **Professional HTML emails** (with a plain-text version) for public form submissions: staff get a clean summary with reference, option labels, Yes/No and formatted dates, and Reply-To set to the customer when known.
+- **Customer confirmation:** turn on "Email the customer a confirmation" and choose which field holds their email (or let it auto-detect an email-type field). Optional custom message. The dialog warns when the form has no email field. Skipped confirmations are logged.
+- **Schema:** `nu_form_shares.fs_email_field`, `fs_confirm_message` (added automatically).
+
 ### Unreleased — Public form layout & look
 - **Public form keeps the form's layout:** tabs, sections, groups (incl. collapsible), rows and column widths, headings, text blocks and dividers now appear on the shared page. Empty tabs/sections are dropped.
 - **Saving fixed for existing/legacy tables:** empty optional answers no longer break the insert on MySQL. NOT NULL columns without a default are filled with a neutral value, non-auto-increment numeric keys get the next number, and signed-in admins see the technical reason if a save still fails.

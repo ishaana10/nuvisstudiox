@@ -143,7 +143,10 @@
       + fld('Stop accepting after (date &amp; time)', '<input type="datetime-local" id="fsExp" value="' + esc(s && s.expires_at) + '">')
       + fld('Maximum submissions', '<input type="number" id="fsMax" min="1" step="1" placeholder="No limit" value="' + esc(s && s.max_submissions) + '">')
       + fld('Email me when a request arrives (comma separated)', '<input type="text" id="fsMail" placeholder="support@example.com" value="' + esc(s && s.notify_email) + '">', true)
-      + chk('fsConfirm', s && s.confirm_email, 'Email the customer a confirmation (uses the first email field on the form)')
+      + chk('fsConfirm', s && s.confirm_email, 'Email the customer a confirmation')
+      + fld('Which field holds the customer’s email?', sel('fsEmailField', (s && s.email_field) || '', [['', 'Detect automatically (email-type field)']].concat(d.fields.filter(function (f) { return f.public; }).map(function (f) { return [f.name, f.label + ' (' + f.type + ')']; }))), true)
+      + (d.fields.some(function (f) { return f.public && (f.type === 'email' || /e-?mail/i.test(f.name + ' ' + f.label)); }) ? '' : '<div class="fs-note fs-bad fs-span">This form has no email field, so customers cannot get a confirmation. Add an Email field to the form (or pick the field that holds the address above).</div>')
+      + fld('Message to the customer (optional, shown in the confirmation email)', '<textarea id="fsConfirmMsg" rows="3" maxlength="2000" placeholder="e.g. Our team will contact you within one business day.">' + esc(s && s.confirm_message) + '</textarea>', true)
       + '</div></div>';
 
     document.getElementById('fsBody').innerHTML = h;
@@ -177,7 +180,7 @@
     var body = {
       enabled: c('fsEnabled'),
       title: v('fsTitleIn'), submit_label: v('fsLabelIn'), intro: v('fsIntro'), success_message: v('fsOk'),
-      redirect_url: v('fsRedir'), notify_email: v('fsMail'), confirm_email: c('fsConfirm'),
+      redirect_url: v('fsRedir'), notify_email: v('fsMail'), confirm_email: c('fsConfirm'), email_field: v('fsEmailField'), confirm_message: document.getElementById('fsConfirmMsg').value.trim(),
       expires_at: v('fsExp'), max_submissions: v('fsMax'), fields: fields, field_cfg: cfg,
       theme: {
         width: v('thWidth'), mode: v('thMode'), accent: v('thAccent'), bg: v('thBg'), card_bg: v('thCard'), text: v('thText'),
