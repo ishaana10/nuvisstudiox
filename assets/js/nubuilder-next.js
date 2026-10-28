@@ -242,7 +242,7 @@ window.NuApp = {
     'updater','import_export','developer_settings','word_certificates','api_manager',
     'barcode',
     'procedures',
-    'projects',
+    'projects','cloud_storage',
     'system_demo_files'
   ]),
 

@@ -129,6 +129,27 @@ class NuMenuRenderer
                     ]);
                 }
 
+                $existsCloud = $db->fetchOne("SELECT menu_id FROM nu_menus WHERE menu_target = 'cloud_storage' AND project_id = ?", [$pid]);
+                if (!$existsCloud) {
+                    $adminGroup = $db->fetchOne("SELECT menu_id FROM nu_menus WHERE menu_label = 'Admin Tools' AND menu_type = 'group' AND project_id = ?", [$pid]);
+                    $db->insert('nu_menus', [
+                        'menu_label'        => 'Cloud Storage',
+                        'menu_type'         => 'module',
+                        'menu_target'       => 'cloud_storage',
+                        'menu_parent_id'    => $adminGroup ? (int)$adminGroup['menu_id'] : 0,
+                        'menu_order'        => 32,
+                        'menu_roles'        => 'globeadmin,admin',
+                        'menu_role_access'  => '["globeadmin","admin"]',
+                        'menu_active'       => 1,
+                        'menu_icon'         => 'files',
+                        'menu_open_mode'    => 'inline|browse',
+                        'menu_browse_mode'  => 'inline',
+                        'menu_preview_mode' => 'inline',
+                        'menu_default_view' => 'browse',
+                        'project_id'        => $pid
+                    ]);
+                }
+
                 $existsProjects = $db->fetchOne("SELECT menu_id FROM nu_menus WHERE menu_target = 'projects' AND project_id = ?", [$pid]);
                 if (!$existsProjects) {
                     $adminGroup = $db->fetchOne("SELECT menu_id FROM nu_menus WHERE menu_label = 'Admin Tools' AND menu_type = 'group' AND project_id = ?", [$pid]);

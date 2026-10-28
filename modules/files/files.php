@@ -8,7 +8,10 @@ if (!$auth->hasPermission('files.view')) {
 }
 
 $db    = NuDatabase::getInstance();
+require_once dirname(__DIR__, 2) . '/core/FileStore.php';
+NuFileStore::ensureSchema();
 $files = $db->fetchAll("SELECT * FROM nu_files ORDER BY file_uploaded_at DESC LIMIT 50");
+$cloudLabels = NuCloud::labels();
 
 // Parse global allowed file extensions and max upload size
 $allowedTypes = array_map(function($ext) {
@@ -32,7 +35,7 @@ $maxSize = $nuConfig['maxUploadSize'] ?? 10 * 1024 * 1024;
         <div class="nu-table-wrap">
             <table class="nu-table">
                 <thead>
-                    <tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded</th><th>Actions</th></tr>
+                    <tr><th>File</th><th>Type</th><th>Size</th><th>Stored</th><th>Uploaded</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($files as $f): ?>
@@ -40,15 +43,22 @@ $maxSize = $nuConfig['maxUploadSize'] ?? 10 * 1024 * 1024;
                         <td><strong><?php echo htmlspecialchars($f['file_original_name'] ?? $f['file_name']); ?></strong></td>
                         <td><?php echo htmlspecialchars($f['file_mime_type'] ?? '-'); ?></td>
                         <td><?php echo number_format($f['file_size'] / 1024, 1); ?> KB</td>
+                        <td>
+                            <?php $stg = $f['file_storage'] ?? 'local'; $rs = $f['file_remote_status'] ?? 'none'; ?>
+                            <?php if ($rs === 'synced'): ?><span title="<?php echo htmlspecialchars($cloudLabels[$stg] ?? $stg); ?>">☁ <?php echo htmlspecialchars(explode(' ', $cloudLabels[$stg] ?? $stg)[0]); ?></span>
+                            <?php elseif ($rs === 'failed'): ?><span style="color:#b91c1c" title="<?php echo htmlspecialchars((string)($f['file_remote_error'] ?? '')); ?>">⚠ Cloud copy failed</span>
+                            <?php else: ?><span style="color:var(--text-muted)">This server</span><?php endif; ?>
+                        </td>
                         <td><?php echo date('M j, Y', strtotime($f['file_uploaded_at'])); ?></td>
                         <td>
-                            <a href="uploads/<?php echo htmlspecialchars($f['file_name']); ?>" target="_blank" class="nu-btn nu-btn-ghost nu-btn-sm">View</a>
+                            <a href="api/file.php?id=<?php echo (int)$f['file_id']; ?>" target="_blank" class="nu-btn nu-btn-ghost nu-btn-sm">View</a>
+                            <a href="api/file.php?id=<?php echo (int)$f['file_id']; ?>&dl=1" class="nu-btn nu-btn-ghost nu-btn-sm">Download</a>
                             <button class="nu-btn nu-btn-danger nu-btn-sm" onclick="deleteFile(<?php echo $f['file_id']; ?>)">Delete</button>
                         </td>
                     </tr>
                     <?php endforeach; ?>
                     <?php if (empty($files)): ?>
-                    <tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);">No files uploaded yet.</td></tr>
+                    <tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);">No files uploaded yet.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

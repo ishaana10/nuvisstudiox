@@ -40,3 +40,4 @@ api/test.php
 vendor/
 composer.lock
 config.redis.php
+config.cloud.php
