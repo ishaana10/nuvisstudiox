@@ -47,4 +47,37 @@ class PublicFormTest extends TestCase {
         $this->assertTrue(NuPublicForm::checkToken($share, $good));
         $this->assertFalse(NuPublicForm::checkToken($share, $ts . '.' . str_repeat('0', 64)));
     }
+
+    public function testThemeIsSanitised(): void {
+        $t = NuPublicForm::cleanTheme(['width' => 'wide', 'accent' => '#0d9488', 'bg' => 'javascript:x', 'logo_url' => 'http://insecure/x.png', 'custom_css' => '@import url(x); .a{color:red}</style>']);
+        $this->assertSame('wide', $t['width']);
+        $this->assertSame('#0d9488', $t['accent']);
+        $this->assertSame('', $t['bg']);
+        $this->assertSame('', $t['logo_url']);
+        $this->assertStringNotContainsString('@import', $t['custom_css']);
+        $this->assertStringNotContainsString('<', $t['custom_css']);
+    }
+
+    public function testHtmlBlocksAreSanitised(): void {
+        $h = NuPublicForm::sanitizeHtml('<p onclick="x()">Hi <b>there</b><script>alert(1)</script><a href="javascript:alert(1)">bad</a></p>');
+        $this->assertStringContainsString('<b>there</b>', $h);
+        $this->assertStringNotContainsString('script', $h);
+        $this->assertStringNotContainsString('onclick', $h);
+        $this->assertStringNotContainsString('javascript', $h);
+    }
+
+    public function testLayoutKeepsTabsSectionsAndDropsEmptyOnes(): void {
+        $layout = ['items' => [
+            ['type' => 'section', 'label' => 'S', 'children' => [['type' => 'row', 'fields' => [['name' => 'a', 'type' => 'text'], ['name' => 'b', 'type' => 'text']]]]],
+            ['type' => 'tab', 'tabs' => [
+                ['name' => 'One', 'rows' => [['type' => 'row', 'fields' => [['name' => 'c', 'type' => 'text']]]]],
+                ['name' => 'Empty', 'rows' => [['type' => 'row', 'fields' => [['name' => 'hidden', 'type' => 'text']]]]],
+            ]],
+        ]];
+        $visible = array_map(fn($n) => ['name' => $n], ['a', 'b', 'c']);
+        $tree = NuPublicForm::layoutTree(['form_layout' => json_encode($layout)], $visible);
+        $this->assertSame(['section', 'tabs'], array_column($tree, 'kind'));
+        $this->assertCount(1, $tree[1]['tabs']);
+        $this->assertSame('One', $tree[1]['tabs'][0]['label']);
+    }
 }

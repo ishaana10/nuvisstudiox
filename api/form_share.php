@@ -69,9 +69,11 @@ function fs_describe(NuDatabase $db, array $form, ?array $share): array
     $fields = [];
     $selected = $share ? json_decode((string)($share['fs_fields'] ?? ''), true) : null;
     $selected = is_array($selected) && $selected ? array_flip(array_map('strval', $selected)) : null;
+    $cfg = $share ? NuPublicForm::fieldCfg($share) : [];
     foreach (NuPublicForm::describeFields($form) as $d) {
         unset($d['raw']);
         $d['selected'] = $d['public'] && ($selected === null || isset($selected[$d['name']]));
+        $d['cfg'] = $cfg[$d['name']] ?? new stdClass();   // overrides: label, placeholder, help, required, col, default
         $fields[] = $d;
     }
     $out = ['fields' => $fields, 'form_name' => $form['form_name'], 'form_code' => $form['form_code']];
@@ -88,6 +90,7 @@ function fs_describe(NuDatabase $db, array $form, ?array $share): array
             'expires_at'      => $share['fs_expires_at'] ? date('Y-m-d\TH:i', strtotime((string)$share['fs_expires_at'])) : '',
             'max_submissions' => $share['fs_max_submissions'] !== null ? (int)$share['fs_max_submissions'] : null,
             'submit_count'    => (int)$share['fs_submit_count'],
+            'theme'           => NuPublicForm::theme($share),
             'state'           => NuPublicForm::state($share, $form),
             'url'             => fs_base_url() . '/public_form.php?t=' . $share['fs_token'],
         ];
@@ -152,6 +155,12 @@ switch ($action) {
             'fs_expires_at' => $expires, 'fs_max_submissions' => $max,
             'fs_updated_at' => date('Y-m-d H:i:s'),
         ];
+        if (isset($body['theme']) && is_array($body['theme'])) {
+            $vals['fs_theme'] = json_encode(NuPublicForm::cleanTheme($body['theme']));
+        }
+        if (isset($body['field_cfg']) && is_array($body['field_cfg'])) {
+            $vals['fs_field_cfg'] = json_encode(NuPublicForm::cleanFieldCfg($body['field_cfg'], $pub), JSON_FORCE_OBJECT);
+        }
         if ($share) {
             $set = []; $p = [];
             foreach ($vals as $k => $v) { $set[] = "`$k` = ?"; $p[] = $v; }

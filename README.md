@@ -8,6 +8,12 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Public form layout & look
+- **Public form keeps the form's layout:** tabs, sections, groups (incl. collapsible), rows and column widths, headings, text blocks and dividers now appear on the shared page. Empty tabs/sections are dropped.
+- **Saving fixed for existing/legacy tables:** empty optional answers no longer break the insert on MySQL. NOT NULL columns without a default are filled with a neutral value, non-auto-increment numeric keys get the next number, and signed-in admins see the technical reason if a save still fails.
+- **Customise each link (Share dialog, new tabs Content / Fields / Look & feel):** page width, light/dark/auto, accent, background, form and text colours, corners, font, spacing, title alignment, logo, section and tab style, button position/full width, footer text, custom CSS; per field: label, placeholder, help text, default value, width and required/optional. Pre-fill a field with `&field_name=value` in the link.
+- **Schema:** `nu_form_shares.fs_theme` and `fs_field_cfg` (added automatically).
+
 ### Unreleased — Public sharing
 - **Share a form without sign-in:** new 🔗 **Share** button on each form (Forms module). It creates a public link (`public_form.php?t=…`) where customers fill in the form and submit a new request. Per link: on/off, page title, intro, button text, thank-you message or redirect, which fields to show, expiry date, submission cap, email notification to staff and an optional confirmation email to the customer. Regenerate the link to revoke the old one.
 - **Safe by design:** submissions are INSERT-only (no reading, editing or deleting records); only simple fields are public (text, number, email, phone, URL, date/time, manual select/radio/checkbox); hidden, read-only, lookup, table/SQL-backed and file fields are never exposed; server-side validation; spam trap, timing check and a per-visitor rate limit; an auto-number field is filled in and shown as the reference; a workflow bound to the form starts automatically and form webhooks fire.
