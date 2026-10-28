@@ -69,6 +69,15 @@ class NuPublicForm
         } catch (Throwable $e) {
             error_log('[public form schema] ' . $e->getMessage());
         }
+        // Columns added after the first release (look & per-field settings)
+        foreach (['fs_theme', 'fs_field_cfg'] as $col) {
+            try {
+                $have = array_column(self::columns($db, 'nu_form_shares'), 'name');
+                if ($have && !in_array($col, $have, true)) $pdo->exec('ALTER TABLE `nu_form_shares` ADD COLUMN `' . $col . '` TEXT NULL');
+            } catch (Throwable $e) {
+                error_log('[public form schema] ' . $e->getMessage());
+            }
+        }
     }
 
     public static function newToken(): string
@@ -143,8 +152,9 @@ class NuPublicForm
      * Every data field of the form, each flagged public-capable or not (with a reason).
      * @return array<int,array<string,mixed>>
      */
-    public static function describeFields(array $form): array
+    public static function describeFields(array $form, ?array $share = null): array
     {
+        $cfg = $share ? self::fieldCfg($share) : [];
         $out = [];
         foreach (self::flatten($form) as $f) {
             $name = self::fname($f);
@@ -165,16 +175,18 @@ class NuPublicForm
                 && (($f['options_source'] ?? ($f['source_type'] ?? 'manual')) !== 'manual' || !self::options($f))) {
                 $reason = 'Choices come from a table or query, so they are not exposed publicly';
             }
+            $o = $cfg[$name] ?? [];
             $out[] = [
                 'name'        => $name,
-                'label'       => (string)($f['label'] ?? ($f['fieldlabel'] ?? $name)),
+                'label'       => (isset($o['label']) && $o['label'] !== '') ? $o['label'] : (string)($f['label'] ?? ($f['fieldlabel'] ?? $name)),
                 'type'        => $type,
-                'required'    => !empty($f['required']),
-                'placeholder' => (string)($f['placeholder'] ?? ''),
-                'help'        => (string)($f['help_text'] ?? ($f['helptext'] ?? '')),
+                'required'    => array_key_exists('required', $o) && $o['required'] !== null ? (bool)$o['required'] : !empty($f['required']),
+                'placeholder' => isset($o['placeholder']) && $o['placeholder'] !== '' ? $o['placeholder'] : (string)($f['placeholder'] ?? ''),
+                'help'        => isset($o['help']) && $o['help'] !== '' ? $o['help'] : (string)($f['help_text'] ?? ($f['helptext'] ?? '')),
+                'default'     => (string)($o['default'] ?? ''),
                 'min'         => $f['min'] ?? null,
                 'max'         => $f['max'] ?? null,
-                'col'         => max(1, min(12, (int)($f['col'] ?? 12))),
+                'col'         => !empty($o['col']) ? max(1, min(12, (int)$o['col'])) : max(1, min(12, (int)($f['col'] ?? 12))),
                 'options'     => in_array($type, ['select', 'radio', 'checkbox_group'], true) ? self::options($f) : [],
                 'public'      => $reason === null,
                 'reason'      => $reason,
@@ -190,7 +202,7 @@ class NuPublicForm
         $sel = json_decode((string)($share['fs_fields'] ?? ''), true);
         $sel = is_array($sel) && $sel ? array_flip(array_map('strval', $sel)) : null;
         $out = [];
-        foreach (self::describeFields($form) as $d) {
+        foreach (self::describeFields($form, $share) as $d) {
             if (!$d['public']) continue;
             if ($sel !== null && !isset($sel[$d['name']])) continue;
             unset($d['raw']);
@@ -309,18 +321,40 @@ class NuPublicForm
     }
 
     // ── Insert ────────────────────────────────────────────────────────────────
+    /** @return array<int,array{name:string,type:string,pk:bool,nullable:bool,has_default:bool,auto:bool}> */
     private static function columns(NuDatabase $db, string $table): array
     {
         try {
             if ($db->getDriverName() === 'sqlite') {
                 $rows = $db->getPdo()->query('PRAGMA table_info(`' . $table . '`)')->fetchAll(PDO::FETCH_ASSOC);
-                return array_map(fn($r) => ['name' => $r['name'], 'type' => strtolower((string)$r['type']), 'pk' => !empty($r['pk'])], $rows);
+                return array_map(function ($r) {
+                    $type = strtolower((string)$r['type']);
+                    return ['name' => $r['name'], 'type' => $type, 'pk' => !empty($r['pk']),
+                        'nullable' => empty($r['notnull']) && empty($r['pk']), 'has_default' => $r['dflt_value'] !== null,
+                        'auto' => !empty($r['pk']) && $type === 'integer'];
+                }, $rows);
             }
             $rows = $db->getPdo()->query('SHOW COLUMNS FROM `' . $table . '`')->fetchAll(PDO::FETCH_ASSOC);
-            return array_map(fn($r) => ['name' => $r['Field'], 'type' => strtolower((string)$r['Type']), 'pk' => ($r['Key'] ?? '') === 'PRI'], $rows);
+            return array_map(fn($r) => [
+                'name' => $r['Field'], 'type' => strtolower((string)$r['Type']), 'pk' => ($r['Key'] ?? '') === 'PRI',
+                'nullable' => strtoupper((string)($r['Null'] ?? 'YES')) === 'YES', 'has_default' => $r['Default'] !== null,
+                'auto' => stripos((string)($r['Extra'] ?? ''), 'auto_increment') !== false
+                    || stripos((string)($r['Extra'] ?? ''), 'GENERATED') !== false,
+            ], $rows);
         } catch (Throwable $e) {
             return [];
         }
+    }
+
+    /** A harmless value for a NOT NULL column that has no default and was left empty. */
+    private static function zeroValue(string $type)
+    {
+        if (preg_match('/^(tinyint|smallint|mediumint|int|bigint|integer|decimal|numeric|float|double|real|bit|year)/', $type)) return 0;
+        if (strpos($type, 'datetime') === 0 || strpos($type, 'timestamp') === 0) return date('Y-m-d H:i:s');
+        if (strpos($type, 'date') === 0) return date('Y-m-d');
+        if (strpos($type, 'time') === 0) return '00:00:00';
+        if (strpos($type, 'enum') === 0 && preg_match("/^enum\('((?:[^']|'')*)'/", $type, $m)) return str_replace("''", "'", $m[1]);
+        return '';
     }
 
     private static function autonumber(NuDatabase $db, array $field, array $data, string $formCode): string
@@ -377,7 +411,14 @@ class NuPublicForm
 
         $save = [];
         foreach ($clean as $k => $v) {
-            if (isset($byName[$k]) && (!$pk || $k !== $pk['name'])) $save[$k] = $v;
+            if (!isset($byName[$k]) || ($pk && $k === $pk['name'])) continue;
+            $c = $byName[$k];
+            if ($v === null) {
+                // Left empty: let the database use NULL / its default; only fill NOT NULL columns that have neither.
+                if ($c['nullable'] || $c['has_default']) continue;
+                $v = self::zeroValue($c['type']);
+            }
+            $save[$k] = $v;
         }
         // Generated fields (autonumber / uuid) defined on the form
         foreach (self::describeFields($form) as $d) {
@@ -389,10 +430,22 @@ class NuPublicForm
         if (isset($byName['created_at'])) $save['created_at'] = $now;
         if (isset($byName['updated_at'])) $save['updated_at'] = $now;
 
+        // Other NOT NULL columns the form does not collect (and that have no default) would make MySQL refuse the row.
+        foreach ($cols as $c) {
+            if ($c['pk'] || $c['nullable'] || $c['has_default'] || $c['auto'] || array_key_exists($c['name'], $save)) continue;
+            $save[$c['name']] = self::zeroValue($c['type']);
+        }
+
         $pkString = false;
         if ($pk) {
             $pkString = (bool)preg_match('/char|text|uuid/', $pk['type']);
-            if ($pkString && !isset($save[$pk['name']])) $save[$pk['name']] = self::uuid();
+            if (!isset($save[$pk['name']]) && !$pk['auto'] && !$pk['has_default']) {
+                if ($pkString) {
+                    $save[$pk['name']] = self::uuid();
+                } else {
+                    $save[$pk['name']] = 1 + (int)($db->fetchOne('SELECT COALESCE(MAX(`' . $pk['name'] . '`), 0) AS m FROM `' . $table . '`')['m'] ?? 0);
+                }
+            }
         }
         if (!$save) throw new RuntimeException('Nothing to save.');
         $names = array_keys($save);
@@ -400,7 +453,7 @@ class NuPublicForm
             'INSERT INTO `' . $table . '` (`' . implode('`,`', $names) . '`) VALUES (' . implode(',', array_fill(0, count($names), '?')) . ')',
             array_values($save)
         );
-        $id = ($pk && $pkString) ? (string)$save[$pk['name']] : (string)$db->lastInsertId();
+        $id = ($pk && isset($save[$pk['name']])) ? (string)$save[$pk['name']] : (string)$db->lastInsertId();
 
         $reference = $id;
         foreach (self::describeFields($form) as $d) {
@@ -446,7 +499,7 @@ class NuPublicForm
         } catch (Throwable $e) {
             $db->query('UPDATE nu_form_shares SET fs_submit_count = CASE WHEN fs_submit_count > 0 THEN fs_submit_count - 1 ELSE 0 END WHERE fs_id = ?', [$share['fs_id']]);
             error_log('[public form insert] ' . $e->getMessage());
-            return ['ok' => false, 'status' => 500, 'message' => 'Sorry, we could not save your request. Please try again later.'];
+            return ['ok' => false, 'status' => 500, 'message' => 'Sorry, we could not save your request. Please try again later.', 'detail' => $e->getMessage()];
         }
 
         try {
@@ -503,6 +556,272 @@ class NuPublicForm
                     "Thank you. We have received your request.\nReference: {$rec['reference']}\n\n" . implode("\n", $lines) . "\n");
             }
         } catch (Throwable $e) { error_log('[public form email] ' . $e->getMessage()); }
+    }
+
+    // ── Per-field overrides ───────────────────────────────────────────────────
+    /** @return array<string,array<string,mixed>> */
+    public static function fieldCfg(array $share): array
+    {
+        $c = json_decode((string)($share['fs_field_cfg'] ?? ''), true);
+        return is_array($c) ? $c : [];
+    }
+
+    /** Validate/clean the per-field settings coming from the admin dialog. */
+    public static function cleanFieldCfg($raw, array $publicNames): array
+    {
+        $out = [];
+        if (!is_array($raw)) return $out;
+        foreach ($raw as $name => $o) {
+            if (!in_array((string)$name, $publicNames, true) || !is_array($o)) continue;
+            $c = [];
+            foreach (['label' => 200, 'placeholder' => 200, 'help' => 500, 'default' => 500] as $k => $max) {
+                $v = trim((string)($o[$k] ?? ''));
+                if ($v !== '') $c[$k] = mb_substr($v, 0, $max);
+            }
+            if (isset($o['required']) && $o['required'] !== '' && $o['required'] !== null) $c['required'] = !empty($o['required']) && $o['required'] !== 'false' && $o['required'] !== '0';
+            $col = (int)($o['col'] ?? 0);
+            if ($col >= 1 && $col <= 12) $c['col'] = $col;
+            if ($c) $out[(string)$name] = $c;
+        }
+        return $out;
+    }
+
+    // ── Look & feel ───────────────────────────────────────────────────────────
+    public const THEME_DEFAULTS = [
+        'width' => 'medium', 'mode' => 'auto', 'accent' => '', 'bg' => '', 'card_bg' => '', 'text' => '',
+        'radius' => 'md', 'font' => 'system', 'density' => 'comfortable', 'title_align' => 'left',
+        'show_title' => 1, 'logo_url' => '', 'logo_height' => 48, 'button_align' => 'left', 'button_full' => 0,
+        'section_style' => 'boxed', 'tab_style' => 'underline', 'footer_text' => '', 'hide_footer' => 0, 'custom_css' => '',
+    ];
+
+    public static function theme(array $share): array
+    {
+        $raw = json_decode((string)($share['fs_theme'] ?? ''), true);
+        return self::cleanTheme(is_array($raw) ? $raw : []);
+    }
+
+    public static function cleanTheme(array $in): array
+    {
+        $t = self::THEME_DEFAULTS;
+        $pick = function (string $k, array $allowed) use (&$t, $in) {
+            if (isset($in[$k]) && in_array((string)$in[$k], $allowed, true)) $t[$k] = (string)$in[$k];
+        };
+        $pick('width', ['narrow', 'medium', 'wide', 'full']);
+        $pick('mode', ['auto', 'light', 'dark']);
+        $pick('radius', ['none', 'sm', 'md', 'lg']);
+        $pick('font', ['system', 'serif', 'rounded', 'mono']);
+        $pick('density', ['comfortable', 'compact']);
+        $pick('title_align', ['left', 'center']);
+        $pick('button_align', ['left', 'center', 'right']);
+        $pick('section_style', ['boxed', 'flat', 'plain']);
+        $pick('tab_style', ['underline', 'pills']);
+        foreach (['accent', 'bg', 'card_bg', 'text'] as $k) {
+            $v = trim((string)($in[$k] ?? ''));
+            if (preg_match('/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/', $v)) $t[$k] = strtolower($v);
+        }
+        foreach (['show_title', 'button_full', 'hide_footer'] as $k) if (isset($in[$k])) $t[$k] = !empty($in[$k]) && $in[$k] !== '0' ? 1 : 0;
+        $logo = trim((string)($in['logo_url'] ?? ''));
+        if ($logo !== '' && preg_match('#^https://#i', $logo) && filter_var($logo, FILTER_VALIDATE_URL) && mb_strlen($logo) <= 500) $t['logo_url'] = $logo;
+        $lh = (int)($in['logo_height'] ?? 48);
+        $t['logo_height'] = max(16, min(160, $lh ?: 48));
+        $t['footer_text'] = mb_substr(trim((string)($in['footer_text'] ?? '')), 0, 300);
+        $css = (string)($in['custom_css'] ?? '');
+        $css = preg_replace('/@import[^;]*;?/i', '', $css);
+        $css = str_replace(['<', '>', '\\00003c', '\\3c '], '', $css);
+        $t['custom_css'] = mb_substr(trim($css), 0, 8000);
+        return $t;
+    }
+
+    /** CSS custom properties + a few structural rules derived from the theme. */
+    public static function themeCss(array $t): string
+    {
+        $w = ['narrow' => '520px', 'medium' => '680px', 'wide' => '920px', 'full' => '1280px'][$t['width']];
+        $r = ['none' => ['2px', '2px'], 'sm' => ['8px', '6px'], 'md' => ['16px', '10px'], 'lg' => ['26px', '14px']][$t['radius']];
+        $font = [
+            'system'  => 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+            'serif'   => 'Georgia,"Times New Roman",serif',
+            'rounded' => 'ui-rounded,"SF Pro Rounded","Nunito","Segoe UI",system-ui,sans-serif',
+            'mono'    => 'ui-monospace,Menlo,Consolas,monospace',
+        ][$t['font']];
+        $vars = '--w:' . $w . ';--r-card:' . $r[0] . ';--r-in:' . $r[1] . ';--font:' . $font . ';'
+              . '--gap:' . ($t['density'] === 'compact' ? '10px' : '16px') . ';--pad:' . ($t['density'] === 'compact' ? '18px' : '28px') . ';--in-h:' . ($t['density'] === 'compact' ? '38px' : '44px') . ';';
+        $over = '';
+        if ($t['accent'] !== '') $over .= '--primary:' . $t['accent'] . ';--primary-d:color-mix(in srgb,' . $t['accent'] . ' 82%,#000);';
+        if ($t['bg'] !== '')      $over .= '--bg:' . $t['bg'] . ';';
+        if ($t['card_bg'] !== '') $over .= '--card:' . $t['card_bg'] . ';';
+        if ($t['text'] !== '')    $over .= '--text:' . $t['text'] . ';';
+        return ':root{' . $vars . '}' . ($over !== '' ? 'html[data-mode]{' . $over . '}' : '');
+    }
+
+    // ── Layout (sections, groups, tabs, rows) ─────────────────────────────────
+    /**
+     * Turn the stored form layout into a tree the public page can render, keeping only the
+     * fields the visitor may fill in. Empty containers are dropped.
+     *
+     * Node kinds: section|group {label,collapsible,collapsed,children}, tabs {tabs:[{label,children}]},
+     *             row {items:[field...]}, field {name}, heading {label,level}, html {html}, divider.
+     * @param array<int,array<string,mixed>> $visible visibleFields()
+     */
+    public static function layoutTree(array $form, array $visible): array
+    {
+        $layout = json_decode((string)($form['form_layout'] ?? '[]'), true);
+        $layout = is_array($layout) ? $layout : [];
+        if (isset($layout['items']) && is_array($layout['items'])) $layout = $layout['items'];
+        $known = [];
+        foreach ($visible as $v) $known[$v['name']] = true;
+        $used = [];
+
+        $leafName = function (array $it): string {
+            return preg_replace('/[^a-zA-Z0-9_]/', '', (string)($it['name'] ?? ($it['fieldname'] ?? '')));
+        };
+        $rowsToNodes = null;
+        $walk = null;
+
+        // Pack loose consecutive fields into rows so that column widths sit side by side.
+        $pack = function (array $nodes): array {
+            $out = []; $buf = [];
+            $flush = function () use (&$out, &$buf) { if ($buf) { $out[] = ['kind' => 'row', 'items' => $buf]; $buf = []; } };
+            foreach ($nodes as $n) {
+                if ($n['kind'] === 'field') { $buf[] = $n; continue; }
+                $flush(); $out[] = $n;
+            }
+            $flush();
+            return $out;
+        };
+
+        $rowsToNodes = function (array $rows) use (&$walk, $pack): array {
+            $nodes = [];
+            foreach ($rows as $row) {
+                if (!is_array($row)) continue;
+                $rt = strtolower(trim((string)($row['type'] ?? 'row')));
+                if ($rt === 'group' || $rt === 'section') { $nodes = array_merge($nodes, $walk([$row])); continue; }
+                $items = $walk($row['fields'] ?? ($row['children'] ?? []));
+                $fields = array_values(array_filter($items, fn($n) => $n['kind'] === 'field'));
+                $other  = array_values(array_filter($items, fn($n) => $n['kind'] !== 'field'));
+                if ($fields) $nodes[] = ['kind' => 'row', 'items' => $fields];
+                foreach ($other as $o) $nodes[] = $o;
+            }
+            return $nodes;
+        };
+
+        $walk = function ($items) use (&$walk, &$rowsToNodes, $pack, $known, &$used, $leafName): array {
+            $out = [];
+            if (!is_array($items)) return $out;
+            foreach ($items as $it) {
+                if (!is_array($it)) continue;
+                $type = strtolower(trim((string)($it['type'] ?? '')));
+                if ($type === 'tab') {
+                    $tabs = [];
+                    foreach (($it['tabs'] ?? []) as $i => $tab) {
+                        if (!is_array($tab)) continue;
+                        $kids = $rowsToNodes($tab['rows'] ?? []);
+                        if (!empty($tab['children'])) $kids = array_merge($kids, $walk($tab['children']));
+                        $kids = self::pruneNodes($pack($kids));
+                        if ($kids) $tabs[] = ['label' => (string)($tab['name'] ?? ($tab['label'] ?? ('Tab ' . ($i + 1)))), 'children' => $kids];
+                    }
+                    if ($tabs) $out[] = ['kind' => 'tabs', 'tabs' => $tabs];
+                } elseif ($type === 'section' || $type === 'group' || $type === 'fieldset') {
+                    $kids = $walk($it['children'] ?? []);
+                    if (!empty($it['rows'])) $kids = array_merge($kids, $rowsToNodes($it['rows']));
+                    $kids = self::pruneNodes($pack($kids));
+                    if ($kids) $out[] = [
+                        'kind' => $type === 'section' ? 'section' : 'group',
+                        'label' => (string)($it['label'] ?? ($it['legend'] ?? '')),
+                        'collapsible' => !empty($it['collapsible']), 'collapsed' => !empty($it['collapsed']),
+                        'children' => $kids,
+                    ];
+                } elseif ($type === 'row' || (isset($it['fields']) && is_array($it['fields']) && $type === '')) {
+                    $items2 = $walk($it['fields'] ?? ($it['children'] ?? []));
+                    foreach ($items2 as $n2) $out[] = $n2;       // fields go on to be packed by the parent
+                    if ($items2 && end($items2)['kind'] === 'field') $out[] = ['kind' => '_break'];
+                } elseif ($type === 'heading') {
+                    $lab = trim((string)($it['label'] ?? ($it['text'] ?? ($it['content'] ?? ''))));
+                    if ($lab !== '') $out[] = ['kind' => 'heading', 'label' => $lab, 'level' => max(2, min(4, (int)($it['level'] ?? 3)))];
+                } elseif ($type === 'html' || $type === 'content') {
+                    $raw = (string)($it['content'] ?? ($it['html'] ?? ($it['value'] ?? ($it['label'] ?? ''))));
+                    $h = self::sanitizeHtml($raw);
+                    if (trim(strip_tags($h)) !== '') $out[] = ['kind' => 'html', 'html' => $h];
+                } elseif ($type === 'divider') {
+                    $out[] = ['kind' => 'divider'];
+                } elseif (in_array($type, ['subform', 'button', '_form_style'], true)) {
+                    continue;
+                } else {
+                    $n = $leafName($it);
+                    if ($n !== '' && isset($known[$n]) && !isset($used[$n])) { $used[$n] = true; $out[] = ['kind' => 'field', 'name' => $n]; }
+                }
+            }
+            return $out;
+        };
+
+        // _break markers keep explicit rows apart when packing
+        $packWithBreaks = function (array $nodes) use ($pack): array {
+            $segments = []; $cur = [];
+            foreach ($nodes as $n) { if ($n['kind'] === '_break') { $segments[] = $cur; $cur = []; } else $cur[] = $n; }
+            $segments[] = $cur;
+            $out = [];
+            foreach ($segments as $seg) foreach ($pack($seg) as $n) $out[] = $n;
+            return $out;
+        };
+
+        $tree = self::pruneNodes($packWithBreaks($walk($layout)));
+
+        // Selected fields that the layout did not place (e.g. flat layouts) still get shown.
+        $rest = [];
+        foreach ($visible as $v) if (!isset($used[$v['name']])) $rest[] = ['kind' => 'field', 'name' => $v['name']];
+        if ($rest) $tree[] = ['kind' => 'row', 'items' => $rest];
+        return $tree;
+    }
+
+    private static function pruneNodes(array $nodes): array
+    {
+        $out = [];
+        foreach ($nodes as $n) {
+            if ($n['kind'] === '_break') continue;
+            if (isset($n['children']) && !$n['children']) continue;
+            if ($n['kind'] === 'row' && empty($n['items'])) continue;
+            $out[] = $n;
+        }
+        return $out;
+    }
+
+    /** Allow simple formatting only: no scripts, styles, event handlers or odd URLs. */
+    public static function sanitizeHtml(string $html): string
+    {
+        if (trim($html) === '') return '';
+        $allowed = ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li', 'a', 'h2', 'h3', 'h4', 'span', 'div', 'small', 'blockquote', 'hr', 'sub', 'sup'];
+        $dom = new DOMDocument();
+        $prev = libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="UTF-8"><div id="r">' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors(); libxml_use_internal_errors($prev);
+        $root = $dom->getElementById('r');
+        if (!$root) return htmlspecialchars(strip_tags($html), ENT_QUOTES, 'UTF-8');
+        $clean = function (DOMNode $node) use (&$clean, $allowed, $dom) {
+            foreach (iterator_to_array($node->childNodes) as $c) {
+                if ($c->nodeType === XML_ELEMENT_NODE) {
+                    $tag = strtolower($c->nodeName);
+                    if (!in_array($tag, $allowed, true)) {
+                        if (in_array($tag, ['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math', 'form', 'input', 'button', 'textarea', 'select', 'link', 'meta', 'base'], true)) { $node->removeChild($c); continue; }
+                        $clean($c);
+                        while ($c->firstChild) $node->insertBefore($c->firstChild, $c);
+                        $node->removeChild($c);
+                        continue;
+                    }
+                    foreach (iterator_to_array($c->attributes) as $a) {
+                        $keep = $tag === 'a' && in_array($a->nodeName, ['href', 'title'], true);
+                        if ($keep && $a->nodeName === 'href' && !preg_match('#^(https?:|mailto:|tel:|/|\#)#i', trim($a->nodeValue))) $keep = false;
+                        if (!$keep) $c->removeAttribute($a->nodeName);
+                    }
+                    if ($tag === 'a') { $c->setAttribute('rel', 'noopener noreferrer nofollow'); $c->setAttribute('target', '_blank'); }
+                    $clean($c);
+                } elseif ($c->nodeType !== XML_TEXT_NODE) {
+                    $node->removeChild($c);
+                }
+            }
+        };
+        $clean($root);
+        $out = '';
+        foreach ($root->childNodes as $c) $out .= $dom->saveHTML($c);
+        return $out;
     }
 
     public static function successMessage(array $share): string

@@ -50,3 +50,21 @@
   .fs-f input,.fs-f textarea{padding:11px 12px!important;font-size:16px!important;min-height:44px}
   .fs-foot{flex-wrap:wrap}.fs-actions{width:100%}.fs-actions .nu-btn{flex:1;min-height:44px}
 }
+/* tabs + extras */
+.fs-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border-color,#e5e9f4);margin:-4px 0 16px;overflow-x:auto}
+.fs-tab{background:none;border:0;border-bottom:2px solid transparent;padding:10px 14px;font:inherit;font-size:13.5px;font-weight:600;color:var(--text-secondary,#5b6785);cursor:pointer;white-space:nowrap;min-height:44px}
+.fs-tab.on{color:#2563eb;border-bottom-color:#2563eb}
+.fs-pane[hidden]{display:none}
+.fs-mb{margin-bottom:10px}
+.fs-flist{display:flex;flex-direction:column;gap:6px}
+.fs-fitem{position:relative;border:1px solid var(--border-color,#e5e9f4);border-radius:8px}
+.fs-fitem .fs-field{border:0;padding-right:48px;width:100%;box-sizing:border-box;cursor:pointer}
+.fs-gear{position:absolute;right:4px;top:2px;width:44px;height:44px;background:none;border:0;font-size:16px;cursor:pointer;color:var(--text-secondary,#5b6785);border-radius:8px}
+.fs-gear.on{color:#2563eb}
+.fs-fcfg{padding:6px 12px 12px;border-top:1px dashed var(--border-color,#e5e9f4)}
+.fs-fcfg[hidden]{display:none}
+.fs-color{display:flex;gap:6px;align-items:center}
+.fs-color input[type=color]{width:42px;height:40px;padding:2px;border:1px solid var(--border-color,#d5dbea);border-radius:8px;background:transparent;flex:none}
+.fs-color input[type=text]{flex:1;min-width:0}
+.fs-f select{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--border-color,#d5dbea);border-radius:8px;background:transparent;color:inherit;min-height:40px}
+.fs-hint code{font-size:11.5px}
