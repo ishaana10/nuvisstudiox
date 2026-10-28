@@ -1385,7 +1385,10 @@
         .use(Uppy.XHRUpload, {
           endpoint: 'api/upload.php',
           fieldName: 'file',
-          formData: true
+          formData: true,
+          headers: { 'X-CSRF-Token': window.nuCsrfToken || '' },
+          getResponseError: function (text, xhr) { try { var j = JSON.parse(text); if (j && j.error) return new Error(j.error); } catch (e) {} return new Error(xhr && xhr.status === 413 ? 'File is too large for the server' : xhr && xhr.status === 403 ? 'Session expired or invalid security token - reload the page' : 'Upload failed (HTTP ' + (xhr ? xhr.status : '?') + ')'); },
+          validateStatus: function (status, text) { if (status < 200 || status >= 300) return false; try { var j = JSON.parse(text); return !(j && j.success === false); } catch (e) { return false; } },
         });
 
         uppy.getPlugin('Dashboard').openModal();
