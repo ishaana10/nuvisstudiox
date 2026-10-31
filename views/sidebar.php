@@ -39,6 +39,14 @@ declare(strict_types=1);
             </svg>
             <span>Forms</span>
         </a>
+        <a href="#customer_requests" class="nu-nav-item" data-module="customer_requests"
+           onclick="NuApp.loadModule('customer_requests'); return false;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/>
+            </svg>
+            <span>Customer Requests</span>
+        </a>
         <a href="#report_dashboards" class="nu-nav-item" data-module="report_dashboards"
            onclick="NuApp.loadModule('report_dashboards'); return false;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
