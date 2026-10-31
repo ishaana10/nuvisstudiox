@@ -334,12 +334,12 @@ foreach ($forms as $f) {
 .nb-display-mode-label { font-size:12px; font-weight:700; color:var(--text-primary); margin-bottom:3px; }
 .nb-display-mode-desc { font-size:11px; color:var(--text-tertiary); line-height:1.4; }
 
-/* PK type toggle */
-.nb-pk-cards { display:flex; gap:10px; }
+/* PK type toggle — compact horizontal chips */
+.nb-pk-cards { display:flex; gap:8px; flex-wrap:wrap; }
 .nb-pk-card {
-  flex:1; border:2px solid var(--border-color); border-radius:10px;
-  padding:12px 14px; cursor:pointer; background:var(--bg-surface);
-  transition:all .15s;
+  flex:1; min-width:180px; border:1.5px solid var(--border-color); border-radius:8px;
+  padding:8px 11px; cursor:pointer; background:var(--bg-surface);
+  transition:border-color .15s, background .15s;
 }
 .nb-pk-card:hover { border-color:var(--color-primary); background:var(--bg-elevated); }
 .nb-pk-card.selected {
@@ -347,16 +347,16 @@ foreach ($forms as $f) {
   background:color-mix(in oklch,var(--color-primary) 8%,var(--bg-surface));
 }
 .nb-pk-card input[type=radio] { display:none; }
-.nb-pk-card-title { font-size:12px; font-weight:700; color:var(--text-primary); margin-bottom:3px; }
-.nb-pk-card-code  { font-size:11px; font-family:monospace; color:var(--color-primary); margin-bottom:4px; }
-.nb-pk-card-desc  { font-size:11px; color:var(--text-tertiary); line-height:1.4; }
+.nb-pk-card-title { font-size:12px; font-weight:700; color:var(--text-primary); }
+.nb-pk-card-code  { font-size:10.5px; font-family:monospace; color:var(--color-primary); margin-top:1px; }
+.nb-pk-card-desc  { font-size:10.5px; color:var(--text-tertiary); line-height:1.35; margin-top:2px; }
 
-/* Table mode toggle */
-.nb-tmode-cards { display:flex; gap:10px; margin-bottom:12px; }
+/* Table mode toggle — compact horizontal chips */
+.nb-tmode-cards { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
 .nb-tmode-card {
-  flex:1; border:2px solid var(--border-color); border-radius:10px;
-  padding:12px 14px; cursor:pointer; background:var(--bg-surface);
-  transition:all .15s;
+  flex:1; min-width:180px; border:1.5px solid var(--border-color); border-radius:8px;
+  padding:8px 11px; cursor:pointer; background:var(--bg-surface);
+  transition:border-color .15s, background .15s;
 }
 .nb-tmode-card:hover { border-color:var(--color-primary); background:var(--bg-elevated); }
 .nb-tmode-card.selected {
@@ -364,15 +364,15 @@ foreach ($forms as $f) {
   background:color-mix(in oklch,var(--color-primary) 8%,var(--bg-surface));
 }
 .nb-tmode-card input[type=radio] { display:none; }
-.nb-tmode-card-title { font-size:12px; font-weight:700; color:var(--text-primary); margin-bottom:3px; }
-.nb-tmode-card-desc  { font-size:11px; color:var(--text-tertiary); line-height:1.4; }
+.nb-tmode-card-title { font-size:12px; font-weight:700; color:var(--text-primary); }
+.nb-tmode-card-desc  { font-size:10.5px; color:var(--text-tertiary); line-height:1.35; margin-top:2px; }
 
-/* Form type selector */
+/* Form type selector — compact chips (icon + label inline) */
 .nb-ftype-cards { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:0; }
 .nb-ftype-card {
-  flex:1; min-width:120px; border:2px solid var(--border-color); border-radius:10px;
-  padding:12px 10px; cursor:pointer; background:var(--bg-surface);
-  transition:all .15s; text-align:center;
+  flex:1; min-width:118px; border:1.5px solid var(--border-color); border-radius:8px;
+  padding:8px 10px; cursor:pointer; background:var(--bg-surface);
+  transition:border-color .15s, background .15s; text-align:center;
 }
 .nb-ftype-card:hover { border-color:var(--color-primary); background:var(--bg-elevated); }
 .nb-ftype-card.selected {
@@ -380,9 +380,9 @@ foreach ($forms as $f) {
   background:color-mix(in oklch,var(--color-primary) 8%,var(--bg-surface));
 }
 .nb-ftype-card input[type=radio] { display:none; }
-.nb-ftype-icon  { font-size:20px; margin-bottom:4px; }
-.nb-ftype-label { font-size:12px; font-weight:700; color:var(--text-primary); margin-bottom:2px; }
-.nb-ftype-desc  { font-size:10px; color:var(--text-tertiary); line-height:1.3; }
+.nb-ftype-icon  { font-size:17px; margin-bottom:2px; }
+.nb-ftype-label { font-size:12px; font-weight:700; color:var(--text-primary); }
+.nb-ftype-desc  { font-size:10px; color:var(--text-tertiary); line-height:1.3; margin-top:1px; }
 
 /* Form type badge in list */
 .nb-type-badge {
@@ -409,12 +409,12 @@ foreach ($forms as $f) {
 .nb-settings-group {
   border:1px solid var(--border-color);
   border-radius:10px;
-  margin-bottom:16px;
+  margin-bottom:14px;
   overflow:hidden;
 }
 .nb-settings-group-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:10px 14px; cursor:pointer;
+  padding:9px 14px; cursor:pointer;
   background:color-mix(in oklch,var(--bg-elevated) 70%,var(--bg-surface));
   user-select:none;
   transition:background .15s;
@@ -439,24 +439,38 @@ foreach ($forms as $f) {
 }
 .nb-settings-group-body {
   display:none;
-  padding:14px;
+  padding:12px;
   border-top:1px solid var(--border-color);
   background:var(--bg-surface);
 }
 .nb-settings-group-body.open { display:block; }
 
+/* Lay the four setting rows out as a compact responsive grid instead of a
+   tall full-width stack. Each row still expands in place; the open one spans
+   the full width so its controls get room. */
+.nb-settings-grid {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:10px;
+  align-items:start;
+}
+@media (max-width:720px) { .nb-settings-grid { grid-template-columns:1fr; } }
+
 /* ── Expandable row option (click-to-expand inside group) ── */
 .nb-option-row {
   border:1px solid var(--border-color);
   border-radius:8px;
-  margin-bottom:10px;
   overflow:hidden;
   background:var(--bg-surface);
+  transition:border-color .15s;
 }
-.nb-option-row:last-child { margin-bottom:0; }
+.nb-option-row.nb-row-open {
+  grid-column:1 / -1;           /* open row spans both columns for breathing room */
+  border-color:color-mix(in oklch,var(--color-primary) 40%,var(--border-color));
+}
 .nb-option-row-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:9px 12px; cursor:pointer;
+  padding:8px 12px; cursor:pointer; gap:8px;
   transition:background .15s;
 }
 .nb-option-row-header:hover {
@@ -464,16 +478,17 @@ foreach ($forms as $f) {
 }
 .nb-option-row-label {
   font-size:12px; font-weight:600; color:var(--text-primary);
-  display:flex; align-items:center; gap:8px;
+  display:flex; align-items:center; gap:8px; min-width:0;
 }
 .nb-option-row-value {
   font-size:11px; color:var(--color-primary); font-weight:600;
   background:color-mix(in oklch,var(--color-primary) 10%,transparent);
   padding:2px 10px; border-radius:20px;
   display:flex; align-items:center; gap:5px;
+  max-width:170px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .nb-option-row-chevron {
-  color:var(--text-tertiary); transition:transform .2s; flex-shrink:0; margin-left:8px;
+  color:var(--text-tertiary); transition:transform .2s; flex-shrink:0; margin-left:6px;
 }
 .nb-option-row-header.open .nb-option-row-chevron {
   transform:rotate(180deg);
@@ -485,6 +500,8 @@ foreach ($forms as $f) {
   background:color-mix(in oklch,var(--bg-elevated) 50%,var(--bg-surface));
 }
 .nb-option-row-body.open { display:block; }
+.nb-option-row-body .nu-label { font-size:11px; margin-bottom:3px; }
+.nb-option-row-body .nu-input { font-size:12.5px; }
 
 /* ── Ace Editor wrappers ── */
 .nb-ace-wrap {
@@ -805,14 +822,15 @@ foreach ($forms as $f) {
     </div>
 
     <div class="nb-settings-group" id="nbSettingsGroup">
-      <div class="nb-settings-group-header" id="nbSettingsHeader" onclick="nbToggleSettingsGroup()">
+      <div class="nb-settings-group-header open" id="nbSettingsHeader" onclick="nbToggleSettingsGroup()">
         <div class="nb-settings-group-title">
           ⚙ Form Settings
-          <span class="nb-settings-group-summary" id="nbSettingsSummary">click to configure</span>
+          <span class="nb-settings-group-summary" id="nbSettingsSummary">Type · Name · Table · Key</span>
         </div>
         <svg class="nb-settings-group-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
       </div>
-      <div class="nb-settings-group-body" id="nbSettingsBody">
+      <div class="nb-settings-group-body open" id="nbSettingsBody">
+       <div class="nb-settings-grid">
 
         <div class="nb-option-row" id="optRowFormType">
           <div class="nb-option-row-header" onclick="nbToggleOptionRow('optRowFormType')">
@@ -953,6 +971,7 @@ foreach ($forms as $f) {
           </div>
         </div>
 
+       </div><!-- /.nb-settings-grid -->
       </div>
     </div>
 
@@ -2642,13 +2661,16 @@ if (!window._nbFormsModuleInit) {
     const header = row.querySelector('.nb-option-row-header');
     const body   = row.querySelector('.nb-option-row-body');
     const isOpen = body.classList.contains('open');
+    // Close any currently-open row (one at a time keeps the bar compact).
     document.querySelectorAll('.nb-option-row-body.open').forEach(b => {
       b.classList.remove('open');
-      b.previousElementSibling.classList.remove('open');
+      const h = b.previousElementSibling; if (h) h.classList.remove('open');
+      const r = b.closest('.nb-option-row'); if (r) r.classList.remove('nb-row-open');
     });
     if (!isOpen) {
       body.classList.add('open');
       header.classList.add('open');
+      row.classList.add('nb-row-open');
     }
   };
 

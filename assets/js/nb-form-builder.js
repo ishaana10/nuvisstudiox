@@ -145,6 +145,8 @@
       '#nb-props-panel-body .nu-btn-sm{border-radius:7px;}',
       /* fullscreen: keep the panel on top and let the canvas make room */
       '.nb-builder-fullscreen~#nb-props-panel,#nb-props-panel.open{z-index:100000;}',
+      /* Form Style modal must clear the fullscreen builder layer (99999) in full-view mode */
+      '#nbFormStyleModal{z-index:100001 !important;}',
       '@media (max-width:640px){#nb-props-panel{width:100vw;}}',
       '@media (prefers-reduced-motion:reduce){#nb-props-panel,#nb-props-panel *{transition:none !important;}}',
     ].join('');
@@ -2146,93 +2148,255 @@ fields.forEach(function (f) {
 
     _currentStyle: null,
 
+    // Ready-made starting points. Each sets a full style object; the user can still tweak afterwards.
+    _stylePresets: {
+      clean:    { label: 'Clean',    icon: '◻', density: 'comfortable', card_style: 'default',  label_align: 'top',  header_bg: '', accent_color: '#0ea5e9', border_radius: '8px'  },
+      modern:   { label: 'Modern',   icon: '✦', density: 'relaxed',     card_style: 'elevated', label_align: 'top',  header_bg: '', accent_color: '#6366f1', border_radius: '14px' },
+      compact:  { label: 'Compact',  icon: '▤', density: 'compact',     card_style: 'outlined', label_align: 'left', header_bg: '', accent_color: '#0f766e', border_radius: '6px'  },
+      bordered: { label: 'Bordered', icon: '▦', density: 'comfortable', card_style: 'outlined', label_align: 'top',  header_bg: '', accent_color: '#334155', border_radius: '4px'  },
+      minimal:  { label: 'Minimal',  icon: '—', density: 'comfortable', card_style: 'flush',    label_align: 'top',  header_bg: '', accent_color: '#111827', border_radius: '0px'  }
+    },
+
+    _defaultStyle: function () {
+      return { preset: '', density: 'comfortable', card_style: 'default', label_align: 'top', header_bg: '', accent_color: '', border_radius: '' };
+    },
+
     openStyleModal: function () {
       var me = this;
       var existing = document.getElementById('nbFormStyleModal');
       if (existing) existing.remove();
 
-      var st = me._currentStyle || { density: 'comfortable', card_style: 'default', label_align: 'top', header_bg: '', accent_color: '', border_radius: '' };
+      var st = Object.assign(me._defaultStyle(), me._currentStyle || {});
+      me._activePreset = st.preset || '';
+      var esc = function (v) { return String(v == null ? '' : v).replace(/"/g, '&quot;'); };
+      var opt = function (v, cur, txt) { return '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + txt + '</option>'; };
+
+      var presetCards = Object.keys(me._stylePresets).map(function (key) {
+        var p = me._stylePresets[key];
+        return '<button type="button" class="nbst-preset' + (st.preset === key ? ' on' : '') + '" data-preset="' + key + '" ' +
+               'onclick="nbFormBuilder.applyStylePreset(\'' + key + '\')">' +
+                 '<span class="nbst-preset-ico" style="color:' + p.accent_color + '">' + p.icon + '</span>' +
+                 '<span class="nbst-preset-name">' + p.label + '</span>' +
+               '</button>';
+      }).join('');
 
       var modal = document.createElement('div');
       modal.id = 'nbFormStyleModal';
-      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:16px;';
-      modal.innerHTML = '<div style="background:var(--bg-card,#fff);border-radius:12px;max-width:500px;width:100%;padding:24px;box-shadow:0 10px 25px rgba(0,0,0,0.2);">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
-          '<h3 style="margin:0;font-size:16px;font-weight:700;">🎨 Form Style & Customization</h3>' +
-          '<button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" onclick="document.getElementById(\'nbFormStyleModal\').remove()">&times;</button>' +
-        '</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">' +
-          '<div>' +
-            '<label class="nu-label" style="font-size:12px;">Density</label>' +
-            '<select id="nbStDensity" class="nu-input nu-input-sm">' +
-              '<option value="compact"' + (st.density === 'compact' ? ' selected' : '') + '>Compact</option>' +
-              '<option value="comfortable"' + (st.density === 'comfortable' ? ' selected' : '') + '>Comfortable</option>' +
-              '<option value="relaxed"' + (st.density === 'relaxed' ? ' selected' : '') + '>Relaxed</option>' +
-            '</select>' +
+      // z-index sits ABOVE the fullscreen builder layer (.nb-builder-fullscreen = 99999),
+      // otherwise the modal is painted behind the canvas in full-view mode.
+      modal.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px);';
+      modal.innerHTML =
+        '<div class="nbst-dialog" style="background:var(--bg-card,#fff);color:var(--text-primary,#0f172a);border-radius:16px;max-width:820px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(15,23,42,.35);">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--border-color,#e2e8f0);">' +
+            '<div>' +
+              '<h3 style="margin:0;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">🎨 Form Style</h3>' +
+              '<div style="font-size:12px;color:var(--text-tertiary,#94a3b8);margin-top:2px;">Pick a preset, fine-tune, and watch the live preview.</div>' +
+            '</div>' +
+            '<button type="button" class="nbst-x" aria-label="Close" onclick="document.getElementById(\'nbFormStyleModal\').remove()">&times;</button>' +
           '</div>' +
-          '<div>' +
-            '<label class="nu-label" style="font-size:12px;">Card Style</label>' +
-            '<select id="nbStCardStyle" class="nu-input nu-input-sm">' +
-              '<option value="default"' + (st.card_style === 'default' ? ' selected' : '') + '>Default Card</option>' +
-              '<option value="elevated"' + (st.card_style === 'elevated' ? ' selected' : '') + '>Elevated Shadow</option>' +
-              '<option value="outlined"' + (st.card_style === 'outlined' ? ' selected' : '') + '>Outlined Border</option>' +
-              '<option value="flush"' + (st.card_style === 'flush' ? ' selected' : '') + '>Flush (No Card)</option>' +
-            '</select>' +
+
+          '<div class="nbst-grid" style="display:grid;grid-template-columns:1fr 300px;gap:0;flex:1;min-height:0;">' +
+
+            // ── Controls column
+            '<div style="padding:20px 22px;overflow-y:auto;">' +
+              '<label class="nbst-group-label">Presets</label>' +
+              '<div class="nbst-presets">' + presetCards + '</div>' +
+
+              '<label class="nbst-group-label" style="margin-top:18px;">Layout</label>' +
+              '<div class="nbst-row">' +
+                '<div class="nbst-field"><label>Density</label><select id="nbStDensity" class="nu-input nu-input-sm" onchange="nbFormBuilder.previewStyleFromModal()">' +
+                  opt('compact', st.density, 'Compact') + opt('comfortable', st.density, 'Comfortable') + opt('relaxed', st.density, 'Relaxed') +
+                '</select></div>' +
+                '<div class="nbst-field"><label>Card style</label><select id="nbStCardStyle" class="nu-input nu-input-sm" onchange="nbFormBuilder.previewStyleFromModal()">' +
+                  opt('default', st.card_style, 'Default card') + opt('elevated', st.card_style, 'Elevated shadow') + opt('outlined', st.card_style, 'Outlined border') + opt('flush', st.card_style, 'Flush (no card)') +
+                '</select></div>' +
+              '</div>' +
+              '<div class="nbst-row">' +
+                '<div class="nbst-field"><label>Label alignment</label><select id="nbStLabelAlign" class="nu-input nu-input-sm" onchange="nbFormBuilder.previewStyleFromModal()">' +
+                  opt('top', st.label_align, 'Top stacked') + opt('left', st.label_align, 'Left aligned') + opt('inline', st.label_align, 'Inline') +
+                '</select></div>' +
+                '<div class="nbst-field"><label>Corner radius</label><input type="text" id="nbStBorderRadius" class="nu-input nu-input-sm" value="' + esc(st.border_radius) + '" placeholder="e.g. 8px, 0.5rem" oninput="nbFormBuilder.previewStyleFromModal()"></div>' +
+              '</div>' +
+
+              '<label class="nbst-group-label" style="margin-top:18px;">Colours</label>' +
+              '<div class="nbst-row">' +
+                '<div class="nbst-field"><label>Accent colour</label>' +
+                  '<div class="nbst-color"><input type="color" id="nbStAccentColorP" value="' + esc(/^#[0-9a-f]{6}$/i.test(st.accent_color) ? st.accent_color : '#0ea5e9') + '" oninput="nbFormBuilder._syncColor(\'nbStAccentColor\',this.value)">' +
+                    '<input type="text" id="nbStAccentColor" class="nu-input nu-input-sm" maxlength="7" placeholder="Default" value="' + esc(st.accent_color) + '" oninput="nbFormBuilder.previewStyleFromModal()">' +
+                    '<button type="button" class="nbst-reset" onclick="nbFormBuilder._clearColor(\'nbStAccentColor\')">reset</button></div>' +
+                '</div>' +
+                '<div class="nbst-field"><label>Header background</label>' +
+                  '<div class="nbst-color"><input type="color" id="nbStHeaderBgP" value="' + esc(/^#[0-9a-f]{6}$/i.test(st.header_bg) ? st.header_bg : '#f8fafc') + '" oninput="nbFormBuilder._syncColor(\'nbStHeaderBg\',this.value)">' +
+                    '<input type="text" id="nbStHeaderBg" class="nu-input nu-input-sm" maxlength="7" placeholder="Default" value="' + esc(st.header_bg) + '" oninput="nbFormBuilder.previewStyleFromModal()">' +
+                    '<button type="button" class="nbst-reset" onclick="nbFormBuilder._clearColor(\'nbStHeaderBg\')">reset</button></div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+
+            // ── Live preview column
+            '<div class="nbst-preview-col">' +
+              '<div class="nbst-preview-label">Live preview</div>' +
+              '<div id="nbStPreview" class="nu-generated-form nu-form-styled nbst-preview">' +
+                '<div class="nu-section">' +
+                  '<div class="nu-section-header"><strong>Contact details</strong></div>' +
+                  '<div class="nu-section-body">' +
+                    '<div class="nu-field-wrapper"><label>Full name</label><input class="nu-input" type="text" value="Jane Doe" readonly></div>' +
+                    '<div class="nu-field-wrapper"><label>Email</label><input class="nu-input" type="text" value="jane@example.com" readonly></div>' +
+                    '<div class="nu-field-wrapper"><label>Notes</label><textarea class="nu-input" rows="2" readonly>Looks great.</textarea></div>' +
+                  '</div>' +
+                '</div>' +
+                '<button type="button" class="nu-btn nu-btn-primary nu-btn-sm" style="margin-top:4px;" onclick="return false;">Save</button>' +
+              '</div>' +
+            '</div>' +
+
           '</div>' +
-        '</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">' +
-          '<div>' +
-            '<label class="nu-label" style="font-size:12px;">Label Alignment</label>' +
-            '<select id="nbStLabelAlign" class="nu-input nu-input-sm">' +
-              '<option value="top"' + (st.label_align === 'top' ? ' selected' : '') + '>Top Stacked</option>' +
-              '<option value="left"' + (st.label_align === 'left' ? ' selected' : '') + '>Left Aligned</option>' +
-              '<option value="inline"' + (st.label_align === 'inline' ? ' selected' : '') + '>Inline Floating</option>' +
-            '</select>' +
+
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 22px;border-top:1px solid var(--border-color,#e2e8f0);">' +
+            '<button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" onclick="nbFormBuilder.resetStyleModal()">Reset to default</button>' +
+            '<div style="display:flex;gap:8px;">' +
+              '<button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" onclick="document.getElementById(\'nbFormStyleModal\').remove()">Cancel</button>' +
+              '<button type="button" class="nu-btn nu-btn-primary nu-btn-sm" onclick="nbFormBuilder.saveStyleFromModal()">Apply style</button>' +
+            '</div>' +
           '</div>' +
-          '<div>' +
-            '<label class="nu-label" style="font-size:12px;">Corner Radius</label>' +
-            '<input type="text" id="nbStBorderRadius" class="nu-input nu-input-sm" value="' + (st.border_radius || '') + '" placeholder="e.g. 8px, 0.5rem">' +
-          '</div>' +
-        '</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">' +
-          '<div>' +
-            '<label class="nu-label" style="font-size:12px;">Header Background</label>' +
-            '<input type="color" id="nbStHeaderBg" class="nu-input nu-input-sm" style="height:34px;padding:2px;" value="' + (st.header_bg || '#f8fafc') + '">' +
-          '</div>' +
-          '<div>' +
-            '<label class="nu-label" style="font-size:12px;">Accent Color</label>' +
-            '<input type="color" id="nbStAccentColor" class="nu-input nu-input-sm" style="height:34px;padding:2px;" value="' + (st.accent_color || '#0ea5e9') + '">' +
-          '</div>' +
-        '</div>' +
-        '<div style="display:flex;justify-content:flex-end;gap:8px;">' +
-          '<button type="button" class="nu-btn nu-btn-ghost nu-btn-sm" onclick="document.getElementById(\'nbFormStyleModal\').remove()">Cancel</button>' +
-          '<button type="button" class="nu-btn nu-btn-primary nu-btn-sm" onclick="nbFormBuilder.saveStyleFromModal()">Apply Style</button>' +
-        '</div>' +
-      '</div>';
+        '</div>';
       document.body.appendChild(modal);
+      me._injectStyleModalCss();
+      me.previewStyleFromModal();
+    },
+
+    _syncColor: function (textId, val) {
+      var t = document.getElementById(textId);
+      if (t) { t.value = val; this.previewStyleFromModal(); }
+    },
+
+    _clearColor: function (textId) {
+      var t = document.getElementById(textId);
+      if (t) { t.value = ''; this.previewStyleFromModal(); }
+    },
+
+    applyStylePreset: function (key) {
+      var p = this._stylePresets[key];
+      if (!p) return;
+      var setV = function (id, v) { var e = document.getElementById(id); if (e) e.value = v; };
+      var setC = function (id, v) { var e = document.getElementById(id); if (e && /^#[0-9a-f]{6}$/i.test(v)) e.value = v; };
+      setV('nbStDensity', p.density);
+      setV('nbStCardStyle', p.card_style);
+      setV('nbStLabelAlign', p.label_align);
+      setV('nbStBorderRadius', p.border_radius);
+      setV('nbStAccentColor', p.accent_color); setC('nbStAccentColorP', p.accent_color);
+      setV('nbStHeaderBg', p.header_bg || ''); setC('nbStHeaderBgP', p.header_bg || '#f8fafc');
+      [].forEach.call(document.querySelectorAll('#nbFormStyleModal .nbst-preset'), function (b) {
+        b.classList.toggle('on', b.getAttribute('data-preset') === key);
+      });
+      this._activePreset = key;
+      this.previewStyleFromModal();
+    },
+
+    _readStyleModal: function () {
+      var val = function (id) { var e = document.getElementById(id); return e ? String(e.value).trim() : ''; };
+      return {
+        preset:        this._activePreset || '',
+        density:       val('nbStDensity') || 'comfortable',
+        card_style:    val('nbStCardStyle') || 'default',
+        label_align:   val('nbStLabelAlign') || 'top',
+        header_bg:     val('nbStHeaderBg'),
+        accent_color:  val('nbStAccentColor'),
+        border_radius: val('nbStBorderRadius')
+      };
+    },
+
+    // Build the class list + inline CSS-variable string the preview / canvas use.
+    _styleToAttrs: function (st) {
+      var classes = ['nu-generated-form', 'nu-form-styled'];
+      if (st.density)     classes.push('nu-density-' + st.density);
+      if (st.card_style)  classes.push('nu-card-' + st.card_style);
+      if (st.label_align) classes.push('nu-labels-' + st.label_align);
+      var vars = {};
+      if (st.accent_color)  vars['--nu-form-accent'] = st.accent_color;
+      if (st.header_bg)     vars['--nu-form-header-bg'] = st.header_bg;
+      if (st.border_radius) vars['--nu-form-radius'] = st.border_radius;
+      return { classes: classes, vars: vars };
+    },
+
+    previewStyleFromModal: function () {
+      var prev = document.getElementById('nbStPreview');
+      if (!prev) return;
+      var attrs = this._styleToAttrs(this._readStyleModal());
+      prev.className = attrs.classes.join(' ') + ' nbst-preview';
+      prev.removeAttribute('style');
+      Object.keys(attrs.vars).forEach(function (k) { prev.style.setProperty(k, attrs.vars[k]); });
+    },
+
+    resetStyleModal: function () {
+      this._activePreset = '';
+      var d = this._defaultStyle();
+      var setV = function (id, v) { var e = document.getElementById(id); if (e) e.value = v; };
+      setV('nbStDensity', d.density); setV('nbStCardStyle', d.card_style); setV('nbStLabelAlign', d.label_align);
+      setV('nbStBorderRadius', ''); setV('nbStAccentColor', ''); setV('nbStHeaderBg', '');
+      var p1 = document.getElementById('nbStAccentColorP'); if (p1) p1.value = '#0ea5e9';
+      var p2 = document.getElementById('nbStHeaderBgP'); if (p2) p2.value = '#f8fafc';
+      [].forEach.call(document.querySelectorAll('#nbFormStyleModal .nbst-preset'), function (b) { b.classList.remove('on'); });
+      this.previewStyleFromModal();
     },
 
     saveStyleFromModal: function () {
-      var d = document.getElementById('nbStDensity');
-      var c = document.getElementById('nbStCardStyle');
-      var l = document.getElementById('nbStLabelAlign');
-      var h = document.getElementById('nbStHeaderBg');
-      var a = document.getElementById('nbStAccentColor');
-      var r = document.getElementById('nbStBorderRadius');
-
-      this._currentStyle = {
-        density: d ? d.value : 'comfortable',
-        card_style: c ? c.value : 'default',
-        label_align: l ? l.value : 'top',
-        header_bg: h ? h.value : '',
-        accent_color: a ? a.value : '',
-        border_radius: r ? r.value.trim() : ''
-      };
-
+      var st = this._readStyleModal();
+      // Treat an all-default style as "no style" so we don't persist an empty node.
+      var d = this._defaultStyle();
+      var isDefault = !st.preset && st.density === d.density && st.card_style === d.card_style &&
+        st.label_align === d.label_align && !st.header_bg && !st.accent_color && !st.border_radius;
+      this._currentStyle = isDefault ? null : st;
+      this._applyCanvasStyle();
       var modal = document.getElementById('nbFormStyleModal');
       if (modal) modal.remove();
-      if (window.NuApp) NuApp.toast('Form style updated! Save form layout to persist changes.');
+      if (window.NuApp) NuApp.toast(isDefault ? 'Style reset to default. Save the form to keep this.' : 'Form style applied. Save the form to keep it.', 'success');
     },
+
+    // Mirror the chosen style onto the builder canvas so the editor previews the theme too.
+    _applyCanvasStyle: function () {
+      var canvas = document.getElementById('formCanvas');
+      if (!canvas) return;
+      // strip previous style classes/vars
+      canvas.className = canvas.className.replace(/\bnu-(density|card|labels)-[a-z]+/g, '').replace(/\bnu-form-styled\b/g, '').replace(/\s+/g, ' ').trim();
+      ['--nu-form-accent', '--nu-form-header-bg', '--nu-form-radius'].forEach(function (k) { canvas.style.removeProperty(k); });
+      if (!this._currentStyle) return;
+      var attrs = this._styleToAttrs(this._currentStyle);
+      attrs.classes.forEach(function (c) { if (c !== 'nu-generated-form') canvas.classList.add(c); });
+      var me2 = this;
+      Object.keys(attrs.vars).forEach(function (k) { canvas.style.setProperty(k, attrs.vars[k]); });
+    },
+
+    _injectStyleModalCss: function () {
+      if (document.getElementById('nbStyleModalCss')) return;
+      var s = document.createElement('style');
+      s.id = 'nbStyleModalCss';
+      s.textContent = [
+        '#nbFormStyleModal .nbst-x{background:none;border:0;font-size:24px;line-height:1;cursor:pointer;color:var(--text-tertiary,#94a3b8);padding:0 4px;}',
+        '#nbFormStyleModal .nbst-x:hover{color:var(--text-primary,#0f172a);}',
+        '#nbFormStyleModal .nbst-group-label{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary,#94a3b8);margin-bottom:8px;}',
+        '#nbFormStyleModal .nbst-presets{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}',
+        '#nbFormStyleModal .nbst-preset{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border:1.5px solid var(--border-color,#e2e8f0);border-radius:10px;background:var(--bg-card,#fff);cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .1s;}',
+        '#nbFormStyleModal .nbst-preset:hover{border-color:var(--color-primary,#4f6bed);transform:translateY(-1px);}',
+        '#nbFormStyleModal .nbst-preset.on{border-color:var(--color-primary,#4f6bed);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-primary,#4f6bed) 20%,transparent);}',
+        '#nbFormStyleModal .nbst-preset-ico{font-size:20px;line-height:1;}',
+        '#nbFormStyleModal .nbst-preset-name{font-size:11px;font-weight:600;color:var(--text-secondary,#475569);}',
+        '#nbFormStyleModal .nbst-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}',
+        '#nbFormStyleModal .nbst-field label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary,#475569);margin-bottom:4px;}',
+        '#nbFormStyleModal .nbst-field .nu-input{width:100%;box-sizing:border-box;}',
+        '#nbFormStyleModal .nbst-color{display:flex;align-items:center;gap:6px;}',
+        '#nbFormStyleModal .nbst-color input[type=color]{width:34px;height:34px;padding:2px;border:1px solid var(--border-color,#e2e8f0);border-radius:6px;background:none;cursor:pointer;flex:none;}',
+        '#nbFormStyleModal .nbst-color input[type=text]{flex:1;min-width:0;}',
+        '#nbFormStyleModal .nbst-reset{background:none;border:0;color:var(--color-primary,#4f6bed);font-size:11px;cursor:pointer;padding:0 2px;flex:none;}',
+        '#nbFormStyleModal .nbst-preview-col{background:var(--bg-subtle,#f1f5f9);border-left:1px solid var(--border-color,#e2e8f0);padding:16px;overflow-y:auto;}',
+        '#nbFormStyleModal .nbst-preview-label{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary,#94a3b8);margin-bottom:12px;}',
+        '#nbFormStyleModal .nbst-preview{pointer-events:none;}',
+        '#nbFormStyleModal .nbst-preview textarea{resize:none;}',
+        '@media (max-width:720px){#nbFormStyleModal .nbst-grid{grid-template-columns:1fr !important;}#nbFormStyleModal .nbst-preview-col{border-left:0;border-top:1px solid var(--border-color,#e2e8f0);}#nbFormStyleModal .nbst-presets{grid-template-columns:repeat(3,1fr);}}'
+      ].join('');
+      document.head.appendChild(s);
+    },
+
+    _activePreset: '',
 
     toggleFullscreen: function () {
       var card = document.getElementById('formBuilderCard');
@@ -3218,6 +3382,26 @@ if (canvasType === 'subform' && sfData) {
       var layout = [];
       try { layout = JSON.parse(formData.form_layout || '[]'); } catch (e) { layout = []; }
       if (!Array.isArray(layout)) layout = [];
+
+      // Restore any saved Form Style so the Style modal and canvas reflect it on edit.
+      me._currentStyle = null;
+      for (var _si = 0; _si < layout.length; _si++) {
+        if (layout[_si] && layout[_si].type === '_form_style') {
+          var _ss = layout[_si];
+          me._currentStyle = {
+            preset:        _ss.preset        || '',
+            density:       _ss.density       || 'comfortable',
+            card_style:    _ss.card_style    || 'default',
+            label_align:   _ss.label_align   || 'top',
+            header_bg:     _ss.header_bg     || '',
+            accent_color:  _ss.accent_color  || '',
+            border_radius: _ss.border_radius || ''
+          };
+          break;
+        }
+      }
+      me._applyCanvasStyle();
+
       var canvas = document.getElementById('formCanvas'); if (!canvas) return;
       _attachCanvasRowDrop(canvas);
       var rowMap = {}, topOrder = [], seenRows = {};
