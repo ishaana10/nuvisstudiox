@@ -892,6 +892,111 @@ body {
   color: var(--text-primary);
 }
 
+/* ══ FORM STYLE / THEME ══════════════════════════════════════════════════════
+   Implements the options set in the builder's "🎨 Form Style" modal.
+   The builder/renderer emits class hooks (nu-density-*, nu-card-*, nu-labels-*)
+   and CSS variables (--nu-form-accent, --nu-form-header-bg, --nu-form-radius)
+   on the <form class="nu-generated-form nu-form-styled …"> element. Without the
+   rules below those classes/variables did nothing — so "themes" had no effect.
+   The builder canvas (#formCanvas) carries the same classes for a live preview.
+══════════════════════════════════════════════════════════════════════════════ */
+
+.nu-form-styled {
+  --nu-form-gap: 14px;          /* vertical rhythm between rows   */
+  --nu-form-field-gap: 4px;     /* label → control gap           */
+  --nu-form-pad: 16px;          /* section/card inner padding     */
+  --nu-form-input-pad: 8px 11px;
+}
+
+/* ── Accent colour: buttons, focus rings, section accents ── */
+.nu-form-styled[style*="--nu-form-accent"] .nu-input:focus,
+#formCanvas.nu-form-styled[style*="--nu-form-accent"] .nu-input:focus {
+  border-color: var(--nu-form-accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nu-form-accent) 18%, transparent) !important;
+}
+.nu-form-styled[style*="--nu-form-accent"] .nu-btn-primary {
+  background: var(--nu-form-accent) !important;
+  border-color: var(--nu-form-accent) !important;
+}
+.nu-form-styled[style*="--nu-form-accent"] .nu-btn-primary:hover {
+  filter: brightness(.94);
+}
+
+/* ── Corner radius ── */
+.nu-form-styled[style*="--nu-form-radius"] .nu-input,
+.nu-form-styled[style*="--nu-form-radius"] .nu-section,
+.nu-form-styled[style*="--nu-form-radius"] .nu-group,
+.nu-form-styled[style*="--nu-form-radius"] .nu-btn {
+  border-radius: var(--nu-form-radius) !important;
+}
+
+/* ── Header background (section & group headers) ── */
+.nu-form-styled[style*="--nu-form-header-bg"] .nu-section-header,
+.nu-form-styled[style*="--nu-form-header-bg"] .nu-group-header {
+  background: var(--nu-form-header-bg) !important;
+}
+
+/* ── Density ── */
+.nu-density-compact      { --nu-form-gap: 8px;  --nu-form-pad: 10px; --nu-form-input-pad: 5px 9px; }
+.nu-density-comfortable  { --nu-form-gap: 14px; --nu-form-pad: 16px; --nu-form-input-pad: 8px 11px; }
+.nu-density-relaxed      { --nu-form-gap: 22px; --nu-form-pad: 22px; --nu-form-input-pad: 11px 14px; }
+
+.nu-form-styled .nu-form-row     { margin-bottom: var(--nu-form-gap); gap: var(--nu-form-gap); }
+.nu-form-styled .nu-field-wrapper{ gap: var(--nu-form-field-gap); }
+.nu-form-styled .nu-section-body,
+.nu-form-styled .nu-group-body   { padding: var(--nu-form-pad); }
+.nu-form-styled .nu-input        { padding: var(--nu-form-input-pad); }
+
+/* ── Card style ── */
+.nu-card-default .nu-section {
+  border: 1px solid var(--border-color, #e2e8f0);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.nu-card-elevated .nu-section {
+  border: 1px solid transparent;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, .10);
+}
+.nu-card-outlined .nu-section {
+  border: 1.5px solid var(--border-color, #cbd5e1);
+  box-shadow: none;
+}
+.nu-card-flush .nu-section {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.nu-card-flush .nu-section > .nu-section-header { padding-left: 0; padding-right: 0; }
+.nu-card-flush .nu-section > .nu-section-body   { padding-left: 0; padding-right: 0; }
+
+/* ── Label alignment ── */
+.nu-labels-left .nu-field-wrapper {
+  display: grid;
+  grid-template-columns: minmax(110px, 32%) 1fr;
+  align-items: center;
+  column-gap: 12px;
+}
+.nu-labels-left .nu-field-wrapper > label { margin-bottom: 0; text-align: right; }
+.nu-labels-left .nu-field-wrapper > label + * { grid-column: 2; }
+
+.nu-labels-inline .nu-field-wrapper { position: relative; }
+.nu-labels-inline .nu-field-wrapper > label {
+  position: absolute;
+  top: -7px; left: 10px;
+  padding: 0 5px;
+  font-size: 11px;
+  background: var(--bg-card, #fff);
+  color: var(--text-tertiary, #94a3b8);
+  z-index: 1;
+}
+[data-theme="dark"] .nu-labels-inline .nu-field-wrapper > label { background: var(--bg-card); }
+
+/* Left/inline alignment needs full-width cells on small screens */
+@media (max-width: 560px) {
+  .nu-labels-left .nu-field-wrapper { grid-template-columns: 1fr; }
+  .nu-labels-left .nu-field-wrapper > label { text-align: left; margin-bottom: 4px; }
+  .nu-labels-left .nu-field-wrapper > label + * { grid-column: 1; }
+}
+
 /* ══ Nav Form Item — inline label + action dropdown ══════════════════════════
    Rendered by MenuRenderer for type=form items.
    The label (primary button) is always visible.
