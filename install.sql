@@ -681,6 +681,52 @@ CREATE TABLE IF NOT EXISTS `nu_form_share_log` (
     KEY `idx_fl_share_time` (`fl_fs_id`, `fl_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ─── CUSTOMER REQUEST CHANNELS ────────────────────────────────────────────────
+-- A reusable "customer request" channel ties together a form (intake), a
+-- workflow (status tracking) and a public share (link + email). One or more
+-- per project; fully managed by the Customer Requests module.
+CREATE TABLE IF NOT EXISTS `nu_cr_configs` (
+    `cr_id` INT NOT NULL AUTO_INCREMENT,
+    `project_id` INT UNSIGNED NOT NULL DEFAULT 1,
+    `cr_code` VARCHAR(64) NOT NULL,
+    `cr_name` VARCHAR(150) NOT NULL,
+    `cr_description` TEXT,
+    `cr_icon` VARCHAR(16) DEFAULT NULL,
+    `cr_form_code` VARCHAR(64) NOT NULL,
+    `cr_table` VARCHAR(64) NOT NULL,
+    `cr_workflow_code` VARCHAR(64) DEFAULT NULL,
+    `cr_reference_prefix` VARCHAR(16) DEFAULT NULL,
+    `cr_customer_name_field` VARCHAR(64) DEFAULT NULL,
+    `cr_customer_email_field` VARCHAR(64) DEFAULT NULL,
+    `cr_subject_field` VARCHAR(64) DEFAULT NULL,
+    `cr_public_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+    `cr_notify_email` VARCHAR(500) DEFAULT NULL,
+    `cr_options` TEXT DEFAULT NULL COMMENT 'JSON: SLA, field map, module links, extras',
+    `cr_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `cr_created_by` INT DEFAULT NULL,
+    `cr_created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `cr_updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`cr_id`),
+    UNIQUE KEY `uq_cr_code_project` (`project_id`, `cr_code`),
+    KEY `idx_cr_active` (`project_id`, `cr_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Internal notes / comments on an individual request (separate from the
+-- workflow history, which records only status transitions).
+CREATE TABLE IF NOT EXISTS `nu_cr_notes` (
+    `crn_id` INT NOT NULL AUTO_INCREMENT,
+    `project_id` INT UNSIGNED NOT NULL DEFAULT 1,
+    `crn_cr_id` INT NOT NULL,
+    `crn_record_id` VARCHAR(64) NOT NULL,
+    `crn_note` TEXT NOT NULL,
+    `crn_author_id` INT DEFAULT NULL,
+    `crn_author_name` VARCHAR(150) DEFAULT NULL,
+    `crn_pinned` TINYINT(1) NOT NULL DEFAULT 0,
+    `crn_created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`crn_id`),
+    KEY `idx_crn_record` (`crn_cr_id`, `crn_record_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ─── SEED DATA ───────────────────────────────────────────────────────────────
 INSERT IGNORE INTO `nu_roles` (`role_code`, `role_name`, `role_description`, `role_is_system`) VALUES
 ('globeadmin', 'Globe Admin', 'System administrator - full access, cannot be deleted', 1),
@@ -908,6 +954,20 @@ INSERT IGNORE INTO `nu_email_templates` (`name`, `slug`, `subject`, `body`, `des
   'Security Alert: Account Temporarily Locked - {{app_name}}',
   '<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:600px;margin:auto\">\n<h2 style="color:#ef4444\">Security Alert: Account Locked</h2>\n<p>Hi {{user_name}},</p>\n<p>Your account has been temporarily locked due to too many failed login attempts.</p>\n<p><strong>Lockout Duration:</strong> {{lockout_duration}} minutes</p>\n<p>If this was not you, someone may be trying to access your account.</p>\n<hr/><p style="font-size:12px;color:#888">nub5-dev Automated Notification</p>\n</body></html>',
   'Sent when a user account is locked. Variables: {{user_name}}, {{app_name}}, {{lockout_duration}}'
+),
+(
+  'Customer Request - Received',
+  'cr_request_received',
+  'We received your request ({{reference}})',
+  '<!DOCTYPE html><html><body style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto;color:#1e293b">\n<h2 style="color:#4f6bed;margin:0 0 12px">Thanks, we have got your request</h2>\n<p>Hi {{customer_name}},</p>\n<p>We received your {{request_name}} and our team will be in touch. Your reference is <strong>{{reference}}</strong> - please quote it in any follow-up.</p>\n<table style="width:100%;border-collapse:collapse;margin:16px 0">\n  <tr><td style="padding:8px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Reference</strong></td><td style="padding:8px;border:1px solid #e2e8f0">{{reference}}</td></tr>\n  <tr><td style="padding:8px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Subject</strong></td><td style="padding:8px;border:1px solid #e2e8f0">{{subject}}</td></tr>\n  <tr><td style="padding:8px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Status</strong></td><td style="padding:8px;border:1px solid #e2e8f0">{{status}}</td></tr>\n</table>\n<p style="font-size:12px;color:#94a3b8">This is an automated message from {{app_name}}.</p>\n</body></html>',
+  'Sent to a customer when they submit a request. Variables: {{customer_name}}, {{reference}}, {{request_name}}, {{subject}}, {{status}}, {{app_name}}'
+),
+(
+  'Customer Request - Status Updated',
+  'cr_status_changed',
+  'Update on your request {{reference}}: {{status}}',
+  '<!DOCTYPE html><html><body style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto;color:#1e293b">\n<h2 style="color:#4f6bed;margin:0 0 12px">Your request has an update</h2>\n<p>Hi {{customer_name}},</p>\n<p>Request <strong>{{reference}}</strong> is now: <strong>{{status}}</strong>.</p>\n<p style="background:#f8fafc;border-left:3px solid #4f6bed;padding:10px 14px;margin:14px 0">{{comment}}</p>\n<p style="font-size:12px;color:#94a3b8">This is an automated message from {{app_name}}.</p>\n</body></html>',
+  'Sent to a customer when their request changes status. Variables: {{customer_name}}, {{reference}}, {{status}}, {{comment}}, {{app_name}}'
 );
 
 -- Seed System Users Form Definition (for GlobeAdmin Customization)
