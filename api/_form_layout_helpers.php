@@ -45,9 +45,10 @@ function nu_flatten_layout_fields($layout) {
                 continue;
             }
 
-            // ── Plain row (uses fields[]) ──────────────────────────────────
-            if ($type === 'row' || isset($item['fields'])) {
+            // ── Plain row (uses fields[] or children[]) ────────────────────
+            if ($type === 'row' || isset($item['fields']) || isset($item['children'])) {
                 $walk($item['fields'] ?? []);
+                $walk($item['children'] ?? []);
                 continue;
             }
 

@@ -28,6 +28,7 @@ require_once dirname(__DIR__) . '/core/Audit.php';
 require_once dirname(__DIR__) . '/core/Workflow.php';
 require_once dirname(__DIR__) . '/core/ProjectContext.php';
 require_once dirname(__DIR__) . '/core/CustomerRequests.php';
+require_once __DIR__ . '/_form_layout_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -47,11 +48,17 @@ $pid    = ProjectContext::getId();
 $action = (string)($_GET['action'] ?? '');
 $body   = (array)(json_decode((string)file_get_contents('php://input'), true) ?? []);
 
-function cr_json(array $d, int $code = 200): void { http_response_code($code); echo json_encode($d); }
-function cr_fail(string $msg, int $code = 200): void { cr_json(['success' => false, 'error' => $msg], $code); }
+if (!function_exists('cr_json')) {
+    function cr_json(array $d, int $code = 200): void { http_response_code($code); echo json_encode($d); }
+}
+if (!function_exists('cr_fail')) {
+    function cr_fail(string $msg, int $code = 200): void { cr_json(['success' => false, 'error' => $msg], $code); }
+}
 
 /** Actions that change configuration require an admin (same bar as Forms/Workflow design). */
-const CR_ADMIN_ACTIONS = ['setup', 'save_config', 'delete_config'];
+if (!defined('CR_ADMIN_ACTIONS')) {
+    define('CR_ADMIN_ACTIONS', ['setup', 'save_config', 'delete_config']);
+}
 if (in_array($action, CR_ADMIN_ACTIONS, true) && !$isAdmin) {
     cr_fail('You need an administrator role to change customer-request setup.', 403);
     exit;
@@ -83,10 +90,96 @@ $instancesForTable = static function (string $table) use ($db, $pid): array {
     return $byRecord;
 };
 
+/** Inspect a table's columns and determine its primary key. */
+$tableMeta = static function (string $table) use ($db): array {
+    $cleanTable = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    if ($cleanTable === '') {
+        return ['table' => '', 'pk' => 'id', 'columns' => [], 'pk_type' => 'text'];
+    }
+    $sqlite = $db->getDriverName() === 'sqlite';
+    $cols = [];
+    $pk = null;
+    $pkType = 'text';
+
+    try {
+        if ($sqlite) {
+            $rows = $db->fetchAll("PRAGMA table_info(`{$cleanTable}`)");
+            foreach ($rows as $r) {
+                $name = (string)($r['name'] ?? '');
+                $type = strtolower((string)($r['type'] ?? ''));
+                $cols[$name] = [
+                    'name' => $name,
+                    'type' => $type,
+                    'pk'   => !empty($r['pk']),
+                ];
+                if (!empty($r['pk']) && $pk === null) {
+                    $pk = $name;
+                    $pkType = $type;
+                }
+            }
+        } else {
+            $rows = $db->fetchAll("DESCRIBE `{$cleanTable}`");
+            foreach ($rows as $r) {
+                $name = (string)($r['Field'] ?? '');
+                $type = strtolower((string)($r['Type'] ?? ''));
+                $isPk = strtoupper((string)($r['Key'] ?? '')) === 'PRI';
+                $cols[$name] = [
+                    'name' => $name,
+                    'type' => $type,
+                    'pk'   => $isPk,
+                ];
+                if ($isPk && $pk === null) {
+                    $pk = $name;
+                    $pkType = $type;
+                }
+            }
+        }
+    } catch (Throwable $e) {}
+
+    // Fallbacks if PK not explicitly defined in schema
+    if (!$pk) {
+        $candidates = ['id', 'request_id', 'service_type_id', 'service_log_id'];
+        foreach ($candidates as $cand) {
+            if (isset($cols[$cand])) {
+                $pk = $cand;
+                $pkType = $cols[$cand]['type'] ?? 'text';
+                break;
+            }
+        }
+        if (!$pk) {
+            $firstCol = array_key_first($cols);
+            $pk = $firstCol ?: 'id';
+            $pkType = $cols[$pk]['type'] ?? 'text';
+        }
+    }
+
+    return [
+        'table'   => $cleanTable,
+        'pk'      => $pk,
+        'pk_type' => $pkType,
+        'columns' => $cols,
+    ];
+};
+
+/** Extract record ID using table meta or fallback candidates. */
+$recordId = static function (array $rec, ?string $pkCol = null): string {
+    if ($pkCol && isset($rec[$pkCol]) && $rec[$pkCol] !== '') {
+        return (string)$rec[$pkCol];
+    }
+    if (isset($rec['id']) && $rec['id'] !== '') return (string)$rec['id'];
+    if (isset($rec['request_id']) && $rec['request_id'] !== '') return (string)$rec['request_id'];
+    foreach ($rec as $k => $v) {
+        if (str_ends_with(strtolower($k), '_id') && $v !== null && $v !== '') {
+            return (string)$v;
+        }
+    }
+    return '';
+};
+
 /** A short, friendly reference for a request. */
-$reference = static function (array $cfg, array $rec): string {
+$reference = static function (array $cfg, array $rec, ?string $pkCol = null) use ($recordId): string {
     $prefix = (string)($cfg['cr_reference_prefix'] ?? 'REQ-');
-    $id = (string)($rec['id'] ?? $rec['request_id'] ?? '');
+    $id = $recordId($rec, $pkCol);
     $short = (strlen($id) > 8 && strpos($id, '-') !== false) ? strtoupper(substr($id, 0, 6)) : $id;
     return $prefix . $short;
 };
@@ -126,16 +219,29 @@ try {
             $form = $db->fetchOne('SELECT form_code, form_name, form_layout FROM nu_forms WHERE form_code = ? AND project_id = ?', [$cfg['cr_form_code'], $pid]);
             $fields = [];
             if ($form) {
-                $layout = json_decode((string)$form['form_layout'], true) ?: [];
-                foreach ($layout as $n) {
+                $rawLayout = json_decode((string)$form['form_layout'], true) ?: [];
+                $flatLayout = function_exists('nu_flatten_layout_fields')
+                    ? nu_flatten_layout_fields($rawLayout)
+                    : $rawLayout;
+                foreach ($flatLayout as $n) {
                     $t = (string)($n['type'] ?? 'text');
                     if (in_array($t, ['divider', 'html', 'group', 'tab', 'button', '_form_style'], true)) continue;
-                    $nm = (string)($n['name'] ?? '');
+                    $nm = (string)($n['name'] ?? ($n['fieldname'] ?? ''));
                     if ($nm === '') continue;
+                    $opts = [];
+                    if (is_array($n['options'] ?? null)) {
+                        foreach ($n['options'] as $o) {
+                            if (is_array($o)) {
+                                $opts[] = ['value' => (string)($o['value'] ?? ''), 'label' => (string)($o['label'] ?? $o['value'] ?? '')];
+                            } else {
+                                $opts[] = ['value' => (string)$o, 'label' => (string)$o];
+                            }
+                        }
+                    }
                     $fields[] = [
-                        'name' => $nm, 'label' => (string)($n['label'] ?? $nm), 'type' => $t,
+                        'name' => $nm, 'label' => (string)($n['label'] ?? ($n['fieldlabel'] ?? $nm)), 'type' => $t,
                         'required' => !empty($n['required']),
-                        'options' => is_array($n['options'] ?? null) ? $n['options'] : [],
+                        'options' => $opts,
                     ];
                 }
             }
@@ -193,9 +299,22 @@ try {
         /* ── Tracking board ──────────────────────────────────────────────── */
         case 'board':
             $cfg = $requireConfig((int)($_GET['id'] ?? 0));
-            $table = preg_replace('/[^a-zA-Z0-9_]/', '', (string)$cfg['cr_table']);
+            $tMeta = $tableMeta((string)$cfg['cr_table']);
+            $table = $tMeta['table'];
+            $pkCol = $tMeta['pk'];
+            $hasCreated = isset($tMeta['columns']['created_at']);
+            $orderClause = '';
+            if ($hasCreated && $pkCol) {
+                $orderClause = "ORDER BY `created_at` DESC, `{$pkCol}` DESC";
+            } elseif ($hasCreated) {
+                $orderClause = "ORDER BY `created_at` DESC";
+            } elseif ($pkCol) {
+                $orderClause = "ORDER BY `{$pkCol}` DESC";
+            }
+
             $search = trim((string)($_GET['q'] ?? ''));
-            $records = $db->fetchAll('SELECT * FROM `' . $table . '` ORDER BY created_at DESC, id DESC LIMIT 1000');
+            $query = 'SELECT * FROM `' . $table . '` ' . $orderClause . ' LIMIT 1000';
+            $records = $db->fetchAll($query);
             $instances = $instancesForTable($table);
 
             // Build columns from workflow stages (fallback: a single "All" column).
@@ -218,7 +337,7 @@ try {
             $subjField  = (string)($cfg['cr_subject_field'] ?? '');
 
             foreach ($records as $rec) {
-                $rid = (string)($rec['id'] ?? $rec['request_id'] ?? '');
+                $rid = $recordId($rec, $pkCol);
                 $inst = $instances[$rid] ?? null;
                 $colCode = $inst ? (string)$inst['wfs_code'] : (array_key_first($columns));
                 if (!isset($columns[$colCode])) $colCode = array_key_first($columns);
@@ -233,7 +352,7 @@ try {
 
                 $columns[$colCode]['cards'][] = [
                     'id'        => $rid,
-                    'reference' => $reference($cfg, $rec),
+                    'reference' => $reference($cfg, $rec, $pkCol),
                     'customer'  => $nameField && isset($rec[$nameField]) ? (string)$rec[$nameField] : '',
                     'email'     => $emailField && isset($rec[$emailField]) ? (string)$rec[$emailField] : '',
                     'subject'   => $subjField && isset($rec[$subjField]) ? (string)$rec[$subjField] : '',
@@ -251,9 +370,19 @@ try {
         case 'request':
             $cfg = $requireConfig((int)($_GET['id'] ?? 0));
             $rid = (string)($_GET['record'] ?? '');
-            $table = preg_replace('/[^a-zA-Z0-9_]/', '', (string)$cfg['cr_table']);
-            $rec = $db->fetchOne('SELECT * FROM `' . $table . '` WHERE id = ? LIMIT 1', [$rid]);
-            if (!$rec) $rec = $db->fetchOne('SELECT * FROM `' . $table . '` WHERE request_id = ? LIMIT 1', [$rid]);
+            $tMeta = $tableMeta((string)$cfg['cr_table']);
+            $table = $tMeta['table'];
+            $pkCol = $tMeta['pk'];
+            $rec = null;
+            if ($pkCol) {
+                $rec = $db->fetchOne('SELECT * FROM `' . $table . '` WHERE `' . $pkCol . '` = ? LIMIT 1', [$rid]);
+            }
+            if (!$rec && isset($tMeta['columns']['id'])) {
+                $rec = $db->fetchOne('SELECT * FROM `' . $table . '` WHERE id = ? LIMIT 1', [$rid]);
+            }
+            if (!$rec && isset($tMeta['columns']['request_id'])) {
+                $rec = $db->fetchOne('SELECT * FROM `' . $table . '` WHERE request_id = ? LIMIT 1', [$rid]);
+            }
             if (!$rec) { cr_fail('Request not found.'); break; }
 
             // workflow instance + history + available actions
@@ -288,7 +417,7 @@ try {
 
             cr_json(['success' => true, 'request' => [
                 'record'      => $rec,
-                'reference'   => $reference($cfg, $rec),
+                'reference'   => $reference($cfg, $rec, $pkCol),
                 'instance_id' => $instanceRow ? (int)$instanceRow['wfi_id'] : 0,
                 'status'      => $instance ? (string)($instance['stage_name'] ?? $instance['wfs_name'] ?? '') : 'Unmanaged',
                 'status_color'=> $instance ? (string)($instance['stage_color'] ?? $instance['wfs_color'] ?? '#94a3b8') : '#94a3b8',
@@ -328,23 +457,30 @@ try {
 
         case 'create_request':
             $cfg = $requireConfig((int)($body['id'] ?? 0));
-            $table = preg_replace('/[^a-zA-Z0-9_]/', '', (string)$cfg['cr_table']);
+            $tMeta = $tableMeta((string)$cfg['cr_table']);
+            $table = $tMeta['table'];
+            $pkCol = $tMeta['pk'];
+            $cols  = $tMeta['columns'];
             $values = is_array($body['values'] ?? null) ? $body['values'] : [];
-            // only keep columns that actually exist
-            $sqlite = $db->getDriverName() === 'sqlite';
-            $cols = [];
-            foreach ($db->fetchAll($sqlite ? "PRAGMA table_info(`$table`)" : "DESCRIBE `$table`") as $c) {
-                $cols[(string)($c['name'] ?? $c['Field'])] = true;
-            }
+
             $save = [];
-            foreach ($values as $k => $v) { if (isset($cols[$k]) && $k !== 'id') $save[$k] = is_scalar($v) ? (string)$v : json_encode($v); }
-            if (isset($cols['id']) && !isset($save['id'])) $save['id'] = NuCustomerRequests::uuid();
+            foreach ($values as $k => $v) {
+                if (isset($cols[$k]) && $k !== $pkCol) {
+                    $save[$k] = is_scalar($v) ? (string)$v : json_encode($v);
+                }
+            }
+            if ($pkCol && isset($cols[$pkCol]) && !isset($save[$pkCol])) {
+                $isString = preg_match('/char|text|uuid|string/i', (string)($cols[$pkCol]['type'] ?? ''));
+                if ($isString) {
+                    $save[$pkCol] = NuCustomerRequests::uuid();
+                }
+            }
             $now = date('Y-m-d H:i:s');
             if (isset($cols['created_at'])) $save['created_at'] = $now;
             if (isset($cols['updated_at'])) $save['updated_at'] = $now;
             if (!$save) { cr_fail('Nothing to save.'); break; }
             $db->insert($table, $save);
-            $newId = (string)($save['id'] ?? $db->lastInsertId());
+            $newId = ($pkCol && isset($save[$pkCol])) ? (string)$save[$pkCol] : (string)$db->lastInsertId();
 
             // start the bound workflow for this new record (same as a public submission)
             if (!empty($cfg['cr_workflow_code']) && !empty($cfg['wf_id'])) {
@@ -358,14 +494,24 @@ try {
         /* ── Stats ───────────────────────────────────────────────────────── */
         case 'stats':
             $cfg = $requireConfig((int)($_GET['id'] ?? 0));
-            $table = preg_replace('/[^a-zA-Z0-9_]/', '', (string)$cfg['cr_table']);
+            $tMeta = $tableMeta((string)$cfg['cr_table']);
+            $table = $tMeta['table'];
+            $pkCol = $tMeta['pk'];
             $instances = $instancesForTable($table);
             $total = 0; $open = 0; $overdue = 0; $byStage = [];
             foreach ($cfg['stages'] as $s) $byStage[(string)$s['wfs_code']] = ['name' => $s['wfs_name'], 'color' => $s['wfs_color'], 'count' => 0];
-            $records = $db->fetchAll('SELECT id, request_id, created_at FROM `' . $table . '` LIMIT 5000');
+
+            $selectCols = [];
+            if ($pkCol) $selectCols[] = '`' . $pkCol . '`';
+            if (isset($tMeta['columns']['id']) && !in_array('`id`', $selectCols, true)) $selectCols[] = '`id`';
+            if (isset($tMeta['columns']['request_id']) && !in_array('`request_id`', $selectCols, true)) $selectCols[] = '`request_id`';
+            if (isset($tMeta['columns']['created_at'])) $selectCols[] = '`created_at`';
+            if (empty($selectCols)) $selectCols = ['*'];
+
+            $records = $db->fetchAll('SELECT ' . implode(', ', $selectCols) . ' FROM `' . $table . '` LIMIT 5000');
             foreach ($records as $rec) {
                 $total++;
-                $rid = (string)($rec['id'] ?? $rec['request_id'] ?? '');
+                $rid = $recordId($rec, $pkCol);
                 $inst = $instances[$rid] ?? null;
                 if ($inst) {
                     $code = (string)$inst['wfs_code'];
