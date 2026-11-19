@@ -13,8 +13,18 @@ class NuWidgetStore {
         return strtolower(trim($role));
     }
 
+    /**
+     * Session user id → safe id string, or null when absent/invalid. Installs run either with
+     * numeric ids (auto_increment) or UUID strings (userIdType = 'uuid'), so never cast to int.
+     */
+    public static function normalizeUserId(mixed $v): ?string {
+        if (is_int($v)) $v = (string)$v;
+        if (!is_string($v) || $v === '' || $v === '0') return null;
+        return preg_match('/^[A-Za-z0-9_-]{1,64}$/', $v) ? $v : null;
+    }
+
     /** Active role widgets for $role plus the user's own personal widgets. */
-    public static function visibleWidgets(NuDatabase $db, int $userId, string $role): array {
+    public static function visibleWidgets(NuDatabase $db, int|string $userId, string $role): array {
         return $db->fetchAll(
             'SELECT * FROM nu_dashboard_widgets
               WHERE widget_active = 1
@@ -35,7 +45,7 @@ class NuWidgetStore {
     }
 
     /** @return array<int,array> prefs keyed by widget_id */
-    public static function loadPrefs(NuDatabase $db, int $userId): array {
+    public static function loadPrefs(NuDatabase $db, int|string $userId): array {
         $out = [];
         foreach ($db->fetchAll('SELECT * FROM nu_dashboard_user_prefs WHERE user_id = ?', [$userId]) as $row) {
             $out[(int)$row['widget_id']] = $row;
@@ -47,7 +57,7 @@ class NuWidgetStore {
      * Upsert already-sanitised items (see NuWidgetPrefs::sanitizeSaveItems).
      * Only the supplied keys change; other stored values are kept.
      */
-    public static function savePrefs(NuDatabase $db, int $userId, array $items): void {
+    public static function savePrefs(NuDatabase $db, int|string $userId, array $items): void {
         $now = date('Y-m-d H:i:s');
         foreach ($items as $it) {
             $id = (int)$it['id'];
@@ -68,20 +78,20 @@ class NuWidgetStore {
     }
 
     /** Remove the user's overrides and look settings. Returns pref rows deleted. */
-    public static function resetPrefs(NuDatabase $db, int $userId): int {
+    public static function resetPrefs(NuDatabase $db, int|string $userId): int {
         $n = $db->query('DELETE FROM nu_dashboard_user_prefs WHERE user_id = ?', [$userId])->rowCount();
         $db->query('DELETE FROM nu_dashboard_user_settings WHERE user_id = ?', [$userId]);
         return (int)$n;
     }
 
-    public static function loadSettings(NuDatabase $db, int $userId): array {
+    public static function loadSettings(NuDatabase $db, int|string $userId): array {
         $row = $db->fetchOne('SELECT settings FROM nu_dashboard_user_settings WHERE user_id = ?', [$userId]);
         $decoded = $row ? json_decode((string)$row['settings'], true) : [];
         return NuWidgetPrefs::normalizeSettings(is_array($decoded) ? $decoded : []);
     }
 
     /** Merge supplied keys over the stored settings, normalise, persist, return the result. */
-    public static function saveSettings(NuDatabase $db, int $userId, array $in): array {
+    public static function saveSettings(NuDatabase $db, int|string $userId, array $in): array {
         $has = $db->fetchOne('SELECT 1 FROM nu_dashboard_user_settings WHERE user_id = ?', [$userId]);
         $merged = NuWidgetPrefs::normalizeSettings(array_merge($has ? self::loadSettings($db, $userId) : [], $in));
         $json = json_encode($merged, JSON_UNESCAPED_UNICODE);

@@ -93,7 +93,7 @@ class NuWidgetRegistry {
      * Render one widget row to an HTML fragment. Never throws.
      * @return array{ok:bool,html:string}
      */
-    public static function renderWidget(array $widget, NuDatabase $db, int $userId, string $role): array {
+    public static function renderWidget(array $widget, NuDatabase $db, int|string $userId, string $role): array {
         $type = (string)($widget['widget_type'] ?? '');
         $def  = self::get($type);
         if ($def === null) {

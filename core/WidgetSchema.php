@@ -37,6 +37,7 @@ class NuWidgetSchema {
         if (!self::tableExists($db, self::T_WIDGETS)) {
             return;
         }
+        self::widenUserIdColumns($db);
         $have = self::columns($db, self::T_WIDGETS);
         $add = [
             'widget_key'     => 'VARCHAR(64) NULL',
@@ -100,6 +101,29 @@ class NuWidgetSchema {
         }
     }
 
+    /**
+     * Installs with userIdType = 'uuid' have string user ids, so the user-id columns must be text.
+     * MySQL/MariaDB only: converts the columns when an earlier build created them as integers.
+     * (SQLite is type-flexible and new SQLite tables are already TEXT.)
+     */
+    private static function widenUserIdColumns(NuDatabase $db): void {
+        if (self::isSqlite($db)) return;
+        $targets = [
+            [self::T_WIDGETS,  'widget_user_id', 'VARCHAR(64) NULL DEFAULT NULL'],
+            [self::T_PREFS,    'user_id',        'VARCHAR(64) NOT NULL'],
+            [self::T_SETTINGS, 'user_id',        'VARCHAR(64) NOT NULL'],
+        ];
+        foreach ($targets as [$table, $col, $ddl]) {
+            $row = $db->fetchOne(
+                'SELECT DATA_TYPE AS t FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+                [$table, $col]
+            );
+            if ($row && stripos((string)$row['t'], 'int') !== false) {
+                $db->exec("ALTER TABLE `{$table}` MODIFY `{$col}` {$ddl}");
+            }
+        }
+    }
+
     private static function ensureUniqueKey(NuDatabase $db): void {
         $t = self::T_WIDGETS;
         $k = self::UNIQUE_KEY;
@@ -121,18 +145,18 @@ class NuWidgetSchema {
         if (self::isSqlite($db)) {
             $db->exec('CREATE TABLE IF NOT EXISTS ' . self::T_PREFS . ' (
                 pref_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL, widget_id INTEGER NOT NULL,
+                user_id TEXT NOT NULL, widget_id INTEGER NOT NULL,
                 hidden INTEGER NOT NULL DEFAULT 0, position INTEGER NULL,
                 width INTEGER NULL, height INTEGER NULL, accent TEXT NULL,
                 updated_at TEXT NULL,
                 UNIQUE (user_id, widget_id))');
             $db->exec('CREATE TABLE IF NOT EXISTS ' . self::T_SETTINGS . ' (
-                user_id INTEGER PRIMARY KEY, settings TEXT NOT NULL, updated_at TEXT NULL)');
+                user_id TEXT PRIMARY KEY, settings TEXT NOT NULL, updated_at TEXT NULL)');
             return;
         }
         $db->exec('CREATE TABLE IF NOT EXISTS `' . self::T_PREFS . '` (
             `pref_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-            `user_id` INT UNSIGNED NOT NULL,
+            `user_id` VARCHAR(64) NOT NULL,
             `widget_id` INT UNSIGNED NOT NULL,
             `hidden` TINYINT(1) NOT NULL DEFAULT 0,
             `position` SMALLINT NULL,
@@ -144,7 +168,7 @@ class NuWidgetSchema {
             UNIQUE KEY `uq_user_widget` (`user_id`, `widget_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         $db->exec('CREATE TABLE IF NOT EXISTS `' . self::T_SETTINGS . '` (
-            `user_id` INT UNSIGNED NOT NULL,
+            `user_id` VARCHAR(64) NOT NULL,
             `settings` TEXT NOT NULL,
             `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (`user_id`)
