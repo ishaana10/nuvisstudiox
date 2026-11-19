@@ -1,227 +1,232 @@
 <?php
 declare(strict_types=1);
 /**
- * modules/dashboard/widget_api.php
+ * modules/dashboard/widget_api.php — dashboard widgets JSON API.
+ *
+ * Thin glue: permissions (NuWidgetPolicy), CSRF, then one handler per action.
+ * Logic lives in core/Widget*.php (unit-tested). "Developer" = globeadmin.
+ *
+ * Self-service (any signed-in user): list, render, prefs_save, prefs_reset, settings_save
+ * Developer only: types, designer_load, add/update/remove/reorder (role widgets),
+ *                 run_sql, list_tables
  */
 require_once dirname(__DIR__, 2) . '/core/module_bootstrap.php';
+foreach (['WidgetSchema', 'WidgetPrefs', 'WidgetPolicy', 'WidgetSql', 'WidgetRegistry', 'WidgetStore'] as $_wf) {
+    require_once dirname(__DIR__, 2) . "/core/{$_wf}.php";
+}
 
 header('Content-Type: application/json; charset=utf-8');
 
-$db      = NuDatabase::getInstance();
-$action  = $_GET['action'] ?? ($_POST['action'] ?? '');
-$userId  = (int)($_SESSION['nu_user_id'] ?? 0);
-$role    = strtolower((string)($_SESSION['nu_role'] ?? ''));
-$isAdmin      = in_array($role, ['globeadmin', 'admin'], true);
-$isGlobeAdmin = ($role === 'globeadmin');
+$db       = NuDatabase::getInstance();
+$userId   = (int)($_SESSION['nu_user_id'] ?? 0);
+$role     = strtolower((string)($_SESSION['nu_role'] ?? ''));
+$action   = (string)($_GET['action'] ?? ($_POST['action'] ?? ''));
+$isPost   = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
 
-// ── Auto-migrate: ensure widget_icon column exists ────────────────────────
-try {
-    $iconColExists = (bool)$db->fetchOne(
-        "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-          WHERE TABLE_SCHEMA = DATABASE()
-            AND TABLE_NAME   = 'nu_dashboard_widgets'
-            AND COLUMN_NAME  = 'widget_icon'"
-    );
-    if (!$iconColExists) {
-        $db->query(
-            "ALTER TABLE nu_dashboard_widgets
-               ADD COLUMN widget_icon VARCHAR(120) DEFAULT NULL
-               AFTER widget_title"
-        );
-    } else {
-        $db->query(
-            "ALTER TABLE nu_dashboard_widgets
-               MODIFY COLUMN widget_icon VARCHAR(120) DEFAULT NULL"
-        );
-    }
-} catch (Throwable $e) {
-    error_log('[widget_api] icon col migration: ' . $e->getMessage());
-}
-
-function wu_json(array $data): never {
+function wu_json(array $data, int $status = 200): never {
+    http_response_code($status);
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
-function wu_safe_sql(string $sql, int $userId): string {
-    $role = (string)($_SESSION['nu_role'] ?? '');
-    $replacements = [
-        '{{user_id}}'    => (string)$userId,
-        '{{role}}'       => $role,
-        '{{today}}'      => date('Y-m-d'),
-        '{{this_month}}' => date('Y-m-01'),
-        '{{this_year}}'  => date('Y-01-01'),
-    ];
-    return strtr($sql, $replacements);
-}
+// Legacy action names → policy actions
+$policyMap = [
+    'list' => 'list', 'render' => 'render', 'prefs_save' => 'prefs_save', 'prefs_reset' => 'prefs_reset',
+    'settings_save' => 'settings_save', 'types' => 'types', 'designer_load' => 'designer_load',
+    'add' => 'role_add', 'update' => 'role_update', 'remove' => 'role_remove', 'reorder' => 'role_reorder',
+    'run_sql' => 'run_sql', 'list_tables' => 'list_tables',
+    'list_roles' => 'designer_load', 'reset' => 'prefs_reset',
+];
+if (!isset($policyMap[$action])) wu_json(['error' => 'Unknown action'], 404);
+if (!NuWidgetPolicy::can($policyMap[$action], $role)) wu_json(['error' => 'Forbidden'], 403);
 
-/**
- * Build a WHERE clause that matches:
- *  - personal widgets owned by $userId, OR
- *  - role-level widgets (widget_user_id IS NULL) when $isAdmin is true
- *
- * This is the ROOT CAUSE fix: the old code used `widget_user_id=?` which
- * never matches NULL rows, so updates/removes silently did nothing for
- * role-level (seeded) widgets.
- *
- * Returns: [ 'sql' => string, 'params' => array ]
- */
-function wu_ownership_clause(int $widgetId, int $userId, bool $isAdmin): array {
-    if ($isAdmin) {
-        return [
-            'sql'    => 'widget_id = ? AND (widget_user_id = ? OR widget_user_id IS NULL)',
-            'params' => [$widgetId, $userId],
-        ];
-    }
-    return [
-        'sql'    => 'widget_id = ? AND widget_user_id = ?',
-        'params' => [$widgetId, $userId],
-    ];
-}
-
-// ── GET: list ───────────────────────────────────────────────────────────
-if ($action === 'list') {
-    $personal = $db->fetchAll(
-        "SELECT * FROM nu_dashboard_widgets WHERE widget_user_id=? AND widget_active=1 ORDER BY widget_position",
-        [$userId]
-    );
-    if (!empty($personal)) wu_json(['widgets' => $personal, 'source' => 'personal']);
-    $roleWidgets = $db->fetchAll(
-        "SELECT * FROM nu_dashboard_widgets WHERE widget_user_id IS NULL AND widget_role=? AND widget_active=1 ORDER BY widget_position",
-        [$role]
-    );
-    wu_json(['widgets' => $roleWidgets ?: [], 'source' => 'role']);
-}
-
-// ── GET: list_roles ─────────────────────────────────────────────────────
-if ($action === 'list_roles') {
-    if (!$isGlobeAdmin) wu_json(['error' => 'Forbidden']);
-    try {
-        $rows  = $db->fetchAll("SELECT role_code, role_name FROM nu_roles ORDER BY role_name");
-        $roles = array_filter($rows, fn($r) => strtolower($r['role_code']) !== 'globeadmin');
-        wu_json(['roles' => array_values($roles)]);
-    } catch (Throwable $e) {
-        wu_json(['roles' => [
-            ['role_code' => 'user',       'role_name' => 'User'],
-            ['role_code' => 'manager',    'role_name' => 'Manager'],
-            ['role_code' => 'supervisor', 'role_name' => 'Supervisor'],
-            ['role_code' => 'admin',      'role_name' => 'Admin'],
-        ]]);
-    }
-}
-
-// ── GET: list_tables ────────────────────────────────────────────────────
-if ($action === 'list_tables') {
-    if (!$isAdmin) wu_json(['error' => 'Forbidden']);
-    try {
-        $rows   = $db->fetchAll("SHOW TABLES");
-        $tables = array_map(fn($r) => array_values($r)[0], $rows);
-        wu_json(['tables' => $tables]);
-    } catch (Throwable $e) { wu_json(['error' => $e->getMessage()]); }
-}
-
-// ── POST ──────────────────────────────────────────────────────────────────
 $body = [];
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $body = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-}
-
-if ($action === 'add') {
-    $type   = preg_replace('/[^a-z_]/', '', (string)($body['type'] ?? ''));
-    $title  = substr((string)($body['title'] ?? 'Widget'), 0, 120);
-    $config = $body['config'] ?? [];
-    $width  = max(1, min(4, (int)($body['width']  ?? 2)));
-    $height = max(1, min(3, (int)($body['height'] ?? 1)));
-    $icon   = substr((string)($body['icon'] ?? ''), 0, 120);
-
-    $targetRole = null;
-    $targetUser = $userId;
-    if ($isGlobeAdmin && !empty($body['target_role'])) {
-        $targetRole = substr((string)$body['target_role'], 0, 60);
-        $targetUser = null;
+if ($isPost) {
+    $body = json_decode((string)file_get_contents('php://input'), true);
+    if (!is_array($body)) $body = $_POST;
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($body['csrf_token'] ?? ($_POST['nu_csrf'] ?? ''));
+    if (!$auth->verifyCsrf((string)$token)) {
+        wu_json(['error' => 'Invalid security token. Reload the page and try again.'], 403);
     }
+}
 
-    if ($targetRole !== null) {
-        $maxPos = (int)($db->fetchOne(
-            "SELECT COALESCE(MAX(widget_position),0) as m FROM nu_dashboard_widgets WHERE widget_user_id IS NULL AND widget_role=?",
-            [$targetRole]
-        )['m'] ?? 0);
-    } else {
-        $maxPos = (int)($db->fetchOne(
-            "SELECT COALESCE(MAX(widget_position),0) as m FROM nu_dashboard_widgets WHERE widget_user_id=?",
-            [$targetUser]
-        )['m'] ?? 0);
+try {
+    if (empty($_SESSION['_nu_widget_schema_ensured'])) {
+        NuWidgetSchema::ensure($db);
+        $_SESSION['_nu_widget_schema_ensured'] = true;
     }
-
-    $db->query(
-        "INSERT INTO nu_dashboard_widgets
-            (widget_user_id, widget_role, widget_type, widget_title, widget_icon, widget_config, widget_width, widget_height, widget_position)
-         VALUES (?,?,?,?,?,?,?,?,?)",
-        [$targetUser, $targetRole, $type, $title, $icon !== '' ? $icon : null, json_encode($config), $width, $height, $maxPos + 10]
-    );
-    wu_json(['ok' => true, 'id' => $db->lastInsertId()]);
+} catch (Throwable $e) {
+    error_log('[widget_api] schema ensure: ' . $e->getMessage());
 }
 
-if ($action === 'remove') {
-    $id = (int)($body['id'] ?? 0);
-    $oc = wu_ownership_clause($id, $userId, $isAdmin);
-    $db->query(
-        "UPDATE nu_dashboard_widgets SET widget_active=0 WHERE " . $oc['sql'],
-        $oc['params']
+/** Role-row / own-personal-row guard for developer write actions. */
+function wu_writable_row(NuDatabase $db, int $id, int $userId): ?array {
+    $row = $db->fetchOne(
+        'SELECT * FROM nu_dashboard_widgets WHERE widget_id = ? AND (widget_user_id IS NULL OR widget_user_id = ?)',
+        [$id, $userId]
     );
-    wu_json(['ok' => true]);
+    return $row ?: null;
 }
 
-if ($action === 'reorder') {
-    foreach ((array)($body['order'] ?? []) as $item) {
-        $id  = (int)($item['id']       ?? 0);
-        $pos = (int)($item['position'] ?? 0);
-        if (!$id) continue;
-        $oc = wu_ownership_clause($id, $userId, $isAdmin);
-        $db->query(
-            "UPDATE nu_dashboard_widgets SET widget_position=? WHERE " . $oc['sql'],
-            array_merge([$pos], $oc['params'])
+function wu_clamp(mixed $v, int $min, int $max, int $fallback): int {
+    return is_numeric($v) ? max($min, min($max, (int)$v)) : $fallback;
+}
+
+switch ($action) {
+
+    case 'list': {
+        $r = NuWidgetPrefs::resolve(
+            NuWidgetStore::visibleWidgets($db, $userId, $role),
+            NuWidgetStore::loadPrefs($db, $userId)
         );
+        wu_json(['ok' => true, 'widgets' => $r['visible'], 'hidden' => $r['hidden'],
+                 'settings' => NuWidgetStore::loadSettings($db, $userId), 'can_design' => $role === 'globeadmin']);
     }
-    wu_json(['ok' => true]);
-}
 
-if ($action === 'update') {
-    $id       = (int)($body['id'] ?? 0);
-    $type     = preg_replace('/[^a-z_]/', '', (string)($body['type'] ?? ''));
-    $title    = substr((string)($body['title'] ?? ''), 0, 120);
-    $icon     = substr((string)($body['icon']  ?? ''), 0, 120);
-    $config   = json_encode($body['config'] ?? []);
-    $existing = $db->fetchOne("SELECT widget_type, widget_width, widget_height FROM nu_dashboard_widgets WHERE widget_id=?", [$id]);
-    $type     = $type !== '' ? $type : ($existing['widget_type'] ?? 'custom');
-    $width    = max(1, min(4, (int)($body['width']  ?? $existing['widget_width']  ?? 2)));
-    $height   = max(1, min(3, (int)($body['height'] ?? $existing['widget_height'] ?? 1)));
+    case 'render': {
+        $id = (int)($_GET['id'] ?? 0);
+        $row = null;
+        foreach (NuWidgetStore::visibleWidgets($db, $userId, $role) as $w) {
+            if ((int)$w['widget_id'] === $id) { $row = $w; break; }
+        }
+        if ($row === null && $role === 'globeadmin') {   // designer preview of any role widget
+            $row = $db->fetchOne('SELECT * FROM nu_dashboard_widgets WHERE widget_id = ? AND widget_active = 1 AND widget_user_id IS NULL', [$id]) ?: null;
+        }
+        if ($row === null) wu_json(['ok' => false, 'error' => 'Widget not found'], 404);
+        $res = NuWidgetRegistry::renderWidget($row, $db, $userId, $role);
+        wu_json(['ok' => $res['ok'], 'html' => $res['html'], 'refresh' => (int)($row['widget_refresh'] ?? 0)]);
+    }
 
-    // KEY FIX: use wu_ownership_clause so NULL user_id rows (role-level widgets)
-    // are matched by admin users. Old code: widget_user_id=? never matched NULL.
-    $oc = wu_ownership_clause($id, $userId, $isAdmin);
-    $db->query(
-        "UPDATE nu_dashboard_widgets
-            SET widget_type=?, widget_title=?, widget_icon=?, widget_config=?, widget_width=?, widget_height=?
-          WHERE " . $oc['sql'],
-        array_merge([$type, $title, $icon !== '' ? $icon : null, $config, $width, $height], $oc['params'])
-    );
-    wu_json(['ok' => true]);
-}
+    case 'prefs_save': {
+        $byId = [];
+        foreach (NuWidgetStore::visibleWidgets($db, $userId, $role) as $w) $byId[(int)$w['widget_id']] = $w;
+        $clean = NuWidgetPrefs::sanitizeSaveItems((array)($body['items'] ?? []), $byId);
+        NuWidgetStore::savePrefs($db, $userId, $clean);
+        wu_json(['ok' => true, 'saved' => count($clean)]);
+    }
 
-if ($action === 'reset') {
-    $db->query("UPDATE nu_dashboard_widgets SET widget_active=0 WHERE widget_user_id=?", [$userId]);
-    wu_json(['ok' => true]);
-}
+    case 'prefs_reset':
+    case 'reset': {
+        NuWidgetStore::resetPrefs($db, $userId);
+        wu_json(['ok' => true]);
+    }
 
-if ($action === 'run_sql') {
-    $sql = wu_safe_sql((string)($body['sql'] ?? ''), $userId);
-    if (!preg_match('/^\s*SELECT\b/i', $sql)) wu_json(['error' => 'Only SELECT statements allowed']);
-    try {
-        wu_json(['rows' => $db->fetchAll($sql)]);
-    } catch (Throwable $e) {
-        wu_json(['error' => $e->getMessage()]);
+    case 'settings_save': {
+        wu_json(['ok' => true, 'settings' => NuWidgetStore::saveSettings($db, $userId, $body)]);
+    }
+
+    case 'types': {
+        $out = [];
+        foreach (NuWidgetRegistry::all() as $type => $def) {
+            unset($def['render']);
+            $out[$type] = $def;
+        }
+        wu_json(['ok' => true, 'types' => $out]);
+    }
+
+    case 'designer_load':
+    case 'list_roles': {
+        $roles = [];
+        try {
+            foreach ($db->fetchAll('SELECT role_code, role_name FROM nu_roles ORDER BY role_name') as $r) {
+                if (strtolower((string)$r['role_code']) !== 'globeadmin') $roles[] = $r;
+            }
+        } catch (Throwable $e) {
+            $roles = [['role_code' => 'user', 'role_name' => 'User'], ['role_code' => 'manager', 'role_name' => 'Manager'],
+                      ['role_code' => 'supervisor', 'role_name' => 'Supervisor'], ['role_code' => 'admin', 'role_name' => 'Admin']];
+        }
+        if ($action === 'list_roles') wu_json(['roles' => $roles]);
+        $want = (string)($_GET['role'] ?? ($roles[0]['role_code'] ?? 'user'));
+        wu_json(['ok' => true, 'roles' => $roles, 'role' => $want, 'widgets' => NuWidgetStore::roleWidgets($db, $want)]);
+    }
+
+    case 'add': {
+        $type = (string)($body['type'] ?? '');
+        if (!NuWidgetRegistry::get($type)) wu_json(['error' => 'Unknown widget type'], 422);
+        $targetRole = trim((string)($body['target_role'] ?? ''));
+        if ($targetRole !== '' && !preg_match('/^[A-Za-z0-9_]{1,60}$/', $targetRole)) wu_json(['error' => 'Invalid role'], 422);
+        $key = trim((string)($body['widget_key'] ?? ''));
+        if ($key !== '' && !preg_match('/^[a-z0-9_.]{1,64}$/', $key)) wu_json(['error' => 'Invalid widget key'], 422);
+        $ownerId = $targetRole !== '' ? null : $userId;
+        $maxPos = (int)($db->fetchOne(
+            $ownerId === null
+                ? 'SELECT COALESCE(MAX(widget_position), 0) AS m FROM nu_dashboard_widgets WHERE widget_user_id IS NULL AND widget_role = ?'
+                : 'SELECT COALESCE(MAX(widget_position), 0) AS m FROM nu_dashboard_widgets WHERE widget_user_id = ?',
+            [$ownerId === null ? $targetRole : $ownerId]
+        )['m'] ?? 0);
+        try {
+            $db->query(
+                'INSERT INTO nu_dashboard_widgets
+                    (widget_user_id, widget_role, widget_key, widget_type, widget_title, widget_icon, widget_config,
+                     widget_width, widget_height, widget_position, widget_locked, widget_refresh)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                [$ownerId, $ownerId === null ? $targetRole : null, $key !== '' ? $key : null, $type,
+                 substr((string)($body['title'] ?? 'Widget'), 0, 120),
+                 ($icon = substr((string)($body['icon'] ?? ''), 0, 120)) !== '' ? $icon : null,
+                 json_encode($body['config'] ?? new stdClass()),
+                 wu_clamp($body['width'] ?? 2, 1, 4, 2), wu_clamp($body['height'] ?? 1, 1, 3, 1), $maxPos + 10,
+                 !empty($body['locked']) ? 1 : 0, wu_clamp($body['refresh'] ?? 0, 0, 3600, 0)]
+            );
+        } catch (PDOException $e) {
+            wu_json(['error' => 'A widget with that key already exists for this role.'], 409);
+        }
+        wu_json(['ok' => true, 'id' => $db->lastInsertId()]);
+    }
+
+    case 'update': {
+        $id = (int)($body['id'] ?? 0);
+        $row = wu_writable_row($db, $id, $userId);
+        if (!$row) wu_json(['error' => 'Widget not found'], 404);
+        $type = (string)($body['type'] ?? $row['widget_type']);
+        if (!NuWidgetRegistry::get($type)) wu_json(['error' => 'Unknown widget type'], 422);
+        $icon = substr((string)($body['icon'] ?? ($row['widget_icon'] ?? '')), 0, 120);
+        $db->query(
+            'UPDATE nu_dashboard_widgets
+                SET widget_type = ?, widget_title = ?, widget_icon = ?, widget_config = ?,
+                    widget_width = ?, widget_height = ?, widget_locked = ?, widget_refresh = ?
+              WHERE widget_id = ?',
+            [$type, substr((string)($body['title'] ?? $row['widget_title']), 0, 120), $icon !== '' ? $icon : null,
+             array_key_exists('config', $body) ? json_encode($body['config']) : $row['widget_config'],
+             wu_clamp($body['width'] ?? $row['widget_width'], 1, 4, 2), wu_clamp($body['height'] ?? $row['widget_height'], 1, 3, 1),
+             array_key_exists('locked', $body) ? (!empty($body['locked']) ? 1 : 0) : (int)$row['widget_locked'],
+             wu_clamp($body['refresh'] ?? $row['widget_refresh'], 0, 3600, 0), $id]
+        );
+        wu_json(['ok' => true]);
+    }
+
+    case 'remove': {
+        $id = (int)($body['id'] ?? 0);
+        if (!wu_writable_row($db, $id, $userId)) wu_json(['error' => 'Widget not found'], 404);
+        $db->query('UPDATE nu_dashboard_widgets SET widget_active = 0 WHERE widget_id = ?', [$id]);
+        wu_json(['ok' => true]);
+    }
+
+    case 'reorder': {
+        foreach ((array)($body['order'] ?? []) as $item) {
+            $id = (int)($item['id'] ?? 0);
+            if ($id && wu_writable_row($db, $id, $userId)) {
+                $db->query('UPDATE nu_dashboard_widgets SET widget_position = ? WHERE widget_id = ?', [(int)($item['position'] ?? 0), $id]);
+            }
+        }
+        wu_json(['ok' => true]);
+    }
+
+    case 'run_sql': {
+        try {
+            wu_json(['rows' => NuWidgetSql::run($db, (string)($body['sql'] ?? ''), $userId, $role)]);
+        } catch (RuntimeException $e) {
+            wu_json(['error' => $e->getMessage()]);
+        }
+    }
+
+    case 'list_tables': {
+        try {
+            $tables = array_map(static fn($r) => array_values($r)[0], $db->fetchAll('SHOW TABLES'));
+            wu_json(['tables' => $tables]);
+        } catch (Throwable $e) {
+            wu_json(['error' => $e->getMessage()]);
+        }
     }
 }
 
-wu_json(['error' => 'Unknown action']);
+wu_json(['error' => 'Unknown action'], 404);
