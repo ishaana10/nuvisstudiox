@@ -138,14 +138,14 @@ switch ($action) {
                       ['role_code' => 'supervisor', 'role_name' => 'Supervisor'], ['role_code' => 'admin', 'role_name' => 'Admin']];
         }
         if ($action === 'list_roles') wu_json(['roles' => $roles]);
-        $want = (string)($_GET['role'] ?? ($roles[0]['role_code'] ?? 'user'));
+        $want = NuWidgetStore::normalizeRole((string)($_GET['role'] ?? ($roles[0]['role_code'] ?? 'user')));
         wu_json(['ok' => true, 'roles' => $roles, 'role' => $want, 'widgets' => NuWidgetStore::roleWidgets($db, $want)]);
     }
 
     case 'add': {
         $type = (string)($body['type'] ?? '');
         if (!NuWidgetRegistry::get($type)) wu_json(['error' => 'Unknown widget type'], 422);
-        $targetRole = trim((string)($body['target_role'] ?? ''));
+        $targetRole = NuWidgetStore::normalizeRole((string)($body['target_role'] ?? ''));
         if ($targetRole !== '' && !preg_match('/^[A-Za-z0-9_]{1,60}$/', $targetRole)) wu_json(['error' => 'Invalid role'], 422);
         $key = trim((string)($body['widget_key'] ?? ''));
         if ($key !== '' && !preg_match('/^[a-z0-9_.]{1,64}$/', $key)) wu_json(['error' => 'Invalid widget key'], 422);

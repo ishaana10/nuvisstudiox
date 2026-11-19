@@ -108,7 +108,7 @@
     host.textContent = '';
     var sel = S.dlg.querySelector('.nu-wgd-role');
     sel.textContent = '';
-    S.roles.forEach(function (r) { var o = el('option', { value: r.role_code, text: r.role_name || r.role_code }); if (r.role_code === S.role) o.selected = true; sel.appendChild(o); });
+    S.roles.forEach(function (r) { var o = el('option', { value: r.role_code, text: r.role_name || r.role_code }); if (String(r.role_code).toLowerCase() === S.role) o.selected = true; sel.appendChild(o); });
     if (!S.widgets.length) {
       host.appendChild(el('div', { class: 'nu-wg-blank' }, el('strong', { text: 'No widgets for this role yet' }), document.createTextNode('Add one, copy another role’s layout, or import a saved layout.')));
       return;
@@ -151,7 +151,7 @@
   function copyFrom() {
     var d = openDialog('', 'nuWgCpT');
     var sel = el('select', { 'aria-label': 'Copy from role' });
-    S.roles.forEach(function (r) { if (r.role_code !== S.role) sel.appendChild(el('option', { value: r.role_code, text: r.role_name || r.role_code })); });
+    S.roles.forEach(function (r) { if (String(r.role_code).toLowerCase() !== S.role) sel.appendChild(el('option', { value: r.role_code, text: r.role_name || r.role_code })); });
     d.appendChild(el('div', { class: 'nu-dialog-body' }, el('h3', { class: 'nu-dialog-title', id: 'nuWgCpT', text: 'Copy layout' }),
       el('p', { class: 'nu-dialog-text', text: 'Adds a copy of every widget from the chosen role to “' + S.role + '”. Existing widgets stay.' }), sel));
     d.appendChild(el('div', { class: 'nu-dialog-actions' }, btn('Cancel', 'nu-btn nu-btn-ghost', function () { closeDialog(d); }),

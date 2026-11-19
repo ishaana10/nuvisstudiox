@@ -95,4 +95,10 @@ class WidgetApiLogicTest extends TestCase {
     public function testVisibleWidgetsForRoleWithNoWidgetsIsEmpty(): void {
         $this->assertSame([], NuWidgetStore::visibleWidgets($this->db, 7, 'brand_new_role'));
     }
+
+    public function testRoleCodesAreNormalisedSoDesignerAndUsersAgree(): void {
+        $this->assertSame('sales_clerk', NuWidgetStore::normalizeRole('  Sales_Clerk '));
+        $this->assertSame('user', NuWidgetStore::normalizeRole('USER'));
+        $this->assertSame('', NuWidgetStore::normalizeRole(''));
+    }
 }

@@ -8,6 +8,11 @@ declare(strict_types=1);
 class NuWidgetStore {
     private const PREF_COLUMNS = ['hidden', 'position', 'width', 'height', 'accent'];
 
+    /** Role codes are compared lowercase everywhere (the dashboard shell lowercases the session role). */
+    public static function normalizeRole(string $role): string {
+        return strtolower(trim($role));
+    }
+
     /** Active role widgets for $role plus the user's own personal widgets. */
     public static function visibleWidgets(NuDatabase $db, int $userId, string $role): array {
         return $db->fetchAll(
