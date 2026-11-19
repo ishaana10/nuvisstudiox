@@ -133,6 +133,7 @@ class NuWidgetRegistry {
             $cls = str_contains($icon, ' ') ? $icon : 'fas ' . $icon;
             return '<i class="' . self::esc($cls) . '" aria-hidden="true"></i>';
         }
+        if (preg_match('/^(fas?|far|fab|fa)\b|^fa-/', $icon)) return ''; // Font Awesome-looking but malformed
         return self::esc($icon);
     }
 
@@ -160,5 +161,35 @@ class NuWidgetRegistry {
         }
         $url = self::safeUrl((string)($item['url'] ?? ''));
         return $url !== '' ? 'href="' . self::esc($url) . '" target="_blank" rel="noopener noreferrer"' : '';
+    }
+}
+
+// ── Legacy helpers (kept so existing callers and tests keep working) ───────────
+if (!function_exists('wu_accent')) {
+    function wu_accent(string $color): string {
+        return match ($color) {
+            'success' => '#22c55e', 'warning' => '#f59e0b', 'error' => '#ef4444', 'info' => '#3b82f6',
+            default   => '#0ea5e9',
+        };
+    }
+}
+if (!function_exists('wu_chart_type')) {
+    function wu_chart_type(string $t): string {
+        return match ($t) {
+            'chart_pie' => 'pie', 'chart_doughnut' => 'doughnut', 'chart_radar' => 'radar',
+            'chart_line', 'chart_area', 'sparkline' => 'line',
+            default => 'bar',
+        };
+    }
+}
+if (!function_exists('wu_type_accent')) {
+    function wu_type_accent(string $type): string {
+        return match ($type) {
+            'metric_trend' => '#0ea5e9', 'sparkline' => '#0284c7', 'chart_bar' => '#006494', 'chart_line' => '#7a39bb',
+            'chart_area' => '#8b5cf6', 'chart_pie' => '#da7101', 'chart_doughnut' => '#f59e0b', 'chart_radar' => '#ec4899',
+            'table' => '#437a22', 'list' => '#006494', 'quick_actions' => '#10b981', 'activity' => '#6366f1',
+            'progress' => '#964219', 'iframe' => '#64748b', 'custom' => '#a12c7b',
+            default => '#01696f',
+        };
     }
 }

@@ -52,47 +52,7 @@ function wu_run_sql(NuDatabase $db, string $sql, int $userId): array {
     }
 }
 
-function wu_accent(string $color): string {
-    switch ($color) {
-        case 'success': return '#22c55e';
-        case 'warning': return '#f59e0b';
-        case 'error':   return '#ef4444';
-        case 'info':    return '#3b82f6';
-        default:        return '#0ea5e9';
-    }
-}
-
-function wu_chart_type(string $t): string {
-    if ($t === 'chart_pie')      return 'pie';
-    if ($t === 'chart_doughnut') return 'doughnut';
-    if ($t === 'chart_line')     return 'line';
-    if ($t === 'chart_area')     return 'line';
-    if ($t === 'chart_radar')    return 'radar';
-    if ($t === 'sparkline')      return 'line';
-    return 'bar';
-}
-
-function wu_type_accent(string $type): string {
-    switch ($type) {
-        case 'stat':          return '#01696f';
-        case 'metric_trend':  return '#0ea5e9';
-        case 'sparkline':     return '#0284c7';
-        case 'chart_bar':     return '#006494';
-        case 'chart_line':    return '#7a39bb';
-        case 'chart_area':    return '#8b5cf6';
-        case 'chart_pie':     return '#da7101';
-        case 'chart_doughnut':return '#f59e0b';
-        case 'chart_radar':   return '#ec4899';
-        case 'table':         return '#437a22';
-        case 'list':          return '#006494';
-        case 'quick_actions': return '#10b981';
-        case 'activity':      return '#6366f1';
-        case 'progress':      return '#964219';
-        case 'iframe':        return '#64748b';
-        case 'custom':        return '#a12c7b';
-        default:              return '#01696f';
-    }
-}
+require_once dirname(__DIR__, 2) . '/core/WidgetRegistry.php'; // wu_accent, wu_chart_type, wu_type_accent
 
 /**
  * Golden-angle HSL — unique, well-distributed hue for each index.
