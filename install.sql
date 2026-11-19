@@ -427,11 +427,38 @@ CREATE TABLE IF NOT EXISTS `nu_dashboard_widgets` (
     `widget_height` TINYINT UNSIGNED NOT NULL DEFAULT 1,
     `widget_position` SMALLINT NOT NULL DEFAULT 0,
     `widget_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `widget_key` VARCHAR(64) DEFAULT NULL,
+    `widget_locked` TINYINT(1) NOT NULL DEFAULT 0,
+    `widget_refresh` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     `widget_created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `widget_updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`widget_id`),
+    UNIQUE KEY `uq_role_widget` (`widget_role`, `widget_key`),
     INDEX `idx_user` (`widget_user_id`, `widget_active`),
     INDEX `idx_role` (`widget_role`, `widget_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-user dashboard overrides (order, size, visibility, accent) on top of role widgets
+CREATE TABLE IF NOT EXISTS `nu_dashboard_user_prefs` (
+    `pref_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_id` INT UNSIGNED NOT NULL,
+    `widget_id` INT UNSIGNED NOT NULL,
+    `hidden` TINYINT(1) NOT NULL DEFAULT 0,
+    `position` SMALLINT NULL,
+    `width` TINYINT UNSIGNED NULL,
+    `height` TINYINT UNSIGNED NULL,
+    `accent` VARCHAR(20) NULL,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`pref_id`),
+    UNIQUE KEY `uq_user_widget` (`user_id`, `widget_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-user dashboard look settings (accent, density, card style) as JSON text
+CREATE TABLE IF NOT EXISTS `nu_dashboard_user_settings` (
+    `user_id` INT UNSIGNED NOT NULL,
+    `settings` TEXT NOT NULL,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── 21. EMAIL SETTINGS ────────────────────────────────────────────────────────
@@ -851,38 +878,38 @@ VALUES
 
 -- Seed Dashboard Widgets & Layout presets
 INSERT IGNORE INTO `nu_dashboard_widgets`
-    (`widget_user_id`, `widget_role`, `widget_type`, `widget_title`, `widget_icon`, `widget_config`, `widget_width`, `widget_height`, `widget_position`)
+    (`widget_user_id`, `widget_role`, `widget_key`, `widget_type`, `widget_title`, `widget_icon`, `widget_config`, `widget_width`, `widget_height`, `widget_position`)
 VALUES
 -- KPI: available forms
-(NULL, 'user', 'stat', 'Available Forms', 'forms',
+(NULL, 'user', 'user.available_forms', 'stat', 'Available Forms', 'forms',
  '{"source":"query","sql":"SELECT COUNT(*) as value FROM nu_forms WHERE form_active=1","color":"primary"}',
  1, 1, 10),
 -- KPI: available reports
-(NULL, 'user', 'stat', 'Available Reports', 'reports',
+(NULL, 'user', 'user.available_reports', 'stat', 'Available Reports', 'reports',
  '{"source":"query","sql":"SELECT COUNT(*) as value FROM nu_reports WHERE report_active=1","color":"success"}',
  1, 1, 20),
 -- Quick links list
-(NULL, 'user', 'list', 'Quick Links', NULL,
+(NULL, 'user', 'user.quick_links', 'list', 'Quick Links', NULL,
  '{"items":[{"label":"Open Forms","module":"forms"},{"label":"Open Reports","module":"reports"},{"label":"Calendar","module":"calendar"},{"label":"Change Password","module":"password"}]}',
  2, 1, 30),
 -- My recent activity table
-(NULL, 'user', 'table', 'My Recent Activity', NULL,
+(NULL, 'user', 'user.my_recent_activity', 'table', 'My Recent Activity', NULL,
  '{"source":"query","sql":"SELECT audit_action AS Action, audit_table AS Area, DATE_FORMAT(audit_timestamp, ''%b %e %l:%i %p'') AS Time FROM nu_audit_log WHERE audit_user_id={{user_id}} ORDER BY audit_timestamp DESC LIMIT 6","columns":["Action","Area","Time"]}',
  4, 2, 40);
 
 INSERT IGNORE INTO `nu_dashboard_widgets`
-    (`widget_user_id`, `widget_role`, `widget_type`, `widget_title`, `widget_icon`, `widget_config`, `widget_width`, `widget_height`, `widget_position`)
+    (`widget_user_id`, `widget_role`, `widget_key`, `widget_type`, `widget_title`, `widget_icon`, `widget_config`, `widget_width`, `widget_height`, `widget_position`)
 VALUES
-(NULL, 'manager', 'stat', 'Total Users', 'users',
+(NULL, 'manager', 'manager.total_users', 'stat', 'Total Users', 'users',
  '{"source":"query","sql":"SELECT COUNT(*) as value FROM nu_users","color":"primary"}',
  1, 1, 10),
-(NULL, 'manager', 'stat', 'Active Forms', 'forms',
+(NULL, 'manager', 'manager.active_forms', 'stat', 'Active Forms', 'forms',
  '{"source":"query","sql":"SELECT COUNT(*) as value FROM nu_forms WHERE form_active=1","color":"success"}',
  1, 1, 20),
-(NULL, 'manager', 'chart_bar', 'Activity This Week', NULL,
+(NULL, 'manager', 'manager.activity_this_week', 'chart_bar', 'Activity This Week', NULL,
  '{"source":"query","sql":"SELECT DATE(audit_timestamp) AS label, COUNT(*) AS value FROM nu_audit_log WHERE audit_timestamp >= DATE_SUB(CURDATE(),INTERVAL 7 DAY) GROUP BY DATE(audit_timestamp) ORDER BY label"}',
  2, 2, 30),
-(NULL, 'manager', 'chart_pie', 'Actions Breakdown', NULL,
+(NULL, 'manager', 'manager.actions_breakdown', 'chart_pie', 'Actions Breakdown', NULL,
  '{"source":"query","sql":"SELECT audit_action AS label, COUNT(*) AS value FROM nu_audit_log WHERE audit_timestamp >= DATE_SUB(CURDATE(),INTERVAL 30 DAY) GROUP BY audit_action ORDER BY value DESC LIMIT 6"}',
  2, 2, 40);
 
