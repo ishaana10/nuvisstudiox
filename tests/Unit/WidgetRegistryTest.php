@@ -149,4 +149,10 @@ class WidgetRegistryTest extends TestCase {
         $this->assertSame('<i class="fas fa-bolt" aria-hidden="true"></i>', NuWidgetRegistry::iconHtml('fa-bolt'));
         $this->assertSame('⚡', NuWidgetRegistry::iconHtml('⚡'));
     }
+
+    public function testPlainWordIconsFromOldSeedsAreNotPrintedAsText(): void {
+        $this->assertSame('', NuWidgetRegistry::iconHtml('forms'));
+        $this->assertSame('', NuWidgetRegistry::iconHtml('reports'));
+        $this->assertSame('📊', NuWidgetRegistry::iconHtml('📊'));
+    }
 }

@@ -172,6 +172,7 @@ class NuWidgetRegistry {
             return '<i class="' . self::esc($cls) . '" aria-hidden="true"></i>';
         }
         if (preg_match('/^(fas?|far|fab|fa)\b|^fa-/', $icon)) return ''; // Font Awesome-looking but malformed
+        if (preg_match('/^[A-Za-z0-9_\- ]+$/', $icon)) return ''; // a plain word that isn't a known icon (old seeds): use the type's default
         return self::esc($icon);
     }
 

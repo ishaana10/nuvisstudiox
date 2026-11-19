@@ -63,7 +63,7 @@
     var custom = (w.widget_icon || '').trim();
     var ico = el('span', { class: 'nu-wg-ico' });
     if (custom && S.icons[custom]) ico.appendChild(svgFrag(S.icons[custom]));
-    else if (custom) ico.textContent = custom.indexOf('fa-') === 0 ? '' : custom;
+    else if (custom && !/^[A-Za-z0-9_\- ]+$/.test(custom)) ico.textContent = custom;
     if (!ico.firstChild && !custom) ico.appendChild(svgFrag(S.icons[def.icon] || S.icons.chart || '<svg></svg>'));
     var c = el('article', { class: 'nu-wg-card', 'data-widget-id': w.widget_id, 'data-type': w.widget_type, 'data-group': String(def.group || 'data').toLowerCase(),
       'data-w': w.widget_width, 'data-h': w.widget_height, 'data-refresh': 0, 'data-locked': Number(w.widget_locked) ? '1' : '0' });
