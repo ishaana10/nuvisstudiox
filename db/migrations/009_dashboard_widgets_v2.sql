@@ -40,7 +40,7 @@ ALTER TABLE `nu_dashboard_widgets` ADD UNIQUE KEY `uq_role_widget` (`widget_role
 
 CREATE TABLE IF NOT EXISTS `nu_dashboard_user_prefs` (
     `pref_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    `user_id` INT UNSIGNED NOT NULL,
+    `user_id` VARCHAR(64) NOT NULL,
     `widget_id` INT UNSIGNED NOT NULL,
     `hidden` TINYINT(1) NOT NULL DEFAULT 0,
     `position` SMALLINT NULL,
@@ -53,8 +53,14 @@ CREATE TABLE IF NOT EXISTS `nu_dashboard_user_prefs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `nu_dashboard_user_settings` (
-    `user_id` INT UNSIGNED NOT NULL,
+    `user_id` VARCHAR(64) NOT NULL,
     `settings` TEXT NOT NULL,
     `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- UUID installs (userIdType = 'uuid'): user ids are strings. Convert tables created by earlier builds.
+-- (Also done automatically by NuWidgetSchema::ensure(); safe to re-run.)
+ALTER TABLE `nu_dashboard_widgets`        MODIFY `widget_user_id` VARCHAR(64) NULL DEFAULT NULL;
+ALTER TABLE `nu_dashboard_user_prefs`     MODIFY `user_id` VARCHAR(64) NOT NULL;
+ALTER TABLE `nu_dashboard_user_settings`  MODIFY `user_id` VARCHAR(64) NOT NULL;

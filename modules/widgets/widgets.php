@@ -12,9 +12,9 @@ require_once dirname(__DIR__, 2) . '/core/WidgetRegistry.php';
 require_once dirname(__DIR__, 2) . '/core/WidgetPrefs.php';
 require_once dirname(__DIR__, 2) . '/core/WidgetStore.php';
 
-$nuWgUserId = (int)($_SESSION['nu_user_id'] ?? 0);
+$nuWgUserId = NuWidgetStore::normalizeUserId($_SESSION['nu_user_id'] ?? null);
 $nuWgRole   = strtolower((string)($_SESSION['nu_role'] ?? ''));
-if ($nuWgUserId <= 0) return;
+if ($nuWgUserId === null) return;
 
 try {
     $nuWgDb       = NuDatabase::getInstance();

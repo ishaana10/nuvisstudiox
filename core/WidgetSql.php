@@ -5,9 +5,12 @@ declare(strict_types=1);
  * Only a single SELECT statement is ever executed.
  */
 class NuWidgetSql {
-    public static function substitute(string $sql, int $userId, string $role): string {
+    public static function substitute(string $sql, int|string $userId, string $role): string {
+        $uid = (string)$userId;
+        // Numeric ids stay bare; UUID/string ids become a quoted literal (charset is validated upstream).
+        $uidSql = ctype_digit($uid) ? $uid : "'" . str_replace("'", "''", $uid) . "'";
         return strtr($sql, [
-            '{{user_id}}'    => (string)$userId,
+            '{{user_id}}'    => $uidSql,
             '{{role}}'       => $role,
             '{{today}}'      => date('Y-m-d'),
             '{{this_month}}' => date('Y-m-01'),
@@ -19,7 +22,7 @@ class NuWidgetSql {
      * @return array<int,array> rows; empty when the SQL is not a single SELECT
      * @throws RuntimeException with the database message when the query fails
      */
-    public static function run(NuDatabase $db, string $sql, int $userId, string $role): array {
+    public static function run(NuDatabase $db, string $sql, int|string $userId, string $role): array {
         $sql = rtrim(trim(self::substitute($sql, $userId, $role)), "; \t\r\n");
         if (!preg_match('/^SELECT\b/i', $sql) || self::hasExtraStatement($sql)) {
             return [];

@@ -18,7 +18,7 @@ foreach (['WidgetSchema', 'WidgetPrefs', 'WidgetPolicy', 'WidgetSql', 'WidgetReg
 header('Content-Type: application/json; charset=utf-8');
 
 $db       = NuDatabase::getInstance();
-$userId   = (int)($_SESSION['nu_user_id'] ?? 0);
+$userId   = NuWidgetStore::normalizeUserId($_SESSION['nu_user_id'] ?? null);
 $role     = strtolower((string)($_SESSION['nu_role'] ?? ''));
 $action   = (string)($_GET['action'] ?? ($_POST['action'] ?? ''));
 $isPost   = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
@@ -38,6 +38,7 @@ $policyMap = [
     'list_roles' => 'designer_load', 'reset' => 'prefs_reset',
 ];
 if (!isset($policyMap[$action])) wu_json(['error' => 'Unknown action'], 404);
+if ($userId === null) wu_json(['error' => 'Not authenticated'], 401);
 if (!NuWidgetPolicy::can($policyMap[$action], $role)) wu_json(['error' => 'Forbidden'], 403);
 
 $body = [];
@@ -60,7 +61,7 @@ try {
 }
 
 /** Role-row / own-personal-row guard for developer write actions. */
-function wu_writable_row(NuDatabase $db, int $id, int $userId): ?array {
+function wu_writable_row(NuDatabase $db, int $id, string $userId): ?array {
     $row = $db->fetchOne(
         'SELECT * FROM nu_dashboard_widgets WHERE widget_id = ? AND (widget_user_id IS NULL OR widget_user_id = ?)',
         [$id, $userId]

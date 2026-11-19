@@ -417,7 +417,7 @@ CREATE TABLE IF NOT EXISTS `nu_dashboard_layouts` (
 -- ─── 20. DASHBOARD WIDGETS ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `nu_dashboard_widgets` (
     `widget_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    `widget_user_id` INT UNSIGNED DEFAULT NULL,
+    `widget_user_id` VARCHAR(64) DEFAULT NULL,
     `widget_role` VARCHAR(60) DEFAULT NULL,
     `widget_type` VARCHAR(30) NOT NULL,
     `widget_title` VARCHAR(120) NOT NULL DEFAULT '',
@@ -441,7 +441,7 @@ CREATE TABLE IF NOT EXISTS `nu_dashboard_widgets` (
 -- Per-user dashboard overrides (order, size, visibility, accent) on top of role widgets
 CREATE TABLE IF NOT EXISTS `nu_dashboard_user_prefs` (
     `pref_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    `user_id` INT UNSIGNED NOT NULL,
+    `user_id` VARCHAR(64) NOT NULL,
     `widget_id` INT UNSIGNED NOT NULL,
     `hidden` TINYINT(1) NOT NULL DEFAULT 0,
     `position` SMALLINT NULL,
@@ -455,7 +455,7 @@ CREATE TABLE IF NOT EXISTS `nu_dashboard_user_prefs` (
 
 -- Per-user dashboard look settings (accent, density, card style) as JSON text
 CREATE TABLE IF NOT EXISTS `nu_dashboard_user_settings` (
-    `user_id` INT UNSIGNED NOT NULL,
+    `user_id` VARCHAR(64) NOT NULL,
     `settings` TEXT NOT NULL,
     `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`user_id`)
