@@ -133,4 +133,13 @@ class WidgetRegistryTest extends TestCase {
         $bad = $this->render('announcement', ['text' => 'x', 'tone' => 'evil"onload="x']);
         $this->assertStringNotContainsString('evil', $bad['html']);
     }
+
+    public function testEveryTypeIconHasAnSvg(): void {
+        foreach (NuWidgetRegistry::all() as $type => $def) {
+            $svg = NuWidgetRegistry::svgIcon($def['icon']);
+            $this->assertStringStartsWith('<svg', $svg, "{$type} icon '{$def['icon']}'");
+            $this->assertStringContainsString('aria-hidden="true"', $svg);
+        }
+        $this->assertStringStartsWith('<svg', NuWidgetRegistry::svgIcon('no-such-icon'), 'unknown names fall back to a default icon');
+    }
 }

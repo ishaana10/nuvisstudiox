@@ -126,6 +126,38 @@ class NuWidgetRegistry {
     }
 
     /** Font Awesome class (legacy) or plain text/emoji, escaped. */
+    /** Built-in stroke icon set (24x24). Names are what a widget type's 'icon' key and the builder use. */
+    private const SVG_ICONS = [
+        'activity'  => '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+        'bolt'      => '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+        'code'      => '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+        'gauge'     => '<path d="M12 14l4-4"/><path d="M3.3 17a10 10 0 1 1 17.4 0"/>',
+        'globe'     => '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20"/>',
+        'hash'      => '<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>',
+        'link'      => '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
+        'megaphone' => '<path d="M3 11v2a1 1 0 0 0 1 1h3l8 5V5L7 10H4a1 1 0 0 0-1 1z"/><path d="M18.5 9a4 4 0 0 1 0 6"/>',
+        'progress'  => '<rect x="3" y="10" width="18" height="4" rx="2"/><line x1="3" y1="12" x2="12" y2="12"/>',
+        'table'     => '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="20"/>',
+        'trending'  => '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+        'chart'     => '<line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="9"/>',
+        'pie'       => '<path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>',
+        'list'      => '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+        'users'     => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+        'file'      => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+        'star'      => '<polygon points="12 2 15.1 8.6 22 9.6 17 14.5 18.2 21.5 12 18.2 5.8 21.5 7 14.5 2 9.6 8.9 8.6 12 2"/>',
+        'bell'      => '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+    ];
+
+    /** Inline SVG for a built-in icon name; unknown names fall back to a generic square. */
+    public static function svgIcon(string $name): string {
+        $body = self::SVG_ICONS[$name] ?? '<rect x="4" y="4" width="16" height="16" rx="3"/>';
+        return '<svg class="nu-wg-svgicon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" '
+             . 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $body . '</svg>';
+    }
+
+    /** @return string[] names available to the builder's icon picker */
+    public static function svgIconNames(): array { return array_keys(self::SVG_ICONS); }
+
     public static function iconHtml(string $icon): string {
         $icon = trim($icon);
         if ($icon === '') return '';
