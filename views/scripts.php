@@ -19,6 +19,8 @@ $_commitVersion = urlencode(AppVersion::get('commit'));
 <script src="<?= nu_asset('assets/js/nu-form-shell.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nu-shell.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nu-dashboard.js') ?>"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="<?= nu_asset('assets/js/nu-widgets.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nu-builders.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nu-workflow-builder.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nu-form-share.js') ?>"></script>

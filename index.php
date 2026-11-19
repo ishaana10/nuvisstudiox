@@ -218,6 +218,8 @@ try {
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-shell.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-form-shell.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-dashboard.css') ?>">
+    <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-widgets.css') ?>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-builders.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-workflow-builder.css') ?>">
     <link rel="stylesheet" href="<?= nu_asset('assets/css/nu-form-share.css') ?>">

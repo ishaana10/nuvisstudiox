@@ -894,6 +894,19 @@ class NuDatabase {
             } catch (Exception $ignored) {}
         }
 
+        // Self-healing: dashboard widgets v2 (keys, unique key, duplicate cleanup, per-user prefs)
+        if (!$sessionActive || empty($_SESSION['_nu_widget_schema_ensured'])) {
+            try {
+                require_once __DIR__ . '/WidgetSchema.php';
+                NuWidgetSchema::ensure($this);
+                if ($sessionActive) {
+                    $_SESSION['_nu_widget_schema_ensured'] = true;
+                }
+            } catch (Throwable $e) {
+                error_log('[widgets] schema ensure failed: ' . $e->getMessage());
+            }
+        }
+
         if ($sessionActive) {
             $_SESSION['_nu_schema_version'] = NU_VERSION;
         }

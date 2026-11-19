@@ -25,8 +25,8 @@
 
   function busy() {
     if (document.hidden) return true;
-    if (window.nuDash && window.nuDash.editMode) return true;
-    return !!document.querySelector('dialog[open], .nu-form-overlay, .nu-modal-overlay[style*="flex"], .nu-cmdk-overlay, #nuDashBuilderOverlay');
+    if (window.NuWidgets && window.NuWidgets.editing) return true;
+    return !!document.querySelector('dialog[open], .nu-form-overlay, .nu-modal-overlay[style*="flex"], .nu-cmdk-overlay, #nuWgBuilder');
   }
 
   setInterval(function () {
