@@ -8,6 +8,15 @@ A premium, modern web development application for **Nuvis Technologies** (`web.n
 
 ## Version Changelog
 
+### Unreleased — Dashboard widgets v2
+
+- Role dashboards are set up by developers only; every user can customise their own copy — order, size, hide/show, accent colour, density and card style — and reset to the role default.
+- New card design with loading skeletons, per-card retry, optional auto-refresh, dark mode and 12/6/1-column responsive layout.
+- Widget types are now one file each in `modules/widgets/types/` (see `docs/widgets.md`); new gauge and announcement types, stat thresholds, and the builder form is generated from the type.
+- Role designer for developers: live preview, lock, copy layout from another role, export/import JSON.
+- Fixed the same widgets being seeded over and over (96 duplicates): seeds now have stable keys and existing duplicates are cleaned up automatically.
+- Security: only developers can run widget SQL or edit role layouts; widgets return only what the caller may see.
+
 ### Unreleased — Modern builder properties panel
 
 - The form builder's field properties side panel has a cleaner look: neutral header, segmented tabs with a sticky filter, card-style collapsible sections (titled after their content, e.g. "Upload options"), larger inputs with focus rings, toggle switches for on/off options, and dark-theme support.

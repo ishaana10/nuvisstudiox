@@ -198,7 +198,7 @@
 
   function init(root) {
     var grid = (root || document).querySelector('#nuWidgetGrid');
-    if (!grid) { clearTimers(); return; }
+    if (!grid) { clearTimers(); if (window.NuWidgets && window.NuWidgets._designerButton) window.NuWidgets._designerButton(); return; }
     if (grid._nuInit) return;
     grid._nuInit = true;
     delegate();
@@ -517,10 +517,23 @@
       host.appendChild(el('button', { type: 'button', id: 'nuWgCustomise', class: 'nu-btn nu-btn-ghost nu-btn-sm', 'aria-pressed': 'false', text: 'Customise', onclick: function () { NW.customise(!NW.editing); } }));
     }
     wireDrag(g);
+    NW._designerButton();
+  };
+  NW._designerButton = function () {
+    var root = document.getElementById('nuWidgets'), host = document.getElementById('nuWgBarActions');
+    if (!root || !host || root.getAttribute('data-can-design') !== '1' || document.getElementById('nuWgDesign')) return;
+    host.insertBefore(el('button', { type: 'button', id: 'nuWgDesign', class: 'nu-btn nu-btn-ghost nu-btn-sm', text: 'Design role layout', onclick: function () {
+      if (window.NuWidgetDesigner) { window.NuWidgetDesigner.open(); return; }
+      var sc = document.createElement('script');
+      sc.src = root.getAttribute('data-designer-src');
+      sc.onload = function () { window.NuWidgetDesigner.open(); };
+      sc.onerror = function () { status('Couldn’t load the designer.', true, false); };
+      document.head.appendChild(sc);
+    } }), host.firstChild);
   };
   // init() already ran before this IIFE registered _afterInit when the script is evaluated with a grid present
   var g0 = grid();
-  if (g0 && g0._nuInit) NW._afterInit(g0);
+  if (g0 && g0._nuInit) NW._afterInit(g0); else NW._designerButton();
 
   document.addEventListener('visibilitychange', function () { if (document.hidden) flush(); });
   window.addEventListener('pagehide', function () { flush(); });

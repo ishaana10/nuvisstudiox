@@ -89,12 +89,11 @@
 .nu-wg-card:hover { box-shadow: 0 2px 4px rgba(15, 23, 42, .06), 0 12px 28px rgba(15, 23, 42, .10); }
 
 /* default accent per widget group */
-.nu-wg-card[data-group="metric"]   { --nu-wg-group-accent: #0f766e; }
-.nu-wg-card[data-group="chart"]    { --nu-wg-group-accent: #2563eb; }
-.nu-wg-card[data-group="data"]     { --nu-wg-group-accent: #7c3aed; }
-.nu-wg-card[data-group="content"]  { --nu-wg-group-accent: #d97706; }
-.nu-wg-card[data-group="action"]   { --nu-wg-group-accent: #16a34a; }
-.nu-wg-card[data-group="embed"]    { --nu-wg-group-accent: #64748b; }
+.nu-wg-card[data-group="metrics"]    { --nu-wg-group-accent: #0f766e; }
+.nu-wg-card[data-group="charts"]     { --nu-wg-group-accent: #2563eb; }
+.nu-wg-card[data-group="data"]       { --nu-wg-group-accent: #7c3aed; }
+.nu-wg-card[data-group="content"]    { --nu-wg-group-accent: #d97706; }
+.nu-wg-card[data-group="navigation"] { --nu-wg-group-accent: #16a34a; }
 
 /* user accent tokens (set as data-accent for token names; hex values come via --nu-wg-accent) */
 .nu-wg-card[data-accent="teal"]   { --nu-wg-accent: #0f766e; }
@@ -238,7 +237,8 @@
 .nu-wg-gauge svg { width: 100%; height: 100%; overflow: visible; }
 .nu-wg-gauge-track { fill: none; stroke: var(--nu-wg-soft); }
 .nu-wg-gauge-fill { fill: none; stroke: var(--nu-wg-accent); transition: stroke-dashoffset .6s ease; }
-.nu-wg-gauge-value { position: absolute; inset: auto 0 6% 0; text-align: center; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nu-wg-gauge { display: flex; flex-direction: column; align-items: center; }
+.nu-wg-gauge-value { position: relative; margin-top: -1.9rem; text-align: center; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ---------- Announcement / note ---------- */
 .nu-wg-note { padding: 12px 14px; border-radius: 12px; font-size: .88rem; line-height: 1.5; background: color-mix(in srgb, var(--nu-wg-accent) 9%, transparent); border-left: 3px solid var(--nu-wg-accent); }
@@ -321,3 +321,40 @@
 @media (max-width: 640px) {
   .nu-wg-panel { top: auto; bottom: 0; right: 0; left: 0; width: auto; border-radius: 16px 16px 0 0; max-height: 60vh; }
 }
+
+/* ---------- Role designer + builder ---------- */
+.nu-dialog--xl { width: min(1180px, calc(100vw - 24px)); max-height: calc(100vh - 24px); }
+.nu-wgd { padding: 0; }
+.nu-wgd-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--nu-wg-line); position: sticky; top: 0; background: var(--nu-wg-bg); z-index: 2; }
+.nu-wgd-head h3 { margin: 0 auto 0 0; font-size: 1.05rem; }
+.nu-wgd-note { margin: 10px 18px 0; }
+.nu-wgd-main { padding: 14px 18px 20px; }
+.nu-wgd .nu-wg-body { pointer-events: none; }
+.nu-wgd-grid { --nu-wg-row: 96px; }
+.nu-wgd-group { margin: 14px 0 6px; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--nu-wg-muted, #64748b); }
+.nu-wgd-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.nu-wgd-type { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, .35); background: transparent; color: inherit; font: inherit; font-size: .85rem; cursor: pointer; text-align: left; }
+.nu-wgd-type:hover, .nu-wgd-type:focus-visible { border-color: #0f766e; background: rgba(15, 118, 110, .08); outline: none; }
+.nu-wgd-form { display: flex; flex-direction: column; gap: 12px; }
+.nu-wgd-row { display: flex; flex-direction: column; gap: 4px; }
+.nu-wgd-row > label, .nu-wgd-label { font-size: .8rem; font-weight: 600; }
+.nu-wgd-row small { color: #64748b; font-size: .75rem; }
+.nu-wgd-row input[type="text"], .nu-wgd-row input[type="number"], .nu-wgd-row input[type="url"], .nu-wgd-row select, .nu-wgd-row textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, .5); background: transparent; color: inherit; font: inherit; }
+.nu-wgd-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important; font-size: .82rem !important; }
+.nu-wgd-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) { .nu-wgd-cols { grid-template-columns: 1fr; } }
+.nu-wgd-check { flex-direction: row; align-items: center; gap: 8px; }
+.nu-wgd-icons { display: flex; flex-wrap: wrap; gap: 4px; }
+.nu-wgd-icon { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid rgba(148, 163, 184, .4); background: transparent; color: inherit; cursor: pointer; }
+.nu-wgd-icon[aria-pressed="true"] { border-color: #0f766e; background: rgba(15, 118, 110, .14); color: #0f766e; }
+.nu-wg-lockbtn[aria-pressed="true"] { background: #475569; color: #fff; }
+
+/* list rows can be <button> or <a>: neutralise native styling */
+.nu-wg-listitem { width: 100%; box-sizing: border-box; background: none; border: 0; border-bottom: 1px solid var(--nu-wg-line); color: inherit; font: inherit; font-size: .88rem; text-align: left; text-decoration: none; cursor: pointer; justify-content: space-between; }
+.nu-wg-listitem:last-child { border-bottom: 0; }
+.nu-wg-listitem:hover { color: var(--nu-wg-accent); }
+.nu-wg-listitem:focus-visible { outline: 2px solid var(--nu-wg-accent); outline-offset: 2px; border-radius: 6px; }
+.nu-wg-listitem svg { flex: none; color: var(--nu-wg-muted); }
+
+/* keep the customise drawer from covering the grid on wide screens */
+@media (min-width: 1100px) { .nu-wg.is-customising .nu-wg-grid { margin-right: 316px; } }

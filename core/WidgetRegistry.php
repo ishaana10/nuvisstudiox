@@ -140,6 +140,11 @@ class NuWidgetRegistry {
         'table'     => '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="20"/>',
         'trending'  => '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
         'chart'     => '<line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="9"/>',
+        'chart-bar' => '<rect x="4" y="11" width="4" height="9" rx="1"/><rect x="10" y="5" width="4" height="15" rx="1"/><rect x="16" y="14" width="4" height="6" rx="1"/>',
+        'chart-area'=> '<path d="M3 18l5-7 4 4 5-8 4 6v5H3z"/>',
+        'radar'     => '<polygon points="12 2 21 9 18 20 6 20 3 9"/><polyline points="12 7 16 10 14.5 15 9.5 15 8 10 12 7"/>',
+        'donut'     => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>',
+        'pulse'     => '<path d="M3 12h4l2-5 4 10 2-5h6"/>',
         'pie'       => '<path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>',
         'list'      => '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
         'users'     => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
@@ -161,6 +166,7 @@ class NuWidgetRegistry {
     public static function iconHtml(string $icon): string {
         $icon = trim($icon);
         if ($icon === '') return '';
+        if (isset(self::SVG_ICONS[$icon])) return self::svgIcon($icon);
         if (preg_match('/^(fas?|far|fab|fa)\s+fa-[a-z0-9-]+$|^fa-[a-z0-9-]+$/', $icon)) {
             $cls = str_contains($icon, ' ') ? $icon : 'fas ' . $icon;
             return '<i class="' . self::esc($cls) . '" aria-hidden="true"></i>';

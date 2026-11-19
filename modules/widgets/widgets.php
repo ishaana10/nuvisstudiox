@@ -30,7 +30,7 @@ try {
 $nuWgEsc  = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 $nuWgCard = static function (array $w, bool $hidden) use ($nuWgEsc): string {
     $def    = NuWidgetRegistry::get((string)$w['widget_type']);
-    $group  = (string)($def['group'] ?? 'data');
+    $group  = strtolower((string)($def['group'] ?? 'data'));
     $title  = trim((string)$w['widget_title']) !== '' ? (string)$w['widget_title'] : (string)($def['label'] ?? 'Widget');
     $custom = trim((string)($w['widget_icon'] ?? ''));
     $ico    = $custom !== '' ? NuWidgetRegistry::iconHtml($custom) : '';
@@ -55,7 +55,9 @@ $nuWgCard = static function (array $w, bool $hidden) use ($nuWgEsc): string {
          . '<div class="nu-wg-body"></div></article>';
 };
 ?>
-<section class="nu-wg" id="nuWidgets" aria-label="Dashboard widgets">
+<?php $nuWgCanDesign = ($nuWgRole === 'globeadmin'); ?>
+<section class="nu-wg" id="nuWidgets" aria-label="Dashboard widgets"<?php if ($nuWgCanDesign): ?>
+         data-can-design="1" data-designer-src="assets/js/nu-widget-designer.js?v=<?= (int)@filemtime(dirname(__DIR__, 2) . '/assets/js/nu-widget-designer.js') ?>"<?php endif; ?>>
     <div class="nu-wg-bar">
         <h2>My dashboard</h2>
         <span class="nu-wg-status" id="nuWgStatus" role="status" aria-live="polite"></span>
@@ -64,7 +66,11 @@ $nuWgCard = static function (array $w, bool $hidden) use ($nuWgEsc): string {
 <?php if (empty($nuWgResolved['visible']) && empty($nuWgResolved['hidden'])): ?>
     <div class="nu-wg-blank">
         <strong>No widgets yet</strong>
+<?php if ($nuWgCanDesign): ?>
+        Use <em>Design role layout</em> to build the dashboard each role receives, or pick the developer role to set up your own.
+<?php else: ?>
         Your administrator hasn't set up a dashboard for your role.
+<?php endif; ?>
     </div>
 <?php else: ?>
     <div class="nu-wg-grid" id="nuWidgetGrid"

@@ -121,7 +121,9 @@ switch ($action) {
             unset($def['render']);
             $out[$type] = $def;
         }
-        wu_json(['ok' => true, 'types' => $out]);
+        $icons = [];
+        foreach (NuWidgetRegistry::svgIconNames() as $n) $icons[$n] = NuWidgetRegistry::svgIcon($n);
+        wu_json(['ok' => true, 'types' => $out, 'icons' => $icons]);
     }
 
     case 'designer_load':

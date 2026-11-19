@@ -136,10 +136,17 @@ class WidgetRegistryTest extends TestCase {
 
     public function testEveryTypeIconHasAnSvg(): void {
         foreach (NuWidgetRegistry::all() as $type => $def) {
+            $this->assertContains($def['icon'], NuWidgetRegistry::svgIconNames(), "{$type} must use a built-in icon name");
             $svg = NuWidgetRegistry::svgIcon($def['icon']);
             $this->assertStringStartsWith('<svg', $svg, "{$type} icon '{$def['icon']}'");
             $this->assertStringContainsString('aria-hidden="true"', $svg);
         }
         $this->assertStringStartsWith('<svg', NuWidgetRegistry::svgIcon('no-such-icon'), 'unknown names fall back to a default icon');
+    }
+
+    public function testIconHtmlRendersBuiltInNamesAsSvgAndKeepsLegacyValues(): void {
+        $this->assertStringStartsWith('<svg', NuWidgetRegistry::iconHtml('bolt'));
+        $this->assertSame('<i class="fas fa-bolt" aria-hidden="true"></i>', NuWidgetRegistry::iconHtml('fa-bolt'));
+        $this->assertSame('⚡', NuWidgetRegistry::iconHtml('⚡'));
     }
 }
