@@ -30,6 +30,15 @@ function mu_json(array $data): void {
     exit;
 }
 
+/** Turn raw database errors into a message an admin can act on (details go to the error log). */
+function mu_friendly_error(Throwable $e): string {
+    $m = $e->getMessage();
+    if (stripos($m, 'Duplicate entry') !== false) {
+        return 'A menu item with the same label, type and target already exists. Change the label or target.';
+    }
+    return 'Could not save the menu item. See the server error log for details.';
+}
+
 /** Validate a single display-mode value: 'inline' or 'popup'. */
 function mu_sanitise_display(string $raw, string $default = 'inline'): string {
     $v = strtolower(trim($raw));
@@ -183,25 +192,29 @@ if ($action === 'create') {
         mu_json(['success' => false, 'message' => 'Label is required']);
     }
 
-    $code = trim(strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', $label)), '_');
+    if ($label === '') $label = '---'; // divider
+    if (in_array($type, ['form', 'report', 'query', 'url'], true) && $target === '') {
+        mu_json(['success' => false, 'message' => 'Choose a target (form, report, query or URL) for this menu item.']);
+    }
+    $projectId = (int)ProjectContext::getId();
 
     try {
         $db->query(
             "INSERT INTO nu_menus
-             (menu_code, menu_label, menu_type, menu_target, menu_icon, menu_order,
+             (project_id, menu_label, menu_type, menu_target, menu_icon, menu_order,
               menu_parent_id, menu_role_access, menu_roles, menu_active,
               menu_open_mode, menu_browse_mode, menu_preview_mode, menu_default_view)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                $code, $label, $type, $target, $icon, $order,
-                $parent ?: null, $rolesJson, $rolesCsv, $active,
+                $projectId, $label, $type, $target, $icon, $order,
+                $parent, $rolesJson, $rolesCsv, $active,
                 $openMode, $browseMode, $previewMode, $defaultView
             ]
         );
         mu_json(['success' => true, 'id' => $db->lastInsertId()]);
     } catch (Throwable $e) {
         error_log('[menus api create] ' . $e->getMessage());
-        mu_json(['success' => false, 'message' => $e->getMessage()]);
+        mu_json(['success' => false, 'message' => mu_friendly_error($e)]);
     }
 }
 
@@ -223,6 +236,7 @@ if ($action === 'update') {
     $openMode    = $browseMode . '|' . $defaultView;
 
     if (!$id) mu_json(['success' => false, 'message' => 'Invalid ID']);
+    if ($parent === $id) mu_json(['success' => false, 'message' => 'A menu item cannot be its own parent.']);
 
     try {
         $db->query(
@@ -243,7 +257,7 @@ if ($action === 'update') {
              WHERE menu_id = ?",
             [
                 $label, $type, $target, $icon, $order,
-                $parent ?: null, $rolesJson, $rolesCsv, $active,
+                $parent, $rolesJson, $rolesCsv, $active,
                 $openMode, $browseMode, $previewMode, $defaultView,
                 $id
             ]
@@ -251,7 +265,7 @@ if ($action === 'update') {
         mu_json(['success' => true]);
     } catch (Throwable $e) {
         error_log('[menus api update] ' . $e->getMessage());
-        mu_json(['success' => false, 'message' => $e->getMessage()]);
+        mu_json(['success' => false, 'message' => mu_friendly_error($e)]);
     }
 }
 
