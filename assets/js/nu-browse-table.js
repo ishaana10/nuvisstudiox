@@ -626,10 +626,13 @@
   };
 
   BrowseTable.prototype.actionsWidth = function () {
-    var n = 1;                                   // edit / view
-    if (this.canDelete) n++;
-    n += (Array.isArray(this.certTemplates) ? this.certTemplates.length : 0);
-    return Math.max(96, Math.min(n, 5) * 32 + 28);
+    // Desktop shows labelled buttons (icon-only below 640px, where rows become cards and this column is hidden).
+    var self = this, w = 24, count = 0;
+    var add = function (label) { w += Math.min(String(label).length, 18) * 7 + 40; count++; };
+    add(this.canEdit ? 'Edit' : 'View');
+    (Array.isArray(this.certTemplates) ? this.certTemplates : []).forEach(function (t) { add(actionLabel(t.cert_button_label, 'Certificates')); });
+    if (this.canDelete) add('Delete');
+    return Math.max(96, w + (count - 1) * 4);
   };
 
   BrowseTable.prototype.buildHead = function (cols, rows) {
@@ -739,7 +742,6 @@
     rows.forEach(function (row, rowIdx) {
       var rid = String(row.id);
       var tr = el('tr', { dataset: { rid: rid }, 'aria-rowindex': String(rowIdx + 2), tabindex: rowIdx === 0 ? '0' : '-1' });
-      tr.classList.add('is-clickable');
 
       if (self.bulkEnabled) {
         var cb = el('input', { type: 'checkbox', class: 'nu-bt-check nu-row-checkbox', 'aria-label': 'Select row ' + (rowIdx + 1), dataset: { recordId: rid } });
@@ -770,13 +772,8 @@
         tr.append(td);
       });
 
-      // Row click opens the record (ignored for interactive children / text selection).
-      tr.addEventListener('click', function (e) {
-        if (e.target.closest && e.target.closest('a,button,input,select,textarea,label,[data-nu-stop]')) return;
-        var sel = window.getSelection && window.getSelection();
-        if (sel && String(sel).length) return;
-        self.openRow(row);
-      });
+      // Rows are deliberately not clickable: records open only from the Edit / View button
+      // (so selecting text or clicking a cell never opens the form by accident).
       tbody.append(tr);
     });
     return tbody;
@@ -789,29 +786,35 @@
     return app.viewRecord(this.code, row.id, this.label, this.mode);
   };
 
+  function actionLabel(v, fallback) { v = v && String(v).trim(); return v || fallback; }
+
+  /** Action button: icon plus a text label (the label is hidden by CSS on small screens). */
+  function actionBtn(cls, label, ic) {
+    return el('button', {
+      type: 'button', class: 'nu-bt-act ' + cls, title: label, 'aria-label': label
+    }, el('span', { class: 'nu-bt-act-ico', html: icon(ic) }), el('span', { class: 'nu-bt-act-label', text: label }));
+  }
+
   BrowseTable.prototype.buildActionsCell = function (row) {
     var self = this, app = this.app;
     var td = el('td', { class: 'nu-bt-cell-actions is-frozen' });
     var box = el('div', { class: 'nu-bt-actions' });
 
-    var main = el('button', {
-      type: 'button', class: 'nu-bt-act',
-      title: this.canEdit ? 'Edit record' : 'View record',
-      'aria-label': this.canEdit ? 'Edit record' : 'View record',
-      html: icon(this.canEdit ? 'edit' : 'eye')
-    });
+    var main = actionBtn('nu-bt-act--main', this.canEdit ? 'Edit' : 'View', this.canEdit ? 'edit' : 'eye');
+    main.title = this.canEdit ? 'Edit record' : 'View record';
     main.addEventListener('click', function (e) { e.stopPropagation(); self.openRow(row); });
     box.append(main);
 
     (Array.isArray(this.certTemplates) ? this.certTemplates : []).forEach(function (t) {
-      var name = (t.cert_button_label && String(t.cert_button_label).trim()) || 'Certificates';
-      var b = el('button', { type: 'button', class: 'nu-bt-act nu-bt-act--cert', title: name, 'aria-label': name, html: icon('award') });
+      var name = actionLabel(t.cert_button_label, 'Certificates');
+      var b = actionBtn('nu-bt-act--cert', name, 'award');
       b.addEventListener('click', function (e) { e.stopPropagation(); app.openRecordCertificatesModal(self.code, row.id, t.cert_id); });
       box.append(b);
     });
 
     if (this.canDelete) {
-      var del = el('button', { type: 'button', class: 'nu-bt-act nu-bt-act--danger', title: 'Delete record', 'aria-label': 'Delete record', html: icon('trash') });
+      var del = actionBtn('nu-bt-act--danger', 'Delete', 'trash');
+      del.title = 'Delete record';
       del.addEventListener('click', function (e) {
         e.stopPropagation();
         confirmDialog('This record will be deleted permanently. This cannot be undone.', { title: 'Delete record?', confirmLabel: 'Delete', danger: true }).then(function (ok) {

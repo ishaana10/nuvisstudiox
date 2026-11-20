@@ -168,7 +168,6 @@
 .nu-bt-table tbody tr { transition: background var(--transition); }
 .nu-bt-table tbody tr:hover td { background: var(--bg-hover-solid, color-mix(in srgb, var(--bg-card) 94%, var(--primary))); }
 .nu-bt-table tbody tr.is-selected td { background: color-mix(in srgb, var(--bg-card) 88%, var(--primary)); }
-.nu-bt-table tbody tr.is-clickable { cursor: pointer; }
 .nu-bt-table tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .nu-bt-table .is-frozen { position: sticky; z-index: 2; }
 .nu-bt-table thead .is-frozen { z-index: 4; }
@@ -198,7 +197,7 @@ th[aria-sort="descending"] .nu-bt-sort-icon { transform: rotate(180deg); }
 .nu-bt-table th.is-dragging { opacity: .5; }
 
 .nu-bt-col-select { width: 44px; text-align: center; padding-left: 0; padding-right: 0; }
-.nu-bt-col-actions { width: 132px; }
+.nu-bt-col-actions { width: auto; }
 .nu-bt-actions { display: flex; align-items: center; gap: 2px; }
 .nu-bt-act {
   display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0;
@@ -209,6 +208,21 @@ th[aria-sort="descending"] .nu-bt-sort-icon { transform: rotate(180deg); }
 .nu-bt-act--danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); color: var(--error); }
 .nu-bt-act--cert { color: var(--primary); }
 .nu-bt-act svg { width: 16px; height: 16px; }
+.nu-bt-act-ico { display: inline-grid; place-items: center; }
+.nu-bt-act-label { display: none; }
+
+/* Desktop: labelled buttons. Small screens keep the compact icon buttons. */
+@media (min-width: 641px) {
+  .nu-bt-actions { gap: 4px; flex-wrap: nowrap; }
+  .nu-bt-act {
+    display: inline-flex; align-items: center; gap: 6px; width: auto; height: 30px; padding: 0 10px;
+    border: 1px solid var(--border-color); font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .nu-bt-act-label { display: inline; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+  .nu-bt-act--main { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, var(--border-color)); }
+  .nu-bt-act--main:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+  .nu-bt-act--danger { color: var(--error); border-color: color-mix(in srgb, var(--error) 35%, var(--border-color)); }
+}
 .nu-bt-check { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); vertical-align: middle; }
 .nu-bt-col-select .nu-bt-check { display: block; margin: 0 auto; }
 
