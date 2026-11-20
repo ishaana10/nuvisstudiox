@@ -764,10 +764,12 @@
 
       tr.append(self.buildActionsCell(row));
 
-      cols.forEach(function (col) {
+      cols.forEach(function (col, ci) {
         var td = el('td', { dataset: { col: col.fieldname, label: col.fieldlabel }, style: 'text-align:' + col.align });
         if (col.frozen) td.classList.add('is-frozen');
         var value = cellValue(row, col);
+        if (ci === 0) td.classList.add('nu-bt-cell-title');                  // card title on small screens
+        if (value === null || value === undefined || String(value).trim() === '') td.dataset.empty = '1'; // hidden in card view
         self.renderCell(td, col, row, value);
         tr.append(td);
       });
