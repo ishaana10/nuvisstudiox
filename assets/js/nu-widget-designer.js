@@ -64,7 +64,7 @@
     var ico = el('span', { class: 'nu-wg-ico' });
     if (custom && S.icons[custom]) ico.appendChild(svgFrag(S.icons[custom]));
     else if (custom && !/^[A-Za-z0-9_\- ]+$/.test(custom)) ico.textContent = custom;
-    if (!ico.firstChild && !custom) ico.appendChild(svgFrag(S.icons[def.icon] || S.icons.chart || '<svg></svg>'));
+    if (!ico.firstChild && !ico.textContent) ico.appendChild(svgFrag(S.icons[def.icon] || S.icons.chart || '<svg></svg>'));
     var c = el('article', { class: 'nu-wg-card', 'data-widget-id': w.widget_id, 'data-type': w.widget_type, 'data-group': String(def.group || 'data').toLowerCase(),
       'data-w': w.widget_width, 'data-h': w.widget_height, 'data-refresh': 0, 'data-locked': Number(w.widget_locked) ? '1' : '0' });
     c.appendChild(el('header', { class: 'nu-wg-head' }, ico, el('h3', { class: 'nu-wg-title', text: title })));
@@ -264,18 +264,32 @@
     d.appendChild(el('div', { class: 'nu-dialog-actions' }, btn('Cancel', 'nu-btn nu-btn-ghost', function () { closeDialog(d); })));
   }
 
-  function builderForm(widget, type) {
+  // draft: values carried over when the developer switches "Display as" inside the form.
+  function builderForm(widget, type, draft) {
     var def = S.types[type];
-    var cfg = widget ? cfgOf(widget) : JSON.parse(JSON.stringify(def.defaults.config || {}));
+    var cfg = draft ? draft.config : widget ? cfgOf(widget) : JSON.parse(JSON.stringify(def.defaults.config || {}));
     var d = openDialog('nu-dialog--wide', 'nuWgBT');
     d.id = 'nuWgBuilder';
     var form = el('form', { class: 'nu-wgd-form', novalidate: 'novalidate' });
     var title = el('input', { id: 'nuWgF_title', type: 'text', maxlength: '120' });
-    title.value = widget ? widget.widget_title : def.label;
+    title.value = draft ? draft.title : widget ? widget.widget_title : def.label;
     form.appendChild(row('Title', title));
 
+    // Display as: any widget type; switching keeps title, icon, size and the fields both types share.
+    var typeSel = el('select', { id: 'nuWgF_type' });
+    var seenGroups = [];
+    Object.keys(S.types).forEach(function (t) { var g = S.types[t].group; if (seenGroups.indexOf(g) < 0) seenGroups.push(g); });
+    seenGroups.forEach(function (g) {
+      var og = el('optgroup', { label: g });
+      Object.keys(S.types).filter(function (t) { return S.types[t].group === g; }).forEach(function (t) {
+        var o = el('option', { value: t, text: S.types[t].label }); if (t === type) o.selected = true; og.appendChild(o);
+      });
+      typeSel.appendChild(og);
+    });
+    form.appendChild(row('Display as', typeSel, 'Number, chart, list, table… — fields below change with the type.'));
+
     // icon: built-in set + "default"; legacy values (emoji / fa-…) stay editable as text
-    var curIcon = widget ? (widget.widget_icon || '') : '';
+    var curIcon = draft ? draft.icon : widget ? (widget.widget_icon || '') : '';
     var iconVal = curIcon;
     var picker = el('div', { class: 'nu-wgd-icons', role: 'group', 'aria-label': 'Icon' });
     var legacy = el('input', { type: 'text', maxlength: '120', placeholder: 'or emoji / fa-icon-name', 'aria-label': 'Custom icon' });
@@ -310,12 +324,12 @@
     });
 
     var w = el('select', { id: 'nuWgF_w' }), h = el('select', { id: 'nuWgF_h' }), rf = el('select', { id: 'nuWgF_rf' });
-    SIZES.forEach(function (z) { var o = el('option', { value: z[1], text: z[0] + ' (' + z[1] + '/4 wide)' }); if (z[1] === Number(widget ? widget.widget_width : def.defaults.width)) o.selected = true; w.appendChild(o); });
-    [1, 2, 3].forEach(function (n) { var o = el('option', { value: n, text: n + (n === 1 ? ' row' : ' rows') }); if (n === Number(widget ? widget.widget_height : def.defaults.height)) o.selected = true; h.appendChild(o); });
-    REFRESH.forEach(function (r) { var o = el('option', { value: r[0], text: r[1] }); if (r[0] === Number(widget ? widget.widget_refresh : 0)) o.selected = true; rf.appendChild(o); });
+    SIZES.forEach(function (z) { var o = el('option', { value: z[1], text: z[0] + ' (' + z[1] + '/4 wide)' }); if (z[1] === Number(draft ? draft.width : widget ? widget.widget_width : def.defaults.width)) o.selected = true; w.appendChild(o); });
+    [1, 2, 3].forEach(function (n) { var o = el('option', { value: n, text: n + (n === 1 ? ' row' : ' rows') }); if (n === Number(draft ? draft.height : widget ? widget.widget_height : def.defaults.height)) o.selected = true; h.appendChild(o); });
+    REFRESH.forEach(function (r) { var o = el('option', { value: r[0], text: r[1] }); if (r[0] === Number(draft ? draft.refresh : widget ? widget.widget_refresh : 0)) o.selected = true; rf.appendChild(o); });
     form.appendChild(el('div', { class: 'nu-wgd-cols' }, row('Width', w), row('Height', h), row('Auto-refresh', rf)));
     var lock = el('input', { id: 'nuWgF_lock', type: 'checkbox' });
-    lock.checked = widget ? Number(widget.widget_locked) === 1 : false;
+    lock.checked = draft ? !!draft.locked : widget ? Number(widget.widget_locked) === 1 : false;
     form.appendChild(el('div', { class: 'nu-wgd-row nu-wgd-check' }, lock, el('label', { for: 'nuWgF_lock', text: 'Lock (users can’t hide this widget)' })));
 
     var err = el('div', { class: 'nu-wg-error', role: 'alert' });
@@ -325,6 +339,30 @@
     d.appendChild(el('div', { class: 'nu-dialog-body' }, el('h3', { class: 'nu-dialog-title', id: 'nuWgBT', text: (widget ? 'Edit ' : 'New ') + def.label }), form));
     d.appendChild(el('div', { class: 'nu-dialog-actions' }, btn('Cancel', 'nu-btn nu-btn-ghost', function () { closeDialog(d); }), save));
     form.addEventListener('submit', function (e) { e.preventDefault(); submit(); });
+
+    typeSel.addEventListener('change', function () {
+      var g = gather(), nt = typeSel.value;
+      var carried = Object.assign({}, g.config);
+      var nd = S.types[nt].defaults || {};
+      Object.keys(nd.config || {}).forEach(function (k) { if (carried[k] === undefined) carried[k] = nd.config[k]; });
+      closeDialog(d);
+      builderForm(widget, nt, {
+        title: (!g.title.trim() || g.title.trim() === def.label) ? S.types[nt].label : g.title,
+        icon: iconVal, config: carried, width: Number(w.value), height: Number(h.value), locked: lock.checked, refresh: Number(rf.value)
+      });
+    });
+
+    function gather() {
+      var config = {};
+      inputs.forEach(function (p) {
+        var f = p[0], inp = p[1], v = inp.value;
+        if (f.kind === 'number') { v = v === '' ? undefined : Number(v); }
+        else if (f.kind === 'lines') { v = textToLines(v); if (!v.length) v = undefined; }
+        else if (typeof v === 'string') v = v.trim();
+        if (v !== undefined && v !== '') config[f.key] = v;
+      });
+      return { title: title.value, config: config };
+    }
 
     function submit() {
       var config = {}, missing = [];
