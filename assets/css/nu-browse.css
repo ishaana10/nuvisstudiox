@@ -211,8 +211,8 @@ th[aria-sort="descending"] .nu-bt-sort-icon { transform: rotate(180deg); }
 .nu-bt-act-ico { display: inline-grid; place-items: center; }
 .nu-bt-act-label { display: none; }
 
-/* Desktop: labelled buttons. Small screens keep the compact icon buttons. */
-@media (min-width: 641px) {
+/* Labelled buttons on every screen size (clearer than bare icons). */
+@media (min-width: 0px) {
   .nu-bt-actions { gap: 4px; flex-wrap: nowrap; }
   .nu-bt-act {
     display: inline-flex; align-items: center; gap: 6px; width: auto; height: 30px; padding: 0 10px;
@@ -384,4 +384,47 @@ th[aria-sort="descending"] .nu-bt-sort-icon { transform: rotate(180deg); }
 @media (max-width: 640px) {
   .nu-bt-modal-overlay { padding: 0; align-items: flex-end; }
   .nu-bt-modal { max-height: 94vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 16px; }
+}
+
+/* ── Mobile cards (≤640px): title, tidy field rows, labelled action footer ─────── */
+@media (max-width: 640px) {
+  .nu-bt-table tbody tr { display: flex; flex-direction: column; margin-bottom: 12px; border-radius: var(--radius-lg, 14px); box-shadow: var(--shadow-sm); }
+  .nu-bt-table td { padding: 9px 14px; border-bottom: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent); align-items: center; font-size: var(--font-sm, .8125rem); background: var(--bg-card) !important; }
+  .nu-bt-table td::before { max-width: 45%; color: var(--text-muted); font-size: 10.5px; }
+  .nu-bt-table td[data-empty="1"] { display: none; }
+  .nu-bt-table td .nu-bt-badge { margin-left: auto; }
+
+  /* first column = card title */
+  .nu-bt-table td.nu-bt-cell-title { order: 1; display: block; text-align: left !important; font-size: 15px; font-weight: 700; padding: 12px 14px 8px; border-bottom: 0; }
+  .nu-bt-table td.nu-bt-cell-title::before { content: none; }
+  .nu-bt-table td.nu-bt-cell-select { order: 0; padding: 10px 14px 0; background: var(--bg-card) !important; }
+  .nu-bt-table td.nu-bt-cell-title ~ td { order: 2; }
+
+  /* action footer */
+  .nu-bt-table td.nu-bt-cell-actions { order: 3; padding: 10px 12px; border-bottom: 0; border-top: 1px solid var(--border-color); background: var(--bt-head-bg) !important; }
+  .nu-bt-actions { width: 100%; gap: 8px; }
+  .nu-bt-act { flex: 1 1 0; justify-content: center; height: 38px; font-size: 13px; }
+  .nu-bt-act--main { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+  .nu-bt-act-label { max-width: none; }
+
+  /* compact (toggle in the toolbar, remembered per browser): fields in two columns, smaller footer */
+  .nu-bt[data-density="compact"] .nu-bt-table tbody tr { flex-direction: row; flex-wrap: wrap; margin-bottom: 8px; }
+  .nu-bt[data-density="compact"] .nu-bt-table td { flex: 1 1 50%; min-width: 0; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 12px; font-size: 12.5px; text-align: left !important; border-bottom: 0; }
+  .nu-bt[data-density="compact"] .nu-bt-table td::before { max-width: none; }
+  .nu-bt[data-density="compact"] .nu-bt-table td.nu-bt-cell-title { flex-basis: 100%; font-size: 14px; padding: 10px 12px 4px; }
+  .nu-bt[data-density="compact"] .nu-bt-table td.nu-bt-cell-select { flex-basis: 100%; padding: 8px 12px 0; }
+  .nu-bt[data-density="compact"] .nu-bt-table td.nu-bt-cell-actions { flex-basis: 100%; padding: 6px 10px; }
+  .nu-bt[data-density="compact"] .nu-bt-act { height: 32px; font-size: 12px; }
+}
+
+@media (max-width: 640px) {
+  .nu-bt-table tbody tr { position: relative; }
+  /* select checkbox sits in the card's top-right corner instead of taking its own row */
+  .nu-bt-table td.nu-bt-cell-select, .nu-bt[data-density="compact"] .nu-bt-table td.nu-bt-cell-select {
+    position: absolute !important; top: 8px; right: 6px; left: auto !important; width: auto !important; flex: none; padding: 6px 8px; background: transparent !important; z-index: 1;
+  }
+  .nu-bt-table td.nu-bt-cell-select .nu-bt-check { width: 20px; height: 20px; }
+  .nu-bt-table td.nu-bt-cell-title { padding-right: 44px; }
+  .nu-bt[data-density="compact"] .nu-bt-table td { justify-content: flex-start; }
+  .nu-bt[data-density="compact"] .nu-bt-table td .nu-bt-badge { margin-left: 0; }
 }
