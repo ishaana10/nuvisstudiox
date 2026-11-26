@@ -906,6 +906,30 @@ class NuDatabase {
             } catch (Exception $ignored) {}
         }
 
+        // Self-healing: tenant boundary column on users, roles and projects
+        if (!$sessionActive || empty($_SESSION['_nu_tenant_ensured'])) {
+            foreach (['nu_users', 'nu_roles', 'nu_projects'] as $tTable) {
+                try {
+                    $driverT = strtolower((string)$this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME));
+                    $has = $driverT === 'sqlite'
+                        ? (bool)$this->pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='{$tTable}'")->fetch()
+                        : (bool)$this->pdo->query("SHOW TABLES LIKE '{$tTable}'")->fetch();
+                    if (!$has) continue;
+                    $cols = $driverT === 'sqlite'
+                        ? array_column($this->pdo->query("PRAGMA table_info(`{$tTable}`)")->fetchAll(PDO::FETCH_ASSOC), 'name')
+                        : array_column($this->pdo->query("DESCRIBE `{$tTable}`")->fetchAll(PDO::FETCH_ASSOC), 'Field');
+                    if (!in_array('tenant_code', $cols, true)) {
+                        $this->pdo->exec("ALTER TABLE `{$tTable}` ADD COLUMN `tenant_code` VARCHAR(64) NOT NULL DEFAULT 'default'");
+                    }
+                } catch (Throwable $e) {
+                    error_log('[tenant] schema ensure failed for ' . $tTable . ': ' . $e->getMessage());
+                }
+            }
+            if ($sessionActive) {
+                $_SESSION['_nu_tenant_ensured'] = true;
+            }
+        }
+
         // Self-healing: dashboard widgets v2 (keys, unique key, duplicate cleanup, per-user prefs)
         if (!$sessionActive || empty($_SESSION['_nu_widget_schema_ensured'])) {
             try {

@@ -32,6 +32,7 @@ $_commitVersion = urlencode(AppVersion::get('commit'));
 <script src="<?= nu_asset('assets/js/nb-ace-manager.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nb-form-builder.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nusubform.js') ?>"></script>
+<script src="<?= nu_asset('assets/js/nu-csrf.js') ?>"></script>
 <script src="<?= nu_asset('assets/js/nu-errorlogger.js') ?>"></script>
 <script>
 (function () {

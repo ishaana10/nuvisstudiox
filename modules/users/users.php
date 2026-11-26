@@ -8,8 +8,15 @@ if (!$auth->hasPermission('users.view')) {
 }
 
 $db    = NuDatabase::getInstance();
-$users = $db->fetchAll("SELECT * FROM nu_users ORDER BY usr_id DESC");
-$roles = $db->fetchAll("SELECT role_code, role_name FROM nu_roles ORDER BY role_name");
+require_once dirname(__DIR__, 2) . '/core/Tenant.php';
+$__role = strtolower((string)(($auth->getCurrentUser()['usr_role'] ?? '')));
+$__tenant = NuTenant::current();
+$users = $__role === 'globeadmin'
+    ? $db->fetchAll("SELECT * FROM nu_users ORDER BY usr_id DESC")
+    : $db->fetchAll("SELECT * FROM nu_users WHERE tenant_code = ? AND usr_role <> 'globeadmin' ORDER BY usr_id DESC", [$__tenant]);
+$roles = $__role === 'globeadmin'
+    ? $db->fetchAll("SELECT role_code, role_name FROM nu_roles ORDER BY role_name")
+    : $db->fetchAll("SELECT role_code, role_name FROM nu_roles WHERE role_code <> 'globeadmin' AND (role_is_system = 1 OR tenant_code = ?) ORDER BY role_name", [$__tenant]);
 
 // Get unified user field definitions
 $fieldsDef = nu_get_user_fields_def($db);

@@ -18,9 +18,9 @@ class ProjectContext {
         return preg_match('/^[A-Za-z0-9_-]{1,64}$/', $v) ? $v : null;
     }
 
-    /** Whether any signed-in user may open the default project without being a member (default: yes). */
+    /** Whether any signed-in user may open the default project without being a member (default: no, members only). */
     public static function defaultOpenAccess(): bool {
-        return (bool)($GLOBALS['nuConfig']['projectDefaultOpenAccess'] ?? true);
+        return (bool)($GLOBALS['nuConfig']['projectDefaultOpenAccess'] ?? false);
     }
 
     /** Project that owns a registered table (nu_project_tables), or null when the table is not registered. */
@@ -77,7 +77,7 @@ class ProjectContext {
      * @return int|null Shared project id, or null when no valid share token applies.
      */
     public static function bootstrapShare(): ?int {
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
         $urlToken  = $_GET['project_share'] ?? ($_GET['share_token'] ?? '');
@@ -140,7 +140,7 @@ class ProjectContext {
             return self::$cachedProjectId;
         }
 
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
 
@@ -202,7 +202,7 @@ class ProjectContext {
 
             return self::$cachedProjectId = $resolvedId;
         } catch (\Throwable $e) {
-            return self::$cachedProjectId = 1;
+            return self::$cachedProjectId = 0; // fail closed: never fall back to project 1
         }
     }
 
@@ -214,7 +214,7 @@ class ProjectContext {
      */
     public static function setId(int $projectId): bool {
         self::$cachedProjectId = null;
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
 
@@ -330,11 +330,14 @@ class ProjectContext {
             [$userId]
         );
 
-        if ($assigned) {
+        if ($assigned && self::validateAccess($userId, (int)$assigned['project_id'], $userRole)) {
             return (int)$assigned['project_id'];
         }
 
-        // 4. Fallback to default project if user is not specifically assigned anywhere
+        // 4. Not assigned anywhere: the default project only when it is open to everyone, else no project (0)
+        if (!self::defaultOpenAccess()) {
+            return 0;
+        }
         $defaultProj = $db->fetchOne("SELECT project_id FROM nu_projects WHERE project_is_default = 1 AND project_active = 1 LIMIT 1");
         return $defaultProj ? (int)$defaultProj['project_id'] : 1;
     }
@@ -355,6 +358,12 @@ class ProjectContext {
         if ($userId === null) {
             // No usable user id: only an active share session for this very project is honoured.
             return !empty($_SESSION['nu_project_share_active']) && (int)($_SESSION['nu_project_id'] ?? 0) === $projectId;
+        }
+
+        // Tenant boundary: a user never opens another tenant's project, whatever the membership rows say.
+        require_once __DIR__ . '/Tenant.php';
+        if (NuTenant::ofUser($userId) !== NuTenant::ofProject($projectId)) {
+            return false;
         }
 
         $db = NuDatabase::getInstance();
@@ -379,7 +388,7 @@ class ProjectContext {
             return true;
         }
 
-        // The default workspace is open to every signed-in user unless $nuConfig['projectDefaultOpenAccess'] = false
+        // The default workspace is open to every signed-in user only when $nuConfig['projectDefaultOpenAccess'] = true
         if (!self::defaultOpenAccess()) {
             return false;
         }
@@ -394,8 +403,8 @@ class ProjectContext {
      * @param string $userRole
      * @return array
      */
-    public static function getAccessibleProjects(?int $userId = null, string $userRole = ''): array {
-        if (session_status() === PHP_SESSION_NONE) {
+    public static function getAccessibleProjects(int|string|null $userId = null, string $userRole = ''): array {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
 
@@ -428,16 +437,21 @@ class ProjectContext {
                 return $db->fetchAll("SELECT * FROM nu_projects WHERE project_active = 1 ORDER BY project_is_default DESC, project_name ASC");
             }
 
-            if (empty($userId)) {
-                return $db->fetchAll("SELECT * FROM nu_projects WHERE project_is_default = 1 AND project_active = 1");
+            require_once __DIR__ . '/Tenant.php';
+            $userId = self::normalizeUserId($userId);
+            if ($userId === null) {
+                return self::defaultOpenAccess()
+                    ? $db->fetchAll("SELECT * FROM nu_projects WHERE project_is_default = 1 AND project_active = 1")
+                    : [];
             }
 
             $projects = $db->fetchAll(
                 "SELECT p.*, COALESCE(pm.pm_role, CASE WHEN p.project_owner_id = ? THEN 'owner' ELSE 'member' END) AS pm_role FROM nu_projects p
                  LEFT JOIN nu_project_members pm ON p.project_id = pm.pm_project_id AND pm.pm_user_id = ?
                  WHERE (pm.pm_user_id = ? OR p.project_owner_id = ? OR (p.project_is_default = 1 AND ? = 1)) AND p.project_active = 1
+                   AND COALESCE(p.tenant_code, 'default') = ?
                  ORDER BY p.project_is_default DESC, p.project_name ASC",
-                [$userId, $userId, $userId, $userId, self::defaultOpenAccess() ? 1 : 0]
+                [$userId, $userId, $userId, $userId, self::defaultOpenAccess() ? 1 : 0, NuTenant::ofUser($userId)]
             );
 
             if (empty($projects) && self::defaultOpenAccess()) {

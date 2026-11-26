@@ -410,7 +410,8 @@ class NuAuth {
     // --- Private Helpers ---
     private function createSession($user) {
         $this->regenerateSession();
-        $_SESSION['nu_user_id']       = $user['usr_id'];  // preserved as-is: string (UUID) or int
+        $_SESSION['nu_user_id']       = $user['usr_id'];
+        $_SESSION['nu_tenant']        = preg_match('/^[a-z0-9_-]{1,64}$/', strtolower((string)($user['tenant_code'] ?? ''))) ? strtolower((string)$user['tenant_code']) : 'default';  // preserved as-is: string (UUID) or int
         $_SESSION['nu_username']      = $user['usr_username'];
         $_SESSION['nu_role']          = $user['usr_role'];
         $_SESSION['nu_last_activity'] = time();

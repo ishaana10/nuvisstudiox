@@ -35,12 +35,26 @@ if (!$auth->hasPermission('roles.view')) {
 $db     = NuDatabase::getInstance();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
+require_once __DIR__ . '/../core/Tenant.php';
+$nuActorRole   = strtolower((string)(($auth->getCurrentUser()['usr_role'] ?? '')));
+$nuActorTenant = NuTenant::current();
+
+/** A non-globeadmin only manages their own tenant's roles; globeadmin and system roles are never theirs to change. */
+function nuAssertRoleInTenant(array $role, string $actorRole, string $actorTenant): void {
+    if ($actorRole === 'globeadmin') return;
+    if (strtolower((string)$role['role_code']) === 'globeadmin' || !NuTenant::canManage($actorRole, $actorTenant, (string)($role['tenant_code'] ?? 'default'))) {
+        throw new Exception('Role not found');
+    }
+}
+
 try {
     switch ($action) {
 
         // ── List all roles ────────────────────────────────────────────────────
         case 'list':
-            $roles = $db->fetchAll("SELECT * FROM nu_roles ORDER BY role_name");
+            $roles = $nuActorRole === 'globeadmin'
+                ? $db->fetchAll("SELECT * FROM nu_roles ORDER BY role_name")
+                : $db->fetchAll("SELECT * FROM nu_roles WHERE role_code <> 'globeadmin' AND (role_is_system = 1 OR tenant_code = ?) ORDER BY role_name", [$nuActorTenant]);
             echo json_encode(['success' => true, 'roles' => $roles]);
             break;
 
@@ -50,6 +64,7 @@ try {
             if (!$code) throw new Exception('role_code required');
             $role = $db->fetchOne("SELECT * FROM nu_roles WHERE role_code = :c", [':c' => $code]);
             if (!$role) throw new Exception('Role not found');
+            if (in_array($action, ['get', 'update', 'delete', 'save_perms'], true)) nuAssertRoleInTenant($role, $nuActorRole, $nuActorTenant);
             $perms = $db->fetchAll(
                 "SELECT * FROM nu_role_form_permissions WHERE rfp_role_code = :c ORDER BY rfp_form_code",
                 [':c' => $code]
@@ -79,6 +94,7 @@ try {
                 'role_code'        => $code,
                 'role_description' => $desc,
                 'role_is_system'   => 0,
+                'tenant_code'      => ($nuActorRole === 'globeadmin' && !empty($body['tenant_code'])) ? NuTenant::normalize($body['tenant_code']) : $nuActorTenant,
             ]);
             echo json_encode(['success' => true, 'role_code' => $code]);
             break;
@@ -90,6 +106,7 @@ try {
             if (!$code) throw new Exception('role_code required');
             $role = $db->fetchOne("SELECT * FROM nu_roles WHERE role_code = :c", [':c' => $code]);
             if (!$role) throw new Exception('Role not found');
+            if (in_array($action, ['get', 'update', 'delete', 'save_perms'], true)) nuAssertRoleInTenant($role, $nuActorRole, $nuActorTenant);
             if (!empty($role['role_is_system'])) throw new Exception('System roles cannot be modified');
             $body = json_decode(file_get_contents('php://input'), true) ?? [];
             $update = [];
@@ -106,6 +123,7 @@ try {
             if (!$code) throw new Exception('role_code required');
             $role = $db->fetchOne("SELECT * FROM nu_roles WHERE role_code = :c", [':c' => $code]);
             if (!$role) throw new Exception('Role not found');
+            if (in_array($action, ['get', 'update', 'delete', 'save_perms'], true)) nuAssertRoleInTenant($role, $nuActorRole, $nuActorTenant);
             if (!empty($role['role_is_system'])) throw new Exception('System roles cannot be deleted');
             $inUse = $db->fetchOne("SELECT COUNT(*) as cnt FROM nu_users WHERE usr_role = :c", [':c' => $code]);
             if ($inUse['cnt'] > 0) throw new Exception('Cannot delete - ' . $inUse['cnt'] . ' user(s) are assigned this role');
@@ -121,6 +139,7 @@ try {
             if (!$code) throw new Exception('role_code required');
             $role = $db->fetchOne("SELECT * FROM nu_roles WHERE role_code = :c", [':c' => $code]);
             if (!$role) throw new Exception('Role not found');
+            if (in_array($action, ['get', 'update', 'delete', 'save_perms'], true)) nuAssertRoleInTenant($role, $nuActorRole, $nuActorTenant);
             if (!empty($role['role_is_system'])) throw new Exception('Cannot edit permissions for system roles');
 
             $body  = json_decode(file_get_contents('php://input'), true) ?? [];
