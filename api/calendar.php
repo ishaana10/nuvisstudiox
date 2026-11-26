@@ -41,8 +41,9 @@ try {
         case 'get':
             $id = (int)($_GET['id'] ?? 0);
             $event = $db->fetchOne(
-                "SELECT * FROM nu_calendar_events WHERE event_id = :id AND event_active = 1",
-                [':id' => $id]
+                "SELECT * FROM nu_calendar_events WHERE event_id = :id AND event_active = 1
+                   AND (event_user_id = :user OR event_user_id IS NULL OR event_category = 'shared')",
+                [':id' => $id, ':user' => $userId]
             );
             if (!$event) {
                 echo json_encode(['success' => false, 'error' => 'Event not found']);

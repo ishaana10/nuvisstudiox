@@ -5,6 +5,8 @@ require_once '../config.php';
 require_once '../core/Database.php';
 require_once '../core/Auth.php';
 require_once '../core/Audit.php';
+require_once '../core/ProjectContext.php';
+require_once '../core/CrudGuard.php';
 
 header('Content-Type: application/json');
 
@@ -109,6 +111,13 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Access denied: Only globeadmin can access system schemas.']);
             exit;
         }
+        // Project isolation and all other nu_ tables (admins included); form permissions are not required for admin import.
+        $guardErr = NuCrudGuard::authorizeTable($table, 'view', $role, ProjectContext::getId(), false);
+        if ($guardErr !== null) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => $guardErr]);
+            exit;
+        }
 
         try {
             // Verify table exists
@@ -148,6 +157,13 @@ switch ($action) {
         $sensitiveTables = ['nu_users', 'nu_forms', 'nu_menus', 'nu_roles', 'nu_permissions', 'nu_role_permissions'];
         if (in_array($table, $sensitiveTables, true) && $role !== 'globeadmin') {
             echo json_encode(['success' => false, 'error' => 'Access denied: Only globeadmin can modify system tables.']);
+            exit;
+        }
+        // Project isolation and all other nu_ tables (admins included); form permissions are not required for admin import.
+        $guardErr = NuCrudGuard::authorizeTable($table, 'add', $role, ProjectContext::getId(), false);
+        if ($guardErr !== null) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => $guardErr]);
             exit;
         }
 
