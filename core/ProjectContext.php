@@ -77,7 +77,7 @@ class ProjectContext {
      * @return int|null Shared project id, or null when no valid share token applies.
      */
     public static function bootstrapShare(): ?int {
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
         $urlToken  = $_GET['project_share'] ?? ($_GET['share_token'] ?? '');
@@ -140,7 +140,7 @@ class ProjectContext {
             return self::$cachedProjectId;
         }
 
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
 
@@ -214,7 +214,7 @@ class ProjectContext {
      */
     public static function setId(int $projectId): bool {
         self::$cachedProjectId = null;
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
 
@@ -401,7 +401,7 @@ class ProjectContext {
      * @return array
      */
     public static function getAccessibleProjects(int|string|null $userId = null, string $userRole = ''): array {
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
         }
 

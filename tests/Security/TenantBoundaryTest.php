@@ -18,7 +18,7 @@ class TenantBoundaryTest extends TestCase
 
     protected function setUp(): void
     {
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (session_status() === PHP_SESSION_NONE) @session_start();
         $this->db = NuDatabase::getInstance();
         foreach (['nu_users', 'nu_roles', 'nu_projects', 'nu_project_members', 'nu_project_tables'] as $t) $this->db->exec("DROP TABLE IF EXISTS {$t}");
         $this->db->exec("CREATE TABLE nu_users (usr_id TEXT PRIMARY KEY, usr_username TEXT, usr_role TEXT, tenant_code TEXT NOT NULL DEFAULT 'default')");
