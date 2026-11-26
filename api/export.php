@@ -19,6 +19,16 @@ if (!$table) {
     exit;
 }
 
+// Same guard as the CRUD endpoint: project, platform tables, and the role's export right on a form using the table.
+require_once '../core/ProjectContext.php';
+require_once '../core/CrudGuard.php';
+$guardErr = NuCrudGuard::authorizeTable($table, 'export', strtolower((string)(($auth->getCurrentUser()['usr_role'] ?? ''))), ProjectContext::getId());
+if ($guardErr !== null) {
+    http_response_code(403);
+    echo $guardErr;
+    exit;
+}
+
 $db = NuDatabase::getInstance();
 $records = $db->fetchAll("SELECT * FROM {$table} LIMIT 10000");
 

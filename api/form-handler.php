@@ -10,6 +10,13 @@ if (!$auth->checkAuth()) {
     exit;
 }
 
+// Legacy endpoint (not used by the current UI): it has no project or permission checks, so it is globeadmin only.
+if (strtolower((string)(($auth->getCurrentUser()['usr_role'] ?? ''))) !== 'globeadmin') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Use api/form.php.']);
+    exit;
+}
+
 $action = $_GET['action'] ?? '';
 $formCode = $_GET['code'] ?? '';
 $db = NuDatabase::getInstance();

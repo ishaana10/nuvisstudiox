@@ -2084,6 +2084,7 @@ function nu_handle_subform_fields() {
 
     $form = nu_get_form($code);
     if (!$form) nu_json(['success' => false, 'error' => 'Child form not found'], 404);
+    nu_guard_form($code, 'view');
 
     $c      = nu_form_columns();
     $table  = nu_safe_ident($form[$c['table']] ?? '');
@@ -2168,6 +2169,7 @@ function nu_handle_subform_list() {
         nu_log("Error: Child form not found for code='{$code}'", "subform_list");
         nu_json(['success' => false, 'error' => 'Child form not found'], 404);
     }
+    nu_guard_form($code, 'view');
 
     // ── Fetch Roles and Configs Pure Server-Side ──
     $sfMeta = nu_get_subform_roles($parentFormCode, $code, $fk);
@@ -2363,6 +2365,7 @@ function nu_handle_subform_save() {
 
     $form = nu_get_form($code);
     if (!$form) nu_json(['success' => false, 'error' => 'Child form not found'], 404);
+    nu_guard_form($code, ($id === '' || $id === null) ? 'add' : 'edit');
 
     // ── Check Edit Roles purely server side ──
     $sfMeta = nu_get_subform_roles($parentFormCode, $code, $fk);
@@ -2582,6 +2585,7 @@ function nu_handle_subform_delete() {
 
     $form = nu_get_form($code);
     if (!$form) nu_json(['success' => false, 'error' => 'Child form not found'], 404);
+    nu_guard_form($code, 'delete');
 
     // ── Check Edit Roles purely server side ──
     $sfMeta = nu_get_subform_roles($parentFormCode, $code, $fk);
@@ -2610,12 +2614,35 @@ function nu_handle_subform_delete() {
 
 /* ── Standard handlers ────────────────────────────────────────────── */
 
+/**
+ * Central per-form permission check for record actions (view/add/edit/delete).
+ * Denies with 403 JSON when the signed-in role lacks the matching rfp_can_* flag.
+ */
+function nu_guard_form(string $code, string $action): void {
+    if (!class_exists('NuCrudGuard')) require_once __DIR__ . '/../core/CrudGuard.php';
+    $auth = class_exists('NuAuth') ? NuAuth::getInstance() : null;
+    $role = $auth ? (string)$auth->getCurrentRole() : '';
+    if ($role === '') $role = (string)($_SESSION['nu_role'] ?? $_SESSION['usr_role'] ?? $_SESSION['role'] ?? '');
+    $pid = class_exists('ProjectContext') ? (int)ProjectContext::getId() : 0;
+    $err = NuCrudGuard::authorizeForm($code, $action, $role, $pid);
+    if ($err !== null) NuCrudGuard::deny($err);
+}
+
+/** Designer endpoints (save_form / load_form) are admin only. */
+function nu_require_designer(): void {
+    if (!nu_current_user_is_admin()) {
+        http_response_code(403);
+        nu_json(['success' => false, 'error' => 'Only administrators can use the form designer.'], 403);
+    }
+}
+
 function nu_handle_render() {
     $code = $_GET['code'] ?? '';
     $id   = $_GET['id']   ?? '';
     if ($code === '') nu_json(['success' => false, 'error' => 'Missing code'], 400);
     $form = nu_get_form($code);
     if (!$form) nu_json(['success' => false, 'error' => 'Form not found'], 404);
+    nu_guard_form($code, 'view');
 
     $c        = nu_form_columns();
     $formType = strtolower(trim((string)($form[$c['type']] ?? $form['form_type'] ?? '')));
@@ -2646,6 +2673,7 @@ function nu_handle_fields() {
     if ($code === '') nu_json(['success' => false, 'error' => 'Missing code'], 400);
     $form   = nu_get_form($code);
     if (!$form) nu_json(['success' => false, 'error' => 'Form not found'], 404);
+    nu_guard_form($code, 'view');
     $fields = nu_flatten_layout(nu_decode_layout($form));
     $out    = [];
     foreach ($fields as $field) {
@@ -2679,6 +2707,7 @@ function nu_handle_list() {
     if ($code === '') nu_json(['success' => false, 'error' => 'Missing code'], 400);
     $form   = nu_get_form($code);
     if (!$form) nu_json(['success' => false, 'error' => 'Form not found'], 404);
+    nu_guard_form($code, 'view');
 
     $c      = nu_form_columns();
     $table  = nu_safe_ident($form[$c['table']] ?? '');
@@ -2925,6 +2954,7 @@ function nu_handle_save() {
 
     $form   = nu_get_form($code);
     if (!$form) nu_json(['success' => false, 'error' => 'Form not found'], 404);
+    nu_guard_form($code, ($id === '' || $id === null) ? 'add' : 'edit');
 
     $c      = nu_form_columns();
     $table  = nu_safe_ident($form[$c['table']] ?? '');
@@ -3138,6 +3168,7 @@ function nu_handle_save() {
 }
 
 function nu_handle_save_form() {
+    nu_require_designer();
     $data = nu_request_json();
 
     $formId   = (int)($data['form_id'] ?? 0);
@@ -3250,6 +3281,7 @@ function nu_handle_save_form() {
 }
 
 function nu_handle_load_form() {
+    nu_require_designer();
     $formId = (int)($_GET['form_id'] ?? 0);
     if ($formId <= 0) nu_json(['success' => false, 'error' => 'Missing form_id'], 400);
 
