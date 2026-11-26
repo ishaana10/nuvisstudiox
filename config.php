@@ -114,6 +114,10 @@ unset($_env, $_envFile);
 // ─── Session Hardening + Start ────────────────────────────────────────────────
 require_once NU_ROOT . '/core/SessionBootstrap.php';
 
+// ─── Central CSRF + Origin gate for signed-in state-changing requests ───────────
+require_once NU_ROOT . '/core/SecurityGate.php';
+NuSecurityGate::enforce();
+
 if (!function_exists('h')) {
     function h($string, $flags = ENT_QUOTES, $encoding = 'UTF-8') {
         return htmlspecialchars((string)$string, $flags, $encoding);
