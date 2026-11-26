@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/core/Database.php';
 require_once dirname(__DIR__) . '/core/Auth.php';
 require_once dirname(__DIR__) . '/core/ProjectContext.php';
+require_once dirname(__DIR__) . '/core/CrudGuard.php';
 
 ob_clean();
 header('Content-Type: application/json; charset=utf-8');
@@ -276,6 +277,10 @@ try {
         case 'tables':
             $tables = $db->fetchAll("SHOW TABLES");
             $flat   = array_map(fn($r) => array_values($r)[0], $tables);
+            // Only tables the signed-in role may see (no nu_ system tables, no other projects' tables).
+            $rptRole = strtolower((string)($_SESSION['nu_role'] ?? $_SESSION['usr_role'] ?? ''));
+            $rptPid  = ProjectContext::getId();
+            $flat = array_values(array_filter($flat, fn($t) => NuCrudGuard::authorizeTable((string)$t, 'view', $rptRole, $rptPid, false) === null));
             echo json_encode(['success' => true, 'data' => $flat]);
             break;
 
@@ -283,6 +288,8 @@ try {
         case 'columns':
             $table = preg_replace('/[^a-z0-9_]/i', '', $_GET['table'] ?? '');
             if (!$table) throw new Exception('table required');
+            $rptErr = NuCrudGuard::authorizeTable($table, 'view', strtolower((string)($_SESSION['nu_role'] ?? $_SESSION['usr_role'] ?? '')), ProjectContext::getId(), false);
+            if ($rptErr !== null) { http_response_code(403); throw new Exception($rptErr); }
             $cols = $db->fetchAll("SHOW COLUMNS FROM `{$table}`");
             echo json_encode(['success' => true, 'data' => $cols]);
             break;

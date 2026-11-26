@@ -7,12 +7,20 @@
 require_once '../config.php';
 require_once '../core/Database.php';
 require_once '../core/Auth.php';
+require_once '../core/ProjectContext.php';
 require_once '../core/QueryExecutor.php';
 
 $auth = new NuAuth();
 if (!$auth->checkAuth()) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+    exit;
+}
+
+// Same permission the query manager (api/queries.php) requires.
+if (!$auth->hasPermission('queries', 'view')) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Permission denied']);
     exit;
 }
 
@@ -47,7 +55,7 @@ if ($action === 'validate') {
     header('Content-Type: application/json');
     if (!$code) { echo json_encode(['success' => false, 'error' => 'Missing code']); exit; }
     $db  = NuDatabase::getInstance();
-    $row = $db->fetchOne('SELECT query_sql FROM nu_queries WHERE query_code = ?', [$code]);
+    $row = $db->fetchOne('SELECT query_sql FROM nu_queries WHERE query_code = ? AND project_id = ?', [$code, ProjectContext::getId()]);
     if (!$row) { echo json_encode(['success' => false, 'error' => 'Query not found']); exit; }
     try {
         $db->fetchAll('EXPLAIN ' . $row['query_sql']);
