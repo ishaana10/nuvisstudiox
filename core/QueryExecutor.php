@@ -18,9 +18,11 @@ class NuQueryExecutor {
     }
 
     public function execute($queryCode, $parameters = []) {
+        // Saved queries are project data: resolve the code inside the active project only.
+        if (!class_exists('ProjectContext')) require_once __DIR__ . '/ProjectContext.php';
         $query = $this->db->fetchOne(
-            "SELECT * FROM nu_queries WHERE query_code = :code AND query_active = 1",
-            [':code' => $queryCode]
+            "SELECT * FROM nu_queries WHERE query_code = :code AND query_active = 1 AND project_id = :pid",
+            [':code' => $queryCode, ':pid' => ProjectContext::getId()]
         );
         if (!$query) return ['error' => 'Query not found'];
 
