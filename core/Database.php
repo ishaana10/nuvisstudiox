@@ -846,6 +846,18 @@ class NuDatabase {
                     }
                 }
 
+                // UUID installs (userIdType = 'uuid'): project membership/ownership must hold string user ids
+                if ($driver !== 'sqlite' && (($GLOBALS['nuConfig']['userIdType'] ?? 'auto_increment') === 'uuid')) {
+                    foreach ([['nu_project_members', 'pm_user_id', 'VARCHAR(36) NOT NULL'], ['nu_projects', 'project_owner_id', 'VARCHAR(36) NULL']] as [$wt, $wc, $wddl]) {
+                        try {
+                            $ct = $this->pdo->query("SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$wt}' AND COLUMN_NAME = '{$wc}'")->fetchColumn();
+                            if ($ct && stripos((string)$ct, 'int') !== false) {
+                                $this->pdo->exec("ALTER TABLE `{$wt}` MODIFY `{$wc}` {$wddl}");
+                            }
+                        } catch (Exception $e) { error_log('[Database] widen ' . $wt . '.' . $wc . ': ' . $e->getMessage()); }
+                    }
+                }
+
                 // Ensure project_id column on metadata tables
                 $metaTables = ['nu_forms', 'nu_reports', 'nu_queries', 'nu_procedures', 'nu_menus', 'nu_workflows', 'nu_workflow_stages', 'nu_workflow_transitions', 'nu_form_versions'];
                 foreach ($metaTables as $mTable) {

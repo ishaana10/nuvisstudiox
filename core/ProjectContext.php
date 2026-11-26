@@ -9,6 +9,58 @@ class ProjectContext {
     private static ?int $cachedProjectId = null;
 
     /**
+     * Session user id as a safe string, or null. Installs use numeric ids (auto_increment) or UUID
+     * strings (userIdType = 'uuid'), so ids are never cast to int.
+     */
+    public static function normalizeUserId(mixed $v): ?string {
+        if (is_int($v)) $v = (string)$v;
+        if (!is_string($v) || $v === '' || $v === '0') return null;
+        return preg_match('/^[A-Za-z0-9_-]{1,64}$/', $v) ? $v : null;
+    }
+
+    /** Whether any signed-in user may open the default project without being a member (default: yes). */
+    public static function defaultOpenAccess(): bool {
+        return (bool)($GLOBALS['nuConfig']['projectDefaultOpenAccess'] ?? true);
+    }
+
+    /** Project that owns a registered table (nu_project_tables), or null when the table is not registered. */
+    public static function tableProjectId(string $table): ?int {
+        try {
+            $row = NuDatabase::getInstance()->fetchOne('SELECT project_id FROM nu_project_tables WHERE table_name = ?', [$table]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+        return $row ? (int)$row['project_id'] : null;
+    }
+
+    /**
+     * May this request touch $table in project $projectId?
+     * - a table registered to a project is only reachable from that project (switch project first, even as admin);
+     * - an unregistered (legacy) table is treated as default-project data: reachable from the default project,
+     *   and by globeadmin from anywhere.
+     */
+    public static function canAccessTable(string $table, ?int $projectId = null, string $userRole = ''): bool {
+        $projectId ??= self::getId();
+        return self::canAccessRow(self::tableProjectId($table), $projectId, $userRole);
+    }
+
+    /**
+     * May the current project see a row owned by $rowProjectId? A row with no project (legacy data)
+     * counts as default-project data, which globeadmin may reach from anywhere.
+     */
+    public static function canAccessRow(?int $rowProjectId, ?int $projectId = null, string $userRole = ''): bool {
+        $projectId ??= self::getId();
+        if ($rowProjectId !== null && $rowProjectId > 0) return $rowProjectId === $projectId;
+        if (strtolower($userRole) === 'globeadmin') return true;
+        try {
+            $row = NuDatabase::getInstance()->fetchOne('SELECT project_id FROM nu_projects WHERE project_id = ? AND project_is_default = 1', [$projectId]);
+        } catch (\Throwable $e) {
+            return false;
+        }
+        return !empty($row);
+    }
+
+    /**
      * Resets the in-memory static cache for project context.
      */
     public static function resetCache(): void {
@@ -132,7 +184,7 @@ class ProjectContext {
                     }
 
                     // For non-globeadmin users, verify member assignment
-                    if (self::validateAccess((int)$userId, $sessPid, $userRole)) {
+                    if (self::validateAccess($userId, $sessPid, $userRole)) {
                         $_SESSION['nu_project_code'] = $proj['project_code'];
                         return self::$cachedProjectId = $sessPid;
                     }
@@ -140,7 +192,7 @@ class ProjectContext {
             }
 
             // Resolve default or assigned project for user
-            $resolvedId = self::resolveDefaultProjectForUser($userId ? (int)$userId : null, $userRole);
+            $resolvedId = self::resolveDefaultProjectForUser(self::normalizeUserId($userId), $userRole);
             $_SESSION['nu_project_id'] = $resolvedId;
 
             $projRow = $db->fetchOne("SELECT project_code FROM nu_projects WHERE project_id = ?", [$resolvedId]);
@@ -173,7 +225,7 @@ class ProjectContext {
                 return false;
             }
         } catch (\Throwable $e) {
-            return true;
+            return false; // fail closed: never report a successful switch when the lookup fails
         }
 
         $sessUser = $_SESSION['user'] ?? null;
@@ -195,7 +247,7 @@ class ProjectContext {
         }
 
         if (!empty($userId) && $userRole !== 'globeadmin') {
-            if (!self::validateAccess((int)$userId, $projectId, $userRole)) {
+            if (!self::validateAccess($userId, $projectId, $userRole)) {
                 return false;
             }
         }
@@ -238,7 +290,7 @@ class ProjectContext {
      * @param string $userRole
      * @return int
      */
-    private static function resolveDefaultProjectForUser(?int $userId, string $userRole): int {
+    private static function resolveDefaultProjectForUser(?string $userId, string $userRole): int {
         $db = NuDatabase::getInstance();
 
         // 1. If globeadmin or unauthenticated, return system default project
@@ -295,9 +347,14 @@ class ProjectContext {
      * @param string $userRole
      * @return bool
      */
-    public static function validateAccess(int $userId, int $projectId, string $userRole = ''): bool {
+    public static function validateAccess(int|string $userId, int $projectId, string $userRole = ''): bool {
         if ($userRole === 'globeadmin') {
             return true;
+        }
+        $userId = self::normalizeUserId($userId);
+        if ($userId === null) {
+            // No usable user id: only an active share session for this very project is honoured.
+            return !empty($_SESSION['nu_project_share_active']) && (int)($_SESSION['nu_project_id'] ?? 0) === $projectId;
         }
 
         $db = NuDatabase::getInstance();
@@ -322,7 +379,10 @@ class ProjectContext {
             return true;
         }
 
-        // Allow access to default project if user is not explicitly restricted
+        // The default workspace is open to every signed-in user unless $nuConfig['projectDefaultOpenAccess'] = false
+        if (!self::defaultOpenAccess()) {
+            return false;
+        }
         $defaultProj = $db->fetchOne("SELECT project_id FROM nu_projects WHERE project_id = ? AND project_is_default = 1 AND project_active = 1", [$projectId]);
         return !empty($defaultProj);
     }
@@ -375,12 +435,12 @@ class ProjectContext {
             $projects = $db->fetchAll(
                 "SELECT p.*, COALESCE(pm.pm_role, CASE WHEN p.project_owner_id = ? THEN 'owner' ELSE 'member' END) AS pm_role FROM nu_projects p
                  LEFT JOIN nu_project_members pm ON p.project_id = pm.pm_project_id AND pm.pm_user_id = ?
-                 WHERE (pm.pm_user_id = ? OR p.project_owner_id = ? OR p.project_is_default = 1) AND p.project_active = 1
+                 WHERE (pm.pm_user_id = ? OR p.project_owner_id = ? OR (p.project_is_default = 1 AND ? = 1)) AND p.project_active = 1
                  ORDER BY p.project_is_default DESC, p.project_name ASC",
-                [$userId, $userId, $userId, $userId]
+                [$userId, $userId, $userId, $userId, self::defaultOpenAccess() ? 1 : 0]
             );
 
-            if (empty($projects)) {
+            if (empty($projects) && self::defaultOpenAccess()) {
                 $projects = $db->fetchAll("SELECT *, 'member' AS pm_role FROM nu_projects WHERE project_is_default = 1 AND project_active = 1");
             }
 

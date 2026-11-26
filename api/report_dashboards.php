@@ -280,7 +280,8 @@ try {
             }
 
             // Get dashboard
-            $dashboard = $db->fetchOne("SELECT * FROM nu_report_dashboards WHERE dashboard_id = ?", [$dashboardId]);
+            $pid = ProjectContext::getId();
+            $dashboard = $db->fetchOne("SELECT * FROM nu_report_dashboards WHERE dashboard_id = ? AND project_id = ?", [$dashboardId, $pid]);
             if (!$dashboard) throw new Exception('Dashboard not found');
 
             // Verify dashboard role restriction
@@ -309,7 +310,7 @@ try {
             }
 
             // Get report definition
-            $report = $db->fetchOne("SELECT * FROM nu_reports WHERE report_id = ?", [$reportId]);
+            $report = $db->fetchOne("SELECT * FROM nu_reports WHERE report_id = ? AND project_id = ?", [$reportId, $pid]);
             if (!$report) throw new Exception('Report definition not found');
 
             $sql      = $report['report_sql'];
@@ -328,7 +329,8 @@ try {
                 $field = preg_replace('/[^a-z0-9_]/i', '', $field);
                 if ($field && isset($_GET[$field]) && $_GET[$field] !== '') {
                     $val = $_GET[$field];
-                    $op  = $df['operator'] ?? '=';
+                    $op  = strtoupper(trim((string)($df['operator'] ?? '=')));
+                    if (!in_array($op, ['=', '!=', '<>', '>', '>=', '<', '<=', 'LIKE'], true)) $op = '=';
                     if ($op === 'LIKE') {
                         $whereParts[] = "`{$field}` LIKE ?";
                         $bindings[]   = '%' . $val . '%';

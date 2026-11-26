@@ -32,14 +32,28 @@ final class NuFileStore
                 'file_remote_status' => $sqlite ? "TEXT DEFAULT 'none'" : "VARCHAR(10) NOT NULL DEFAULT 'none'",
                 'file_remote_error'  => $sqlite ? 'TEXT' : 'VARCHAR(500) NULL',
                 'file_sha256'        => $sqlite ? 'TEXT' : 'CHAR(64) NULL',
+                'project_id'         => $sqlite ? 'INTEGER NULL' : 'INT UNSIGNED NULL',   // owning project; NULL = legacy (default project)
             ];
             foreach ($add as $col => $ddl) if (!in_array($col, $have, true)) $pdo->exec("ALTER TABLE nu_files ADD COLUMN `{$col}` {$ddl}");
             if (!$sqlite) {   // a cloud-only file has no local path
                 $pdo->exec("ALTER TABLE nu_files MODIFY `file_path` VARCHAR(500) NULL");
+                // UUID installs have string user ids: an INT uploader column cannot hold them
+                $up = $db->fetchOne("SELECT DATA_TYPE AS t FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nu_files' AND COLUMN_NAME = 'file_uploaded_by'");
+                if ($up && stripos((string)$up['t'], 'int') !== false && (($GLOBALS['nuConfig']['userIdType'] ?? 'auto_increment') === 'uuid')) {
+                    $pdo->exec("ALTER TABLE nu_files MODIFY `file_uploaded_by` VARCHAR(64) NULL");
+                }
             }
         } catch (\Throwable $e) {
             error_log('[NuFileStore schema] ' . $e->getMessage());
         }
+    }
+
+    /** May the active project open this file record? Files with no project are legacy default-project files. */
+    public static function canAccess(array $f): bool
+    {
+        require_once __DIR__ . '/ProjectContext.php';
+        $pid = isset($f['project_id']) && $f['project_id'] !== '' ? (int)$f['project_id'] : null;
+        return ProjectContext::canAccessRow($pid, ProjectContext::getId(), strtolower((string)($_SESSION['nu_role'] ?? '')));
     }
 
     private static function audit(string $action, string $summary, array $d = [], string $status = 'success', $id = null): void
@@ -107,6 +121,7 @@ final class NuFileStore
         $row = $extra + [
             'file_name' => $name, 'file_original_name' => $file['name'], 'file_mime_type' => $file['type'] ?? '',
             'file_size' => $file['size'] ?? filesize($dest), 'file_path' => $dest, 'file_uploaded_by' => $_SESSION['nu_user_id'] ?? null,
+            'project_id' => (function () { require_once __DIR__ . '/ProjectContext.php'; return ProjectContext::getId(); })(),
         ];
         $row['file_sha256'] = hash_file('sha256', $dest) ?: null;
         $id = $db->insert('nu_files', $row);

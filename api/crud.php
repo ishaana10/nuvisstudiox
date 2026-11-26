@@ -292,6 +292,19 @@ try {
     $table  = nu_safe_table($_GET['table'] ?? '');
     $id     = $_GET['id'] ?? null;
 
+    // Guards run on the table name actually used below (the early check looks at $_REQUEST and the raw value,
+    // which can differ from $_GET['table'] after sanitising).
+    $currentUser = $auth->getCurrentUser();
+    $userRole = strtolower((string)($currentUser['usr_role'] ?? $_SESSION['nu_role'] ?? $_SESSION['usr_role'] ?? ''));
+    if (str_starts_with(strtolower($table), 'nu_') && $userRole !== 'globeadmin') {
+        nu_json(['success' => false, 'error' => 'Direct CRUD access to core system metadata tables is restricted.'], 403);
+    }
+    // Project isolation: a table registered to another project (or default-project data from another project) is off limits.
+    require_once __DIR__ . '/../core/ProjectContext.php';
+    if (!str_starts_with(strtolower($table), 'nu_') && !ProjectContext::canAccessTable($table, ProjectContext::getId(), $userRole)) {
+        nu_json(['success' => false, 'error' => 'This table does not belong to the active project.'], 403);
+    }
+
     switch ($method) {
         case 'GET':
             if ($id !== null && $id !== '') {
