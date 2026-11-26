@@ -56,6 +56,24 @@ class ProjectIsolationHardeningTest extends TestCase {
         $this->assertSame([], ProjectContext::getAccessibleProjects('', 'user'), 'no user: nothing');
     }
 
+    public function testNonMemberLandsInNoProjectInsteadOfTheDefault(): void {
+        $_SESSION = ['nu_user_id' => self::U2, 'nu_role' => 'user'];
+        ProjectContext::resetCache();
+        $this->assertSame(0, ProjectContext::getId(), 'members-only default: no membership, no project');
+        $this->assertFalse(ProjectContext::canAccessTable('main_notes', ProjectContext::getId(), 'user'));
+        $GLOBALS['nuConfig']['projectDefaultOpenAccess'] = true;
+        ProjectContext::resetCache();
+        $_SESSION = ['nu_user_id' => self::U2, 'nu_role' => 'user'];
+        $this->assertSame(1, ProjectContext::getId(), 'opt-in open default still works');
+    }
+
+    public function testProjectLookupFailureDoesNotFallBackToProjectOne(): void {
+        $_SESSION = ['nu_user_id' => self::U2, 'nu_role' => 'user'];
+        $this->db->exec('DROP TABLE nu_project_members');
+        ProjectContext::resetCache();
+        $this->assertSame(0, ProjectContext::getId());
+    }
+
     public function testSetIdFailsClosedWhenProjectLookupThrows(): void {
         $this->db->exec('DROP TABLE nu_projects');
         $this->assertFalse(ProjectContext::setId(2));

@@ -202,7 +202,7 @@ class ProjectContext {
 
             return self::$cachedProjectId = $resolvedId;
         } catch (\Throwable $e) {
-            return self::$cachedProjectId = 1;
+            return self::$cachedProjectId = 0; // fail closed: never fall back to project 1
         }
     }
 
@@ -334,7 +334,10 @@ class ProjectContext {
             return (int)$assigned['project_id'];
         }
 
-        // 4. Fallback to default project if user is not specifically assigned anywhere
+        // 4. Not assigned anywhere: the default project only when it is open to everyone, else no project (0)
+        if (!self::defaultOpenAccess()) {
+            return 0;
+        }
         $defaultProj = $db->fetchOne("SELECT project_id FROM nu_projects WHERE project_is_default = 1 AND project_active = 1 LIMIT 1");
         return $defaultProj ? (int)$defaultProj['project_id'] : 1;
     }
