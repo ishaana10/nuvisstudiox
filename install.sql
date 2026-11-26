@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS `nu_users` (
     `usr_active` TINYINT(1) DEFAULT 1,
     `usr_2fa_secret` VARCHAR(32),
     `usr_failed_attempts` INT DEFAULT 0,
+    `tenant_code` VARCHAR(64) NOT NULL DEFAULT 'default',
     `usr_last_attempt` DATETIME,
     `usr_password_changed_at` DATETIME DEFAULT NULL,
     `usr_must_change_password` TINYINT(1) NOT NULL DEFAULT 0,
@@ -29,7 +30,8 @@ CREATE TABLE IF NOT EXISTS `nu_roles` (
     `role_description` VARCHAR(255) NOT NULL DEFAULT '',
     `role_active` TINYINT(1) NOT NULL DEFAULT 1,
     `role_is_system` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = protected system role, cannot be deleted',
-    `role_created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+    `role_created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `tenant_code` VARCHAR(64) NOT NULL DEFAULT 'default'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── 3. PERMISSIONS ──────────────────────────────────────────────────────────

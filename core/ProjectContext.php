@@ -357,6 +357,12 @@ class ProjectContext {
             return !empty($_SESSION['nu_project_share_active']) && (int)($_SESSION['nu_project_id'] ?? 0) === $projectId;
         }
 
+        // Tenant boundary: a user never opens another tenant's project, whatever the membership rows say.
+        require_once __DIR__ . '/Tenant.php';
+        if (NuTenant::ofUser($userId) !== NuTenant::ofProject($projectId)) {
+            return false;
+        }
+
         $db = NuDatabase::getInstance();
 
         // Allow access if user is owner of project
@@ -428,6 +434,7 @@ class ProjectContext {
                 return $db->fetchAll("SELECT * FROM nu_projects WHERE project_active = 1 ORDER BY project_is_default DESC, project_name ASC");
             }
 
+            require_once __DIR__ . '/Tenant.php';
             $userId = self::normalizeUserId($userId);
             if ($userId === null) {
                 return self::defaultOpenAccess()
@@ -439,8 +446,9 @@ class ProjectContext {
                 "SELECT p.*, COALESCE(pm.pm_role, CASE WHEN p.project_owner_id = ? THEN 'owner' ELSE 'member' END) AS pm_role FROM nu_projects p
                  LEFT JOIN nu_project_members pm ON p.project_id = pm.pm_project_id AND pm.pm_user_id = ?
                  WHERE (pm.pm_user_id = ? OR p.project_owner_id = ? OR (p.project_is_default = 1 AND ? = 1)) AND p.project_active = 1
+                   AND COALESCE(p.tenant_code, 'default') = ?
                  ORDER BY p.project_is_default DESC, p.project_name ASC",
-                [$userId, $userId, $userId, $userId, self::defaultOpenAccess() ? 1 : 0]
+                [$userId, $userId, $userId, $userId, self::defaultOpenAccess() ? 1 : 0, NuTenant::ofUser($userId)]
             );
 
             if (empty($projects) && self::defaultOpenAccess()) {

@@ -33,6 +33,18 @@ $db     = NuDatabase::getInstance();
 $action = $_GET['action'] ?? '';
 $body   = json_decode(file_get_contents('php://input'), true) ?? [];
 
+require_once '../core/Tenant.php';
+$nuActor       = $auth->getCurrentUser() ?: [];
+$nuActorRole   = strtolower((string)($nuActor['usr_role'] ?? ''));
+$nuActorTenant = NuTenant::current();
+
+/** A non-globeadmin never touches users of another tenant, nor globeadmin accounts. */
+function nuAssertCanManageUser(array $target, string $actorRole, string $actorTenant): void {
+    if ($actorRole === 'globeadmin') return;
+    if (strtolower((string)($target['usr_role'] ?? '')) === 'globeadmin') throw new Exception('Access denied');
+    if (!NuTenant::canManage($actorRole, $actorTenant, (string)($target['tenant_code'] ?? 'default'))) throw new Exception('User not found');
+}
+
 /**
  * Returns true if the installation uses UUID for usr_id.
  */
@@ -81,6 +93,7 @@ try {
             $active   = isset($body['active']) ? (int)$body['active'] : 1;
             $meta     = $body['meta'] ?? [];
 
+            if (!NuTenant::canAssignRole($nuActorRole, $nuActorTenant, $role)) throw new Exception('You cannot assign that role');
             if (!$username) throw new Exception('Username is required');
             if (!$password) throw new Exception('Password is required for new users');
 
@@ -97,6 +110,7 @@ try {
                 'usr_password' => $hash,
                 'usr_active'   => $active,
                 'usr_custom_fields' => json_encode($meta),
+                'tenant_code'  => ($nuActorRole === 'globeadmin' && !empty($body['tenant_code'])) ? NuTenant::normalize($body['tenant_code']) : $nuActorTenant,
             ];
 
             if (nuIsUuidMode()) {
@@ -140,6 +154,9 @@ try {
 
             $user = $db->fetchOne('SELECT * FROM nu_users WHERE usr_id = :id', [':id' => $id]);
             if (!$user) throw new Exception('User not found');
+            nuAssertCanManageUser($user, $nuActorRole, $nuActorTenant);
+            if ($role === '') $role = (string)$user['usr_role'];
+            if ($role !== (string)$user['usr_role'] && !NuTenant::canAssignRole($nuActorRole, $nuActorTenant, $role)) throw new Exception('You cannot assign that role');
 
             nu_ensure_custom_user_columns($db);
 
@@ -221,8 +238,9 @@ try {
             $id = nuParseUserId($body['id'] ?? null);
             if ($id === null) throw new Exception('Valid User ID required');
 
-            $user = $db->fetchOne('SELECT usr_username FROM nu_users WHERE usr_id = :id', [':id' => $id]);
+            $user = $db->fetchOne('SELECT usr_username, usr_role, tenant_code FROM nu_users WHERE usr_id = :id', [':id' => $id]);
             if (!$user) throw new Exception('User not found');
+            nuAssertCanManageUser($user, $nuActorRole, $nuActorTenant);
             if ($user['usr_username'] === 'globeadmin') throw new Exception('Cannot delete globeadmin');
 
             $db->delete('nu_user_meta', 'umeta_user_id = :id', [':id' => $id]);

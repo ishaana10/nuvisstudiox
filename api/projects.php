@@ -136,7 +136,8 @@ switch ($action) {
             'project_settings' => is_array($settings) ? json_encode($settings) : $settings,
             'project_active' => 1,
             'project_is_default' => 0,
-            'project_owner_id' => $userId
+            'project_owner_id' => $userId,
+            'tenant_code' => (function () { require_once dirname(__DIR__) . '/core/Tenant.php'; return NuTenant::current(); })(),
         ]);
 
         // Automatically assign creator to nu_project_members as 'owner'
@@ -253,11 +254,16 @@ switch ($action) {
         }
 
         $projectId = (int)($input['project_id'] ?? ($_POST['project_id'] ?? 0));
-        $targetUserId = (int)($input['user_id'] ?? ($_POST['user_id'] ?? 0));
+        $targetUserId = (string)ProjectContext::normalizeUserId($input['user_id'] ?? ($_POST['user_id'] ?? null));
         $role = trim($input['role'] ?? ($_POST['role'] ?? 'member'));
 
-        if ($projectId <= 0 || $targetUserId <= 0) {
+        if ($projectId <= 0 || $targetUserId === '') {
             json_response(['success' => false, 'error' => 'Project ID and User ID are required'], 400);
+        }
+
+        require_once dirname(__DIR__) . '/core/Tenant.php';
+        if (NuTenant::ofUser($targetUserId) !== NuTenant::ofProject($projectId)) {
+            json_response(['success' => false, 'error' => 'That user belongs to a different tenant than the project.'], 400);
         }
 
         $existing = $db->fetchOne("SELECT pm_id FROM nu_project_members WHERE pm_project_id = ? AND pm_user_id = ?", [$projectId, $targetUserId]);
@@ -280,9 +286,9 @@ switch ($action) {
         }
 
         $projectId = (int)($input['project_id'] ?? ($_POST['project_id'] ?? 0));
-        $targetUserId = (int)($input['user_id'] ?? ($_POST['user_id'] ?? 0));
+        $targetUserId = (string)ProjectContext::normalizeUserId($input['user_id'] ?? ($_POST['user_id'] ?? null));
 
-        if ($projectId <= 0 || $targetUserId <= 0) {
+        if ($projectId <= 0 || $targetUserId === '') {
             json_response(['success' => false, 'error' => 'Project ID and User ID are required'], 400);
         }
 
