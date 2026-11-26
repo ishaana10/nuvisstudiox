@@ -2,8 +2,10 @@
 declare(strict_types=1);
 // nuvis - Master Configuration
 
-define('NU_VERSION', '5.0.24');
-define('NU_BUILD_DATE', '2026-10-25');
+// The release number lives in version.json only (stamped by the release workflow); never hardcode it here.
+require_once __DIR__ . '/core/AppVersion.php';
+define('NU_VERSION', AppVersion::get('version'));
+define('NU_BUILD_DATE', substr(AppVersion::get('released_at'), 0, 10));
 if (!defined('NU_ROOT')) define('NU_ROOT', __DIR__);
 
 // ─── Database ─────────────────────────────────────────────────────────────────
