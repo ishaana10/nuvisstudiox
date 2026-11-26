@@ -35,6 +35,18 @@ if ($method === 'POST') {
 
 $action = $input['action'] ?? $_GET['action'] ?? '';
 
+// The product catalogue is platform-wide (no project column): anyone signed in may read it,
+// but only administrators may create, change or delete items.
+if (in_array($action, ['save', 'delete'], true)) {
+    $bcUser = $auth->getCurrentUser();
+    $bcRole = strtolower((string)($bcUser['usr_role'] ?? ''));
+    if ($bcRole !== 'globeadmin' && $bcRole !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Only administrators can change the product catalogue.']);
+        exit;
+    }
+}
+
 // Helper function to generate a unique barcode
 function generateUniqueBarcode($db, $type) {
     $prefix = '750'; // standard prefix
