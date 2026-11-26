@@ -18,9 +18,9 @@ class ProjectContext {
         return preg_match('/^[A-Za-z0-9_-]{1,64}$/', $v) ? $v : null;
     }
 
-    /** Whether any signed-in user may open the default project without being a member (default: yes). */
+    /** Whether any signed-in user may open the default project without being a member (default: no, members only). */
     public static function defaultOpenAccess(): bool {
-        return (bool)($GLOBALS['nuConfig']['projectDefaultOpenAccess'] ?? true);
+        return (bool)($GLOBALS['nuConfig']['projectDefaultOpenAccess'] ?? false);
     }
 
     /** Project that owns a registered table (nu_project_tables), or null when the table is not registered. */
@@ -379,7 +379,7 @@ class ProjectContext {
             return true;
         }
 
-        // The default workspace is open to every signed-in user unless $nuConfig['projectDefaultOpenAccess'] = false
+        // The default workspace is open to every signed-in user only when $nuConfig['projectDefaultOpenAccess'] = true
         if (!self::defaultOpenAccess()) {
             return false;
         }

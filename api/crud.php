@@ -305,6 +305,14 @@ try {
         nu_json(['success' => false, 'error' => 'This table does not belong to the active project.'], 403);
     }
 
+    // Role-by-form permission: the role needs view/add/edit/delete on a form that uses this table.
+    if (!str_starts_with(strtolower($table), 'nu_')) {
+        require_once __DIR__ . '/../core/CrudGuard.php';
+        if (!NuCrudGuard::allowed($method, $table, (string)($currentUser['usr_role'] ?? $userRole), ProjectContext::getId())) {
+            nu_json(['success' => false, 'error' => 'Your role does not have permission to ' . NuCrudGuard::actionFor($method) . ' this data.'], 403);
+        }
+    }
+
     switch ($method) {
         case 'GET':
             if ($id !== null && $id !== '') {

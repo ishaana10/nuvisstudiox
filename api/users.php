@@ -114,6 +114,15 @@ try {
             }
 
             saveMeta($db, $newId, $meta);
+
+            // The default project is members-only, so a new user joins it as a member.
+            try {
+                $def = $db->fetchOne("SELECT project_id FROM nu_projects WHERE project_is_default = 1 AND project_active = 1 LIMIT 1");
+                if ($def) {
+                    $db->insert('nu_project_members', ['pm_project_id' => $def['project_id'], 'pm_user_id' => (string)$newId, 'pm_role' => 'member']);
+                }
+            } catch (Throwable $e) { error_log('[users] default project membership: ' . $e->getMessage()); }
+
             echo json_encode(['success' => true, 'usr_id' => $newId]);
             break;
         }

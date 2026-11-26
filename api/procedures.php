@@ -30,6 +30,12 @@ if ($role !== 'globeadmin' && $role !== 'admin') {
 $db     = NuDatabase::getInstance();
 $action = $_GET['action'] ?? '';
 
+// Saving, deleting or test-running a procedure is code execution/authoring: globeadmin only, and off on production by default.
+if (in_array($action, ['save', 'delete', 'test_run'], true)) {
+    require_once __DIR__ . '/../core/ProcedureGuard.php';
+    NuProcedureGuard::enforce($role);
+}
+
 switch ($action) {
     case 'list':     actionList($db);        break;
     case 'get':      actionGet($db);         break;

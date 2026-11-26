@@ -40,11 +40,11 @@ class ProjectIsolationHardeningTest extends TestCase {
         $this->assertFalse(ProjectContext::validateAccess(self::U2, 2, 'user'));
     }
 
-    public function testDefaultProjectOpenAccessIsConfigurable(): void {
-        $this->assertTrue(ProjectContext::validateAccess(self::U2, 1, 'user'), 'default stays open unless configured');
-        $GLOBALS['nuConfig']['projectDefaultOpenAccess'] = false;
-        $this->assertFalse(ProjectContext::validateAccess(self::U2, 1, 'user'));
+    public function testDefaultProjectIsMembersOnlyUnlessOpenedInConfig(): void {
+        $this->assertFalse(ProjectContext::validateAccess(self::U2, 1, 'user'), 'default is members-only');
         $this->assertTrue(ProjectContext::validateAccess(self::U2, 1, 'globeadmin'));
+        $GLOBALS['nuConfig']['projectDefaultOpenAccess'] = true;
+        $this->assertTrue(ProjectContext::validateAccess(self::U2, 1, 'user'), 'opt-in restores the old open default');
     }
 
     public function testSetIdFailsClosedWhenProjectLookupThrows(): void {
