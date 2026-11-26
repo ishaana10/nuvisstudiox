@@ -215,6 +215,17 @@ final class CustomerRequestsTest extends TestCase
         $this->assertSame('test_custom_customer_requests', $cfg['cr_table']);
 
         // Now exercise api/customer_requests.php logic using a sub-process request simulation or direct execution
+        // The default project is members-only: give this test world a default project that user 1 belongs to.
+        $db->exec('DROP TABLE IF EXISTS nu_projects');
+        $db->exec('DROP TABLE IF EXISTS nu_project_members');
+        $db->exec("CREATE TABLE nu_projects (project_id INTEGER PRIMARY KEY AUTOINCREMENT, project_code TEXT, project_name TEXT, project_owner_id TEXT NULL,
+            project_active INTEGER DEFAULT 1, project_is_default INTEGER DEFAULT 0, project_is_public_test INTEGER DEFAULT 0,
+            project_share_token TEXT NULL, project_share_mode TEXT NULL, tenant_code TEXT NOT NULL DEFAULT 'default')");
+        $db->exec('CREATE TABLE nu_project_members (pm_id INTEGER PRIMARY KEY AUTOINCREMENT, pm_project_id INTEGER, pm_user_id TEXT, pm_role TEXT)');
+        $db->exec("INSERT INTO nu_projects (project_code, project_name, project_is_default) VALUES ('default', 'Default', 1)");
+        $db->exec("INSERT INTO nu_project_members (pm_project_id, pm_user_id, pm_role) VALUES (1, '1', 'member')");
+        \ProjectContext::resetCache();
+
         $_SESSION['nu_user_id'] = 1;
         $_SESSION['nu_role'] = 'admin';
         $_SESSION['nu_project_id'] = 1;

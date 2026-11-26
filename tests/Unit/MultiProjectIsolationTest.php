@@ -11,6 +11,7 @@ class MultiProjectIsolationTest extends TestCase {
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
+        ProjectContext::resetCache(); // earlier tests may have cached another user's project
     }
 
     public function testProjectContextGetAndSet(): void {
