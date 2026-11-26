@@ -23,7 +23,7 @@ class EndpointRoleMatrixTest extends TestCase
     protected function setUp(): void
     {
         $db = NuDatabase::getInstance();
-        foreach (['nu_projects', 'nu_project_members', 'nu_project_tables', 'nu_forms', 'nu_role_form_permissions', 'nu_queries', 'acme_orders', 'other_data', 'nu_users', 'nu_roles', 'nu_permissions', 'nu_role_permissions'] as $t) {
+        foreach (['nu_projects', 'nu_project_members', 'nu_project_tables', 'nu_forms', 'nu_role_form_permissions', 'nu_queries', 'acme_orders', 'other_data', 'nu_users', 'nu_products', 'nu_roles', 'nu_permissions', 'nu_role_permissions'] as $t) {
             $db->exec("DROP TABLE IF EXISTS {$t}");
         }
         $db->exec("CREATE TABLE nu_projects (project_id INTEGER PRIMARY KEY AUTOINCREMENT, project_code TEXT, project_name TEXT, project_owner_id TEXT NULL,
@@ -32,6 +32,8 @@ class EndpointRoleMatrixTest extends TestCase
         $db->exec("INSERT INTO nu_projects (project_id, project_code, project_name, project_is_default) VALUES (1,'default','Default',1),(2,'p2','P2',0),(3,'p3','P3',0)");
         $db->exec('CREATE TABLE nu_users (usr_id TEXT PRIMARY KEY, usr_username TEXT, usr_role TEXT, usr_active INTEGER DEFAULT 1)');
         $db->exec("INSERT INTO nu_users (usr_id, usr_username, usr_role) VALUES ('1','root','globeadmin'),('3','carla','clerk'),('4','sam','clerk')");
+        $db->exec("CREATE TABLE nu_products (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT DEFAULT 'product', barcode TEXT)");
+        $db->exec("INSERT INTO nu_products (name, barcode) VALUES ('Widget','7500000000011')");
         $db->exec('CREATE TABLE nu_roles (role_id INTEGER PRIMARY KEY AUTOINCREMENT, role_code TEXT)');
         $db->exec("INSERT INTO nu_roles (role_code) VALUES ('clerk')");
         $db->exec('CREATE TABLE nu_permissions (perm_id INTEGER PRIMARY KEY AUTOINCREMENT, perm_code TEXT)');
@@ -71,6 +73,7 @@ class EndpointRoleMatrixTest extends TestCase
             'form list own form'            => ['api/form.php', ['action' => 'list', 'code' => 'orders'], [false, false, true, true]],
             'form list other-project form'  => ['api/form.php', ['action' => 'list', 'code' => 'other'],  [false, false, false, true]],
             'form designer load'            => ['api/form.php', ['action' => 'load_form', 'form_id' => 1], [false, false, false, true]],
+            'barcode list'                  => ['api/barcode.php', ['action' => 'list'], [false, true, true, true]],
             'export own table (no flag)'    => ['api/export.php', ['table' => 'acme_orders', 'format' => 'csv'], [false, false, false, true]],
             'export other-project table'    => ['api/export.php', ['table' => 'other_data', 'format' => 'csv'],  [false, false, false, true]],
             'export system table'           => ['api/export.php', ['table' => 'nu_users', 'format' => 'csv'],    [false, false, false, true]],
@@ -110,5 +113,15 @@ class EndpointRoleMatrixTest extends TestCase
         $other = EndpointRunner::call('api/query.php', ['code' => 'theirs'], self::MEMBER);
         $this->assertFalse($other['json']['success'] ?? true, $other['body']);
         $this->assertTrue(self::denied(EndpointRunner::call('api/query.php', ['code' => 'mine'], [])));
+    }
+
+    public function testBarcodeCatalogueChangesNeedAnAdministrator(): void
+    {
+        foreach (['save', 'delete'] as $action) {
+            $member = EndpointRunner::call('api/barcode.php', ['action' => $action], self::MEMBER);
+            $this->assertSame(403, $member['status'], "$action as member: " . $member['body']);
+            $admin = EndpointRunner::call('api/barcode.php', ['action' => $action], self::GLOBE);
+            $this->assertNotSame(403, $admin['status'], "$action as globeadmin: " . $admin['body']); // passes the guard, then fails validation (no body)
+        }
     }
 }
