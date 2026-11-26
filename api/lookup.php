@@ -25,6 +25,16 @@ if (!$table || preg_match('/[^a-zA-Z0-9_]/', $table)) {
     exit;
 }
 
+// Lookups only need the project check (reference tables often have no form of their own); platform tables stay off limits.
+require_once '../core/ProjectContext.php';
+require_once '../core/CrudGuard.php';
+$guardErr = NuCrudGuard::authorizeTable($table, 'view', strtolower((string)(($auth->getCurrentUser()['usr_role'] ?? ''))), ProjectContext::getId(), false);
+if ($guardErr !== null) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => $guardErr]);
+    exit;
+}
+
 $db = NuDatabase::getInstance();
 
 function getPrimaryKeyColumn($db, $table) {

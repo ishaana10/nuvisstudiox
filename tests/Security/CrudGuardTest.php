@@ -78,4 +78,38 @@ class CrudGuardTest extends TestCase
     {
         $this->assertTrue(\NuCrudGuard::allowed('GET', 'ACME_ORDERS', 'viewer', 2));
     }
+
+    public function testExportActionNeedsTheExportFlag(): void
+    {
+        $this->db->exec("UPDATE nu_role_form_permissions SET rfp_can_export = 1 WHERE rfp_role_code = 'viewer'");
+        $this->assertTrue(\NuCrudGuard::allowedAction('export', 'acme_orders', 'viewer', 2));
+        $this->assertFalse(\NuCrudGuard::allowedAction('export', 'acme_orders', 'clerk', 2));
+    }
+
+    public function testAuthorizeTableBlocksPlatformTablesForEveryoneButGlobeadmin(): void
+    {
+        $this->assertNotNull(\NuCrudGuard::authorizeTable('nu_users', 'view', 'clerk', 2));
+        $this->assertNotNull(\NuCrudGuard::authorizeTable('NU_USERS', 'export', 'admin', 2));
+        $this->assertNull(\NuCrudGuard::authorizeTable('nu_users', 'view', 'globeadmin', 2));
+    }
+
+    public function testAuthorizeTableCanSkipTheFormRequirementForLookups(): void
+    {
+        foreach (['nu_projects', 'nu_project_tables'] as $t) $this->db->exec("DROP TABLE IF EXISTS {$t}");
+        $this->db->exec("CREATE TABLE nu_projects (project_id INTEGER PRIMARY KEY, project_is_default INTEGER DEFAULT 0, project_active INTEGER DEFAULT 1)");
+        $this->db->exec("CREATE TABLE nu_project_tables (pt_id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, table_name TEXT NOT NULL)");
+        $this->db->exec("INSERT INTO nu_projects (project_id, project_is_default) VALUES (1, 1)");
+        \ProjectContext::resetCache();
+        $this->assertNotNull(\NuCrudGuard::authorizeTable('orphan_table', 'view', 'clerk', 1));
+        $this->assertNull(\NuCrudGuard::authorizeTable('orphan_table', 'view', 'clerk', 1, false));
+    }
+
+    public function testAuthorizeFormChecksTheFormsOwnRow(): void
+    {
+        $this->assertNull(\NuCrudGuard::authorizeForm('orders', 'add', 'clerk', 2));
+        $this->assertNotNull(\NuCrudGuard::authorizeForm('orders', 'edit', 'clerk', 2));
+        $this->assertNotNull(\NuCrudGuard::authorizeForm('orders', 'view', 'stranger', 2));
+        $this->assertNotNull(\NuCrudGuard::authorizeForm('other', 'view', 'clerk', 2), 'form of another project');
+        $this->assertNull(\NuCrudGuard::authorizeForm('anything', 'delete', 'globeadmin', 2));
+    }
 }
