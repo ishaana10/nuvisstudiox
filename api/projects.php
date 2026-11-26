@@ -25,13 +25,13 @@ if (!$auth->isLoggedIn()) {
 
 $user = $auth->getCurrentUser();
 if (is_array($user)) {
-    $userId = (int)($user['usr_id'] ?? $user['id'] ?? 0);
+    $userId = ProjectContext::normalizeUserId($user['usr_id'] ?? $user['id'] ?? null);
     $userRole = $user['usr_role'] ?? $user['role'] ?? 'user';
 } elseif (is_object($user)) {
-    $userId = (int)($user->usr_id ?? $user->id ?? 0);
+    $userId = ProjectContext::normalizeUserId($user->usr_id ?? $user->id ?? null);
     $userRole = $user->usr_role ?? $user->role ?? 'user';
 } else {
-    $userId = 0;
+    $userId = null;
     $userRole = 'user';
 }
 $isGlobeAdmin = ($userRole === 'globeadmin');
@@ -95,7 +95,7 @@ switch ($action) {
             json_response(['success' => false, 'error' => 'Invalid project ID'], 400);
         }
 
-        if (!$isGlobeAdmin && !ProjectContext::validateAccess($userId, $projectId, $userRole)) {
+        if (!$isGlobeAdmin && !ProjectContext::validateAccess((string)$userId, $projectId, $userRole)) {
             json_response(['success' => false, 'error' => 'Access denied'], 403);
         }
 
@@ -140,7 +140,7 @@ switch ($action) {
         ]);
 
         // Automatically assign creator to nu_project_members as 'owner'
-        if ($userId > 0) {
+        if ($userId !== null) {
             $db->insert('nu_project_members', [
                 'pm_project_id' => $newId,
                 'pm_user_id'    => $userId,
@@ -408,7 +408,7 @@ switch ($action) {
             $projectId = ProjectContext::getId();
         }
 
-        if (!$isGlobeAdmin && !ProjectContext::validateAccess($userId, $projectId, $userRole)) {
+        if (!$isGlobeAdmin && !ProjectContext::validateAccess((string)$userId, $projectId, $userRole)) {
             json_response(['success' => false, 'error' => 'Access denied'], 403);
         }
 
@@ -820,7 +820,7 @@ switch ($action) {
             }
 
             // Ensure current user is assigned as owner/member of the imported project
-            if ($importedProjectId && $userId > 0) {
+            if ($importedProjectId && $userId !== null) {
                 $existingMember = $db->fetchOne("SELECT pm_id FROM nu_project_members WHERE pm_project_id = ? AND pm_user_id = ?", [$importedProjectId, $userId]);
                 if (!$existingMember) {
                     $db->insert('nu_project_members', [
@@ -904,7 +904,7 @@ switch ($action) {
             $projectId = ProjectContext::getId();
         }
 
-        if (!$isGlobeAdmin && !ProjectContext::validateAccess($userId, $projectId, $userRole)) {
+        if (!$isGlobeAdmin && !ProjectContext::validateAccess((string)$userId, $projectId, $userRole)) {
             json_response(['success' => false, 'error' => 'Access denied'], 403);
         }
 
@@ -939,7 +939,7 @@ switch ($action) {
             json_response(['success' => false, 'error' => 'Version not found'], 404);
         }
 
-        if (!$isGlobeAdmin && !ProjectContext::validateAccess($userId, (int)$ver['pv_project_id'], $userRole)) {
+        if (!$isGlobeAdmin && !ProjectContext::validateAccess((string)$userId, (int)$ver['pv_project_id'], $userRole)) {
             json_response(['success' => false, 'error' => 'Access denied'], 403);
         }
 

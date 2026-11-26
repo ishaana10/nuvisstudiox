@@ -47,6 +47,13 @@ class ProjectIsolationHardeningTest extends TestCase {
         $this->assertTrue(ProjectContext::validateAccess(self::U2, 1, 'user'), 'opt-in restores the old open default');
     }
 
+    public function testAccessibleProjectsWorkForUuidMembersAndHideDefaultFromStrangers(): void {
+        $codes = fn($rows) => array_column($rows, 'project_code');
+        $this->assertSame(['acme'], $codes(ProjectContext::getAccessibleProjects(self::U1, 'user')));
+        $this->assertSame([], ProjectContext::getAccessibleProjects(self::U2, 'user'), 'members-only default, not a member of acme');
+        $this->assertSame([], ProjectContext::getAccessibleProjects('', 'user'), 'no user: nothing');
+    }
+
     public function testSetIdFailsClosedWhenProjectLookupThrows(): void {
         $this->db->exec('DROP TABLE nu_projects');
         $this->assertFalse(ProjectContext::setId(2));

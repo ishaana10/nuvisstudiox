@@ -394,7 +394,7 @@ class ProjectContext {
      * @param string $userRole
      * @return array
      */
-    public static function getAccessibleProjects(?int $userId = null, string $userRole = ''): array {
+    public static function getAccessibleProjects(int|string|null $userId = null, string $userRole = ''): array {
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
@@ -428,8 +428,11 @@ class ProjectContext {
                 return $db->fetchAll("SELECT * FROM nu_projects WHERE project_active = 1 ORDER BY project_is_default DESC, project_name ASC");
             }
 
-            if (empty($userId)) {
-                return $db->fetchAll("SELECT * FROM nu_projects WHERE project_is_default = 1 AND project_active = 1");
+            $userId = self::normalizeUserId($userId);
+            if ($userId === null) {
+                return self::defaultOpenAccess()
+                    ? $db->fetchAll("SELECT * FROM nu_projects WHERE project_is_default = 1 AND project_active = 1")
+                    : [];
             }
 
             $projects = $db->fetchAll(
