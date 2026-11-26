@@ -36,6 +36,7 @@ function nu_log($message, $context = '') {
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../core/Database.php';
+require_once __DIR__ . '/../core/ProjectContext.php'; // nu_get_form() and nu_guard_form() depend on the active project
 require_once __DIR__ . '/_form_layout_helpers.php';
 if (file_exists(__DIR__ . '/../core/Auth.php')) require_once __DIR__ . '/../core/Auth.php';
 

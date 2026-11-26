@@ -109,7 +109,11 @@ $_envFile = NU_ROOT . '/config.' . $_env . '.php';
 if (is_file($_envFile)) {
     require $_envFile;
 }
-unset($_env, $_envFile);
+// Test harness only: tests/Support/EndpointRunner points the app at a throw-away SQLite file.
+if ($_env === 'testing' && ($_testCfg = getenv('NU_TEST_CONFIG')) && is_file($_testCfg)) {
+    require $_testCfg;
+}
+unset($_env, $_envFile, $_testCfg);
 
 // ─── Session Hardening + Start ────────────────────────────────────────────────
 require_once NU_ROOT . '/core/SessionBootstrap.php';
