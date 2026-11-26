@@ -330,7 +330,7 @@ class ProjectContext {
             [$userId]
         );
 
-        if ($assigned) {
+        if ($assigned && self::validateAccess($userId, (int)$assigned['project_id'], $userRole)) {
             return (int)$assigned['project_id'];
         }
 

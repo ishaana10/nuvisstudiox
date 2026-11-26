@@ -75,6 +75,16 @@ class TenantBoundaryTest extends TestCase
         $this->assertTrue(ProjectContext::validateAccess(self::B, 1, 'globeadmin'));
     }
 
+    public function testActiveProjectNeverResolvesAcrossTenants(): void
+    {
+        $_SESSION = ['nu_user_id' => self::B, 'nu_role' => 'user'];
+        ProjectContext::resetCache();
+        $this->assertSame(0, ProjectContext::getId(), 'bob is a stray member of acme-app but belongs to tenant beta');
+        $_SESSION = ['nu_user_id' => self::A, 'nu_role' => 'user'];
+        ProjectContext::resetCache();
+        $this->assertSame(1, ProjectContext::getId());
+    }
+
     public function testAccessibleProjectsExcludeOtherTenants(): void
     {
         $this->assertSame(['acme-app'], array_column(ProjectContext::getAccessibleProjects(self::A, 'user'), 'project_code'));
