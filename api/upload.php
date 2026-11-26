@@ -45,6 +45,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete') {
         exit;
     }
 
+    if (!NuFileStore::canAccess($file)) {
+        echo json_encode(['success' => false, 'error' => 'File not found']);
+        exit;
+    }
+
     // Remove the local copy and (if any) the cloud copy
     $removed = NuFileStore::remove($file);
 

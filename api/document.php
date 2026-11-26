@@ -17,6 +17,13 @@ if (!$auth->checkAuth()) {
 $action = $_GET['action'] ?? '';
 $db = NuDatabase::getInstance();
 
+/** A document belongs to the project of its file (legacy / file-less documents count as default-project data). */
+function nu_doc_allowed(NuDatabase $db, $docId): bool {
+    $row = $db->fetchOne('SELECT d.doc_id, f.file_id, f.project_id FROM nu_documents d LEFT JOIN nu_files f ON f.file_id = d.doc_file_id WHERE d.doc_id = :id', [':id' => $docId]);
+    if (!$row) return false;
+    return NuFileStore::canAccess(['project_id' => $row['project_id'] ?? null]);
+}
+
 switch ($action) {
     case 'upload':
         if (!isset($_FILES['file'])) {
@@ -58,6 +65,7 @@ switch ($action) {
 
     case 'sign':
         $docId = $_GET['id'] ?? 0;
+        if (!nu_doc_allowed($db, $docId)) { echo json_encode(['success' => false, 'error' => 'Document not found']); exit; }
         $data = json_decode(file_get_contents('php://input'), true);
         $sigData = $data['signature'] ?? '';
 
@@ -86,6 +94,7 @@ switch ($action) {
 
     case 'delete':
         $id = $_GET['id'] ?? 0;
+        if (!nu_doc_allowed($db, $id)) { echo json_encode(['success' => false, 'error' => 'Document not found']); exit; }
         $db->delete('nu_documents', 'doc_id = :id', [':id' => $id]);
         $audit = new NuAudit();
         $audit->log('document_delete', 'nu_documents', $id);

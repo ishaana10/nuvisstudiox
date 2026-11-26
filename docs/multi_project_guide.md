@@ -30,3 +30,12 @@ Active project context is managed server-side via `ProjectContext::getId()` and 
 
 ## Context Switching & UI Indicators
 The active project is indicated in the top navigation header with an active project badge (e.g. `⚡ default`) alongside a project switcher dropdown. Administrators can quickly create new projects using the **New Project** button or manage project members and snapshot versions via the **Projects** module.
+
+## Access rules enforced by the APIs
+
+- **Generic CRUD (`api/crud.php`)** – a table registered to a project (`nu_project_tables`) is only reachable while that project is active (globeadmin must switch project first). Tables with no registration are treated as default-project data. `nu_*` system tables stay globeadmin-only, checked on the table name actually used.
+- **Forms / versions / rollback, report dashboards (`run_report`)** – every lookup is filtered by the active `project_id`.
+- **Files (`api/file.php`, `api/upload.php?action=delete`, `api/document.php`)** – `nu_files.project_id` is stamped on upload; a file from another project is reported as "not found". Files with no project (uploaded before this change) count as default-project files.
+- **Default project access** – by default every signed-in user may open the default project. To make it members-only add `$nuConfig['projectDefaultOpenAccess'] = false;` to `config.local.php`.
+- **Fail closed** – if the project lookup fails, `ProjectContext::setId()` returns `false`.
+- **UUID installs** – user ids are never cast to integers; project member/owner columns are widened to `VARCHAR(36)` automatically when `userIdType = 'uuid'`.

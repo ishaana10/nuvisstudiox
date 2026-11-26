@@ -34,6 +34,8 @@ if (!$f && $byName) {
     }
 }
 if (!$f) { http_response_code(404); exit('File not found'); }
+// A file recorded for another project is reported as missing (no hint that it exists).
+if (!empty($f['file_id']) && !NuFileStore::canAccess($f)) { http_response_code(404); exit('File not found'); }
 
 if (!empty($_GET['meta'])) {
     header('Content-Type: application/json; charset=utf-8');

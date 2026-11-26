@@ -428,6 +428,9 @@ function actionGetVersions($db) {
     $formId = $_GET['form_id'] ?? '';
     if (!$formId) { echo json_encode(['success' => false, 'error' => 'Missing form_id']); return; }
     try {
+        // The form must belong to the active project before its history is revealed.
+        $owned = $db->fetchOne('SELECT form_id FROM nu_forms WHERE form_id = ? AND project_id = ?', [$formId, ProjectContext::getId()]);
+        if (!$owned) { echo json_encode(['success' => false, 'error' => 'Form not found']); return; }
         $versions = $db->fetchAll('SELECT ver_id, ver_form_id, ver_created_by, ver_created_at FROM nu_form_versions WHERE ver_form_id = ? ORDER BY ver_id DESC LIMIT 50', [$formId]);
         echo json_encode(['success' => true, 'versions' => $versions]);
     } catch (Exception $e) {
@@ -444,7 +447,8 @@ function actionRollback($db) {
         if (!$ver) { echo json_encode(['success' => false, 'error' => 'Version not found']); return; }
 
         $formId = $ver['ver_form_id'];
-        $form = $db->fetchOne('SELECT * FROM nu_forms WHERE form_id = ?', [$formId]);
+        $pid = ProjectContext::getId();
+        $form = $db->fetchOne('SELECT * FROM nu_forms WHERE form_id = ? AND project_id = ?', [$formId, $pid]);
         if (!$form) { echo json_encode(['success' => false, 'error' => 'Form not found']); return; }
 
         $settings = json_decode($ver['ver_settings'], true) ?: [];
@@ -473,9 +477,9 @@ function actionRollback($db) {
             'form_panel_width'          => isset($settings['form_panel_width']) ? (int)$settings['form_panel_width'] : 0,
         ];
 
-        $db->update('nu_forms', $update, 'form_id = ?', [$formId]);
+        $db->update('nu_forms', $update, 'form_id = ? AND project_id = ?', [$formId, $pid]);
 
-        $updatedForm = $db->fetchOne('SELECT * FROM nu_forms WHERE form_id = ?', [$formId]);
+        $updatedForm = $db->fetchOne('SELECT * FROM nu_forms WHERE form_id = ? AND project_id = ?', [$formId, $pid]);
         echo json_encode(['success' => true, 'form' => $updatedForm]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getLine() . ': ' . $e->getMessage()]);

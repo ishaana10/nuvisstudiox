@@ -230,7 +230,7 @@ function checkRequirement($name, $check, $required = true) {
                             'form_created_by', 'report_created_by', 'query_created_by', 'doc_created_by',
                             'sig_user_id', 'event_user_id', 'ph_user_id', 'wf_created_by',
                             'wfi_started_by', 'wfh_actor_id', 'errlog_user_id', 'audit_user_id',
-                            'widget_user_id'
+                            'widget_user_id', 'pm_user_id', 'project_owner_id'
                         ];
                         foreach ($fk_cols as $col) {
                             $pattern = '/(`' . $col . '`\s+)INT(?:\(\d+\))?(?:\s+UNSIGNED)?/i';
